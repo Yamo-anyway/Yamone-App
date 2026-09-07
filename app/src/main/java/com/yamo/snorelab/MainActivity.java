@@ -119,8 +119,13 @@ public class MainActivity extends Activity {
         buildRoot();
         int retention = prefs.getInt("retention_days", 30);
         new Thread(() -> SessionStore.cleanupAudioOlderThan(this, retention)).start();
-        if ("settings".equals(getIntent().getStringExtra("start_screen"))) showSettings();
-        else showSleep();
+        String startScreen = getIntent().getStringExtra("start_screen");
+if ("settings".equals(startScreen)) showSettings();
+else if ("home".equals(startScreen)) showHome();
+else if ("activity".equals(startScreen)) showPlaceholderScreen("activity");
+else if ("ski".equals(startScreen)) showPlaceholderScreen("ski");
+else if ("alarm".equals(startScreen)) startActivity(new Intent(this, AlarmActivity.class));
+else showSleep();
         requestNotificationPermissionIfHelpful();
     }
 
@@ -183,7 +188,7 @@ public class MainActivity extends Activity {
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
         nav.setBackgroundColor(CARD);
 
-        alarmNav = navItem("⏰\n알람", false, v -> showPlaceholderScreen("alarm"));
+        alarmNav = navItem("⏰\n알람", false, v -> startActivity(new Intent(this, AlarmActivity.class)));
         sleepNav = navItem("☾\n수면", true, v -> { detailSession = null; showSleep(); });
         homeNav = navItem("⌂\n홈", false, v -> { detailSession = null; showHome(); });
         activityNav = navItem("🏃\n활동", false, v -> showPlaceholderScreen("activity"));
@@ -207,7 +212,7 @@ public class MainActivity extends Activity {
                     topInset = insets.getSystemWindowInsetTop();
                     bottomInset = insets.getSystemWindowInsetBottom();
                 }
-                v.setPadding(0, topInset + dp(8), 0, bottomInset);
+                v.setPadding(0, topInset + dp(4), 0, bottomInset);
                 return insets;
             });
             root.requestApplyInsets();
@@ -240,7 +245,7 @@ public class MainActivity extends Activity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(18), dp(14), dp(18), dp(12));
+        header.setPadding(dp(18), dp(7), dp(18), dp(8));
         header.setBackgroundColor(BG);
 
         LinearLayout words = new LinearLayout(this);
@@ -263,7 +268,7 @@ public class MainActivity extends Activity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(12), dp(14), dp(18), dp(12));
+        header.setPadding(dp(12), dp(7), dp(18), dp(8));
         header.setBackgroundColor(BG);
 
         TextView back = text("‹", 34, TEXT, false);
@@ -317,7 +322,7 @@ public class MainActivity extends Activity {
         TextView title = text("편하게 기록하고, 천천히 쌓아가요.", 18, TEXT, true);
         title.setGravity(Gravity.CENTER);
         hero.addView(title);
-        TextView desc = text("지금은 수면 기능을 먼저 사용할 수 있어요.", 12, MUTED, false);
+        TextView desc = text("지금은 알람과 수면 기능을 사용할 수 있어요.", 12, MUTED, false);
         desc.setGravity(Gravity.CENTER);
         desc.setPadding(0, dp(6), 0, dp(14));
         hero.addView(desc);

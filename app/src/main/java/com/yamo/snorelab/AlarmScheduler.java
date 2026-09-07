@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public final class AlarmScheduler {
     private static final String RUNTIME_PREFS = "snorelab_alarm_runtime_v1";
@@ -32,6 +33,19 @@ public final class AlarmScheduler {
     public static long nextTriggerMillis(AlarmStore.Item item, long afterMillis) {
         ZoneId zone = ZoneId.systemDefault();
         ZonedDateTime now = Instant.ofEpochMilli(afterMillis).atZone(zone);
+
+        if (item.specificDate != null && !item.specificDate.isEmpty()) {
+            try {
+                LocalDate date = LocalDate.parse(item.specificDate, DATE);
+                if (!item.skipDate.isEmpty() && item.skipDate.equals(item.specificDate)) return 0L;
+                ZonedDateTime candidate = date.atTime(item.hour, item.minute).atZone(zone);
+                long ms = candidate.toInstant().toEpochMilli();
+                return ms > afterMillis + 500 ? ms : 0L;
+            } catch (Exception ignored) {
+                return 0L;
+            }
+        }
+
         boolean repeats = item.repeats();
         for (int add = 0; add < 15; add++) {
             LocalDate date = now.toLocalDate().plusDays(add);
@@ -150,6 +164,6 @@ public final class AlarmScheduler {
         long ms = nextTriggerMillis(item, System.currentTimeMillis());
         if (ms <= 0) return "예약 없음";
         ZonedDateTime z = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault());
-        return z.format(DateTimeFormatter.ofPattern("M월 d일 (E) HH:mm"));
+        return z.format(DateTimeFormatter.ofPattern("M월 d일 (E) HH:mm", Locale.KOREAN));
     }
 }

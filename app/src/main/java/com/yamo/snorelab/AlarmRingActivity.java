@@ -2,8 +2,9 @@ package com.yamo.snorelab;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Color;
+import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -11,7 +12,9 @@ import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -21,12 +24,13 @@ import android.widget.Toast;
 import java.util.Locale;
 
 public class AlarmRingActivity extends Activity implements SensorEventListener {
-    private static final int BG = 0xFF071712;
-    private static final int TEXT = 0xFFF3FFFB;
-    private static final int MUTED = 0xFFA5C4B9;
-    private static final int MINT = 0xFF66E1C5;
-    private static final int CARD = 0xFF102821;
-    private static final int DANGER = 0xFFFF7182;
+    private int BG;
+    private int CARD;
+    private int CARD2;
+    private int TEXT;
+    private int MUTED;
+    private int PRIMARY;
+    private int PRIMARY2;
 
     private long alarmId;
     private AlarmStore.Item item;
@@ -35,6 +39,7 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
     private int shakeCount;
     private long firstShakeAt;
     private long lastShakeAt;
+    private TextView shakeProgress;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -45,12 +50,26 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+
+        SharedPreferences prefs = getSharedPreferences(SleepRecorderService.PREFS, MODE_PRIVATE);
+        boolean pink = "pink".equals(prefs.getString("yamone_theme", "mint"));
+        BG = pink ? 0xFFFFF7FA : 0xFFF7FFFB;
+        CARD = 0xFFFFFFFF;
+        CARD2 = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
+        TEXT = pink ? 0xFF4B2633 : 0xFF153633;
+        MUTED = pink ? 0xFF9A7180 : 0xFF718984;
+        PRIMARY = pink ? 0xFFFF769F : 0xFF56D1B3;
+        PRIMARY2 = pink ? 0xFFE94778 : 0xFF159A7A;
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 23) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
 
         alarmId = getIntent().getLongExtra("alarm_id", -1L);
         item = AlarmStore.find(this, alarmId);
-        if (item == null) { finish(); return; }
+        if (item == null) {
+            finish();
+            return;
+        }
 
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         accelerometer = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
@@ -60,81 +79,133 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(dp(26), dp(72), dp(26), dp(34));
+        root.setPadding(dp(24), dp(4), dp(24), dp(28));
         root.setBackgroundColor(BG);
 
-        TextView tag = text("꿀잠 Lab · 알람", 14, MINT, true);
-        tag.setGravity(Gravity.CENTER);
-        root.addView(tag, matchWrap());
+        if (Build.VERSION.SDK_INT >= 21) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                int top;
+                int bottom;
+                if (Build.VERSION.SDK_INT >= 30) {
+                    top = insets.getInsets(WindowInsets.Type.statusBars()).top;
+                    bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                } else {
+                    top = insets.getSystemWindowInsetTop();
+                    bottom = insets.getSystemWindowInsetBottom();
+                }
+                v.setPadding(dp(24), top + dp(4), dp(24), bottom + dp(22));
+                return insets;
+            });
+            root.requestApplyInsets();
+        }
 
-        TextView time = text(String.format(Locale.KOREAN, "%02d:%02d", item.hour, item.minute), 68, TEXT, true);
+        TextView brand = text("야모네 · 알람", 14, PRIMARY2, true);
+        brand.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams brandLp = matchWrap();
+        brandLp.topMargin = dp(12);
+        root.addView(brand, brandLp);
+
+        LinearLayout mainCard = new LinearLayout(this);
+        mainCard.setOrientation(LinearLayout.VERTICAL);
+        mainCard.setGravity(Gravity.CENTER_HORIZONTAL);
+        mainCard.setPadding(dp(20), dp(28), dp(20), dp(26));
+        mainCard.setBackground(round(CARD, 28));
+        LinearLayout.LayoutParams mcp = matchWrap();
+        mcp.topMargin = dp(18);
+        root.addView(mainCard, mcp);
+
+        TextView time = text(String.format(Locale.KOREAN, "%02d:%02d", item.hour, item.minute), 64, TEXT, true);
         time.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams tp = matchWrap(); tp.topMargin = dp(34);
-        root.addView(time, tp);
+        mainCard.addView(time, matchWrap());
 
-        TextView label = text(item.label, 22, TEXT, true);
+        TextView label = text(item.label == null || item.label.isEmpty() ? "알람" : item.label, 22, TEXT, true);
         label.setGravity(Gravity.CENTER);
-        label.setPadding(dp(8), dp(15), dp(8), dp(14));
-        root.addView(label, matchWrap());
+        label.setPadding(dp(8), dp(8), dp(8), dp(12));
+        mainCard.addView(label, matchWrap());
 
-        String method = "TTS".equals(item.alertMode) ? "🗣 텍스트 읽기" : "🔔 알람음";
-        TextView methodView = text(method, 14, MINT, true);
+        String method = "TTS".equals(item.alertMode) ? "🗣  텍스트 읽기" : "🔔  알람음";
+        TextView methodView = text(method + (item.vibrate ? "  ·  진동" : ""), 14, PRIMARY2, true);
         methodView.setGravity(Gravity.CENTER);
-        root.addView(methodView, matchWrap());
+        mainCard.addView(methodView, matchWrap());
 
         if ("TTS".equals(item.alertMode) && item.speechText != null && !item.speechText.trim().isEmpty()) {
             TextView speech = text("“" + item.speechText.trim() + "”", 14, MUTED, false);
             speech.setGravity(Gravity.CENTER);
             speech.setPadding(dp(10), dp(10), dp(10), 0);
-            root.addView(speech, matchWrap());
+            mainCard.addView(speech, matchWrap());
         }
 
-        TextView meta = text(retryText(item), 12, MUTED, false);
+        TextView meta = text("스누즈 " + item.snoozeMinutes + "분  ·  " + retryText(item), 12, MUTED, false);
         meta.setGravity(Gravity.CENTER);
         meta.setPadding(0, dp(10), 0, 0);
-        root.addView(meta, matchWrap());
+        mainCard.addView(meta, matchWrap());
 
         TextView spacer = new TextView(this);
         root.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1f));
 
         if (item.shakeToStop) {
-            TextView shake = text("📱 강하게 " + item.shakeCount + "번 흔들어도 종료됩니다", 14, MINT, true);
-            shake.setGravity(Gravity.CENTER);
-            shake.setPadding(0, 0, 0, dp(18));
-            root.addView(shake, matchWrap());
+            LinearLayout shakeCard = new LinearLayout(this);
+            shakeCard.setOrientation(LinearLayout.VERTICAL);
+            shakeCard.setGravity(Gravity.CENTER_HORIZONTAL);
+            shakeCard.setPadding(dp(18), dp(18), dp(18), dp(18));
+            shakeCard.setBackground(round(CARD2, 22));
+            TextView title = text("📱  흔들어서 종료", 16, TEXT, true);
+            title.setGravity(Gravity.CENTER);
+            shakeCard.addView(title, matchWrap());
+            shakeProgress = text("0 / " + item.shakeCount + "회", 28, PRIMARY2, true);
+            shakeProgress.setGravity(Gravity.CENTER);
+            shakeProgress.setPadding(0, dp(8), 0, dp(5));
+            shakeCard.addView(shakeProgress, matchWrap());
+            TextView rule = text("일반 종료 버튼은 사용할 수 없어요.\n정한 횟수만큼 강하게 흔들면 종료됩니다.", 12, MUTED, false);
+            rule.setGravity(Gravity.CENTER);
+            shakeCard.addView(rule, matchWrap());
+            LinearLayout.LayoutParams scp = matchWrap();
+            scp.bottomMargin = dp(14);
+            root.addView(shakeCard, scp);
         }
 
-        Button snooze = button("😴  5분 후 다시", CARD, TEXT);
+        Button snooze = button("😴  " + item.snoozeMinutes + "분 후 다시", CARD2, TEXT);
         snooze.setOnClickListener(v -> snooze());
-        root.addView(snooze, match(dp(56)));
+        root.addView(snooze, match(dp(58)));
 
-        Button stop = button("■  알람 종료", MINT, 0xFF06251D);
-        LinearLayout.LayoutParams sp = match(dp(64)); sp.topMargin = dp(12);
-        root.addView(stop, sp);
-        stop.setOnClickListener(v -> dismissAlarm());
+        if (!item.shakeToStop) {
+            Button stop = button("■  알람 종료", PRIMARY, pinkTextColor());
+            LinearLayout.LayoutParams sp = match(dp(64));
+            sp.topMargin = dp(12);
+            root.addView(stop, sp);
+            stop.setOnClickListener(v -> dismissAlarm(false));
+        }
 
         setContentView(root);
     }
 
+    private int pinkTextColor() {
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, MODE_PRIVATE).getString("yamone_theme", "mint"))
+                ? 0xFF4B2633 : 0xFF08352A;
+    }
+
     private String retryText(AlarmStore.Item a) {
-        if (a.retryCount == 0) return "놓친 알람 반복 없음";
-        if (a.retryCount < 0) return a.retryMinutes + "분 간격 · 종료할 때까지 반복";
-        return a.retryMinutes + "분 간격 · 최대 " + a.retryCount + "회 재알림";
+        if (a.retryCount == 0) return "재알림 없음";
+        if (a.retryCount < 0) return a.retryMinutes + "분 간격 재알림";
+        return a.retryMinutes + "분 간격 · 최대 " + a.retryCount + "회";
     }
 
     private void snooze() {
         AlarmScheduler.cancelRetry(this, alarmId);
-        if (AlarmScheduler.scheduleSnooze(this, alarmId, 5)) {
+        if (AlarmScheduler.scheduleSnooze(this, alarmId, item.snoozeMinutes)) {
             stopService(new Intent(this, AlarmRingService.class));
-            Toast.makeText(this, "5분 후 다시 울립니다.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, item.snoozeMinutes + "분 후 다시 울립니다.", Toast.LENGTH_SHORT).show();
             finishAndRemoveTask();
         } else {
             Toast.makeText(this, "정확한 알람 권한을 확인해주세요.", Toast.LENGTH_LONG).show();
         }
     }
 
-    private void dismissAlarm() {
+    private void dismissAlarm(boolean fromShake) {
+        if (item != null && item.shakeToStop && !fromShake) {
+            Toast.makeText(this, "흔들기 횟수를 완료해야 종료할 수 있어요.", Toast.LENGTH_SHORT).show();
+            return;
+        }
         AlarmScheduler.dismiss(this, alarmId);
         finishAndRemoveTask();
     }
@@ -152,46 +223,72 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
     }
 
     @Override public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() != Sensor.TYPE_ACCELEROMETER || !item.shakeToStop) return;
-        float x = event.values[0], y = event.values[1], z = event.values[2];
+        if (item == null || event.sensor.getType() != Sensor.TYPE_ACCELEROMETER || !item.shakeToStop) return;
+        float x = event.values[0];
+        float y = event.values[1];
+        float z = event.values[2];
         double magnitude = Math.sqrt(x * x + y * y + z * z);
         if (magnitude < 18.5) return;
+
         long now = System.currentTimeMillis();
         if (now - lastShakeAt < 280) return;
-        if (firstShakeAt == 0 || now - firstShakeAt > Math.max(3000L, item.shakeCount * 850L)) {
+        if (firstShakeAt == 0 || now - firstShakeAt > Math.max(3500L, item.shakeCount * 900L)) {
             firstShakeAt = now;
             shakeCount = 1;
         } else {
             shakeCount++;
         }
         lastShakeAt = now;
-        if (shakeCount >= Math.max(3, Math.min(10, item.shakeCount))) {
-            Toast.makeText(this, "흔들기 감지 · 알람 종료", Toast.LENGTH_SHORT).show();
-            dismissAlarm();
+        int required = Math.max(3, Math.min(10, item.shakeCount));
+        if (shakeProgress != null) shakeProgress.setText(Math.min(shakeCount, required) + " / " + required + "회");
+        if (shakeCount >= required) {
+            Toast.makeText(this, "흔들기 완료 · 알람 종료", Toast.LENGTH_SHORT).show();
+            dismissAlarm(true);
         }
     }
 
     @Override public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
     @Override public void onBackPressed() {
-        // Back cannot silently dismiss an alarm. Use the visible stop control or optional shake action.
+        // Back must never silently dismiss a ringing alarm.
     }
 
     private TextView text(String s, int sp, int color, boolean bold) {
         TextView v = new TextView(this);
-        v.setText(s); v.setTextSize(sp); v.setTextColor(color);
+        v.setText(s);
+        v.setTextSize(sp);
+        v.setTextColor(color);
         if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         return v;
     }
 
     private Button button(String s, int bg, int fg) {
         Button b = new Button(this);
-        b.setText(s); b.setAllCaps(false); b.setTextSize(16); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setTextColor(fg); b.setBackgroundColor(bg);
+        b.setText(s);
+        b.setAllCaps(false);
+        b.setTextSize(16);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextColor(fg);
+        b.setBackground(round(bg, 18));
         return b;
     }
 
-    private LinearLayout.LayoutParams match(int h) { return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h); }
-    private LinearLayout.LayoutParams matchWrap() { return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT); }
-    private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+    private GradientDrawable round(int fill, float radiusDp) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(dp(radiusDp));
+        return g;
+    }
+
+    private LinearLayout.LayoutParams match(int h) {
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
+    }
+
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    private int dp(float v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
 }

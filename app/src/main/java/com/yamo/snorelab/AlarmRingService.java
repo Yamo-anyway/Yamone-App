@@ -11,6 +11,7 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -37,8 +38,21 @@ public class AlarmRingService extends Service {
     private long alarmId = -1L;
     private AlarmStore.Item item;
     private boolean ringing;
+    private long ringStartedAt;
 
     private final Runnable autoStop = () -> stopRinging(false);
+    private final Runnable volumeRamp = new Runnable() {
+        @Override public void run() {
+            if (!ringing || item == null) return;
+            float volume = currentVolume();
+            if (audioTrack != null) {
+                try { audioTrack.setVolume(volume); } catch (Exception ignored) {}
+            }
+            if (item.gradualVolume && volume + 0.01f < targetVolume()) {
+                handler.postDelayed(this, 500L);
+            }
+        }
+    };
     private final Runnable speechLoop = new Runnable() {
         @Override public void run() {
             if (!ringing || item == null || !"TTS".equals(item.alertMode) || tts == null) return;
@@ -58,6 +72,8 @@ public class AlarmRingService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             long id = intent.getLongExtra("alarm_id", alarmId);
+            AlarmStore.Item found = AlarmStore.find(this, id);
+            if (found != null && found.shakeToStop) return START_NOT_STICKY;
             if (id >= 0) AlarmScheduler.dismiss(this, id);
             stopRinging(true);
             return START_NOT_STICKY;
@@ -65,7 +81,10 @@ public class AlarmRingService extends Service {
 
         alarmId = intent == null ? -1L : intent.getLongExtra("alarm_id", -1L);
         item = AlarmStore.find(this, alarmId);
-        if (item == null) { stopSelf(); return START_NOT_STICKY; }
+        if (item == null) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
 
         startForeground(NOTIFICATION_ID, buildNotification(item));
         beginRinging();
@@ -75,14 +94,15 @@ public class AlarmRingService extends Service {
     private void beginRinging() {
         stopMediaOnly();
         ringing = true;
+        ringStartedAt = System.currentTimeMillis();
         acquireWakeLock();
 
-        // User chooses exactly one primary alert method.
         if ("TTS".equals(item.alertMode)) startTts();
         else startSynthSound(item.soundStyle);
 
-        // Vibration is a local device cue and can accompany either primary method.
-        startVibration();
+        if (item.vibrate) startVibration();
+        handler.removeCallbacks(volumeRamp);
+        if (item.gradualVolume) handler.post(volumeRamp);
         handler.removeCallbacks(autoStop);
         handler.postDelayed(autoStop, 60_000L);
     }
@@ -91,24 +111,33 @@ public class AlarmRingService extends Service {
         Intent full = new Intent(this, AlarmRingActivity.class)
                 .putExtra("alarm_id", alarm.id)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent fullPi = PendingIntent.getActivity(this, (int)(alarm.id & 0x3fffffff), full,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Intent stop = new Intent(this, AlarmReceiver.class).setAction(AlarmReceiver.ACTION_STOP).putExtra("alarm_id", alarm.id);
-        PendingIntent stopPi = PendingIntent.getBroadcast(this, (int)(alarm.id & 0x3fffffff) + 17, stop,
+        PendingIntent fullPi = PendingIntent.getActivity(this, (int) (alarm.id & 0x3fffffff), full,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
+        Notification.Builder b = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(this, CHANNEL)
+                : new Notification.Builder(this);
         String method = "TTS".equals(alarm.alertMode) ? "텍스트 읽기" : "알람음";
         b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle(String.format(Locale.KOREAN, "%02d:%02d  %s", alarm.hour, alarm.minute, alarm.label))
-                .setContentText(method)
+                .setContentText(alarm.shakeToStop ? method + " · 흔들어서 종료" : method)
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setPriority(Notification.PRIORITY_MAX)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setContentIntent(fullPi)
-                .setFullScreenIntent(fullPi, true)
-                .addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "알람 종료", stopPi).build());
+                .setFullScreenIntent(fullPi, true);
+
+        // Shake-only alarms intentionally do not expose a notification stop shortcut.
+        if (!alarm.shakeToStop) {
+            Intent stop = new Intent(this, AlarmReceiver.class)
+                    .setAction(AlarmReceiver.ACTION_STOP)
+                    .putExtra("alarm_id", alarm.id);
+            PendingIntent stopPi = PendingIntent.getBroadcast(this, (int) (alarm.id & 0x3fffffff) + 17, stop,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            b.addAction(new Notification.Action.Builder(
+                    android.R.drawable.ic_menu_close_clear_cancel, "알람 종료", stopPi).build());
+        }
         return b.build();
     }
 
@@ -116,8 +145,8 @@ public class AlarmRingService extends Service {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm == null) return;
-        NotificationChannel ch = new NotificationChannel(CHANNEL, "꿀잠 Lab 알람", NotificationManager.IMPORTANCE_HIGH);
-        ch.setDescription("사용자가 설정한 정확 시간 알람");
+        NotificationChannel ch = new NotificationChannel(CHANNEL, "야모네 알람", NotificationManager.IMPORTANCE_HIGH);
+        ch.setDescription("사용자가 직접 설정한 정확 시간 알람");
         ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         ch.setSound(null, null);
         ch.enableVibration(false);
@@ -127,41 +156,41 @@ public class AlarmRingService extends Service {
     private void startSynthSound(String style) {
         try {
             int sampleRate = 44_100;
-            int seconds = 4;
-            short[] pcm = new short[sampleRate * seconds];
-            for (int i = 0; i < pcm.length; i++) {
-                double t = i / (double) sampleRate;
-                double amp;
-                double hz;
-                if ("PULSE".equals(style)) {
-                    boolean on = ((int)(t * 8)) % 2 == 0;
-                    hz = 1040.0;
-                    amp = on ? 0.82 : 0.0;
-                } else if ("EXTREME".equals(style)) {
-                    int part = ((int)(t * 4)) % 6;
-                    hz = part < 2 ? 760.0 : part < 4 ? 1080.0 : 1360.0;
-                    amp = ((int)(t * 12)) % 3 == 2 ? 0.35 : 0.92;
-                } else {
-                    int part = ((int)(t * 2)) % 4;
-                    hz = part < 2 ? 880.0 : 1180.0;
-                    amp = ((int)(t * 6)) % 3 == 2 ? 0.25 : 0.86;
-                }
-                double edge = Math.min(1.0, Math.min((t % 0.25) / 0.015, (0.25 - (t % 0.25)) / 0.015));
-                if (edge < 0) edge = 0;
-                pcm[i] = (short)(Short.MAX_VALUE * amp * edge * Math.sin(2.0 * Math.PI * hz * t));
-            }
-            AudioAttributes attrs = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+            short[] pcm = AlarmActivity.synth(style, sampleRate, 4);
+            AudioAttributes attrs = alarmAudioAttributes();
             AudioFormat format = new AudioFormat.Builder()
                     .setSampleRate(sampleRate)
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build();
             audioTrack = new AudioTrack(attrs, format, pcm.length * 2, AudioTrack.MODE_STATIC, AudioManager.AUDIO_SESSION_ID_GENERATE);
             audioTrack.write(pcm, 0, pcm.length);
             audioTrack.setLoopPoints(0, pcm.length, -1);
+            audioTrack.setVolume(currentVolume());
             audioTrack.play();
         } catch (Exception ignored) {}
+    }
+
+    private AudioAttributes alarmAudioAttributes() {
+        return new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+    }
+
+    private float targetVolume() {
+        if (item == null) return 0.8f;
+        return Math.max(0.10f, Math.min(1.0f, item.volumePercent / 100f));
+    }
+
+    private float currentVolume() {
+        float target = targetVolume();
+        if (item == null || !item.gradualVolume) return target;
+        long elapsed = Math.max(0L, System.currentTimeMillis() - ringStartedAt);
+        long total = Math.max(10, item.gradualSeconds) * 1000L;
+        float fraction = Math.min(1f, elapsed / (float) total);
+        float start = Math.max(0.08f, target * 0.18f);
+        return Math.min(target, start + (target - start) * fraction);
     }
 
     private void startVibration() {
@@ -177,6 +206,7 @@ public class AlarmRingService extends Service {
     private void startTts() {
         tts = new TextToSpeech(getApplicationContext(), status -> {
             if (status != TextToSpeech.SUCCESS || !ringing || item == null || !"TTS".equals(item.alertMode)) return;
+            try { tts.setAudioAttributes(alarmAudioAttributes()); } catch (Exception ignored) {}
             tts.setSpeechRate(0.95f);
             tts.setPitch("MALE".equals(item.voiceStyle) ? 0.82f : 1.12f);
             handler.postDelayed(speechLoop, 400L);
@@ -191,7 +221,9 @@ public class AlarmRingService extends Service {
         for (String part : parts) {
             if (containsHangul(part)) tts.setLanguage(Locale.KOREAN);
             else tts.setLanguage(Locale.ENGLISH);
-            tts.speak(part, idx == 0 ? TextToSpeech.QUEUE_FLUSH : TextToSpeech.QUEUE_ADD, null,
+            Bundle params = new Bundle();
+            params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, currentVolume());
+            tts.speak(part, idx == 0 ? TextToSpeech.QUEUE_FLUSH : TextToSpeech.QUEUE_ADD, params,
                     "alarm_" + alarmId + "_" + idx);
             idx++;
         }
@@ -229,13 +261,14 @@ public class AlarmRingService extends Service {
         try {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
             if (pm == null) return;
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SnoreLab:AlarmRing");
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Yamone:AlarmRing");
             wakeLock.acquire(70_000L);
         } catch (Exception ignored) {}
     }
 
     private void stopMediaOnly() {
         handler.removeCallbacks(speechLoop);
+        handler.removeCallbacks(volumeRamp);
         if (audioTrack != null) {
             try { audioTrack.stop(); } catch (Exception ignored) {}
             try { audioTrack.release(); } catch (Exception ignored) {}
@@ -255,8 +288,11 @@ public class AlarmRingService extends Service {
         ringing = false;
         handler.removeCallbacks(autoStop);
         handler.removeCallbacks(speechLoop);
+        handler.removeCallbacks(volumeRamp);
         stopMediaOnly();
-        if (wakeLock != null && wakeLock.isHeld()) { try { wakeLock.release(); } catch (Exception ignored) {} }
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try { wakeLock.release(); } catch (Exception ignored) {}
+        }
         wakeLock = null;
         stopForeground(true);
         stopSelf();
@@ -265,10 +301,14 @@ public class AlarmRingService extends Service {
     @Override public void onDestroy() {
         ringing = false;
         stopMediaOnly();
-        if (wakeLock != null && wakeLock.isHeld()) { try { wakeLock.release(); } catch (Exception ignored) {} }
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try { wakeLock.release(); } catch (Exception ignored) {}
+        }
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
 
-    @Override public IBinder onBind(Intent intent) { return null; }
+    @Override public IBinder onBind(Intent intent) {
+        return null;
+    }
 }

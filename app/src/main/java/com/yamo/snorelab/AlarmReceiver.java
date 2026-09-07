@@ -16,6 +16,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         if (id < 0) return;
 
         if (ACTION_STOP.equals(intent.getAction())) {
+            AlarmStore.Item stopItem = AlarmStore.find(context, id);
+            if (stopItem != null && stopItem.shakeToStop) return;
             AlarmScheduler.dismiss(context, id);
             return;
         }
@@ -60,7 +62,9 @@ public class AlarmReceiver extends BroadcastReceiver {
     }
 
     private void startRinging(Context context, long id) {
-        Intent service = new Intent(context, AlarmRingService.class).setAction(AlarmRingService.ACTION_START).putExtra("alarm_id", id);
+        Intent service = new Intent(context, AlarmRingService.class)
+                .setAction(AlarmRingService.ACTION_START)
+                .putExtra("alarm_id", id);
         if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(service);
         else context.startService(service);
     }
