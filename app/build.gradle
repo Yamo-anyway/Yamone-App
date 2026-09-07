@@ -15,11 +15,22 @@ android {
         manifestPlaceholders = [appLabel: '야모네']
     }
 
+    signingConfigs {
+        yamoneDev {
+            // Development-only key. Production/release signing must use a separate private key.
+            storeFile rootProject.file('dev-signing/yamone-dev.keystore')
+            storePassword 'android'
+            keyAlias 'yamone-dev'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix '.dev'
             versionNameSuffix '-dev'
             manifestPlaceholders = [appLabel: '야모네']
+            signingConfig signingConfigs.yamoneDev
         }
         release {
             minifyEnabled false
