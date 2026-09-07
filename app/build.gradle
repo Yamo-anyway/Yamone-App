@@ -10,8 +10,8 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 10
-        versionName '0.3.7-yamone-app'
+        versionCode 11
+        versionName '0.3.8-yamone-app'
         manifestPlaceholders = [appLabel: '야모네']
     }
 
@@ -27,7 +27,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix '.dev'
+            // Dedicated Yamone-App test package. Keeps legacy test installs/data untouched.
+            applicationIdSuffix '.yamone'
             versionNameSuffix '-dev'
             manifestPlaceholders = [appLabel: '야모네']
             signingConfig signingConfigs.yamoneDev
