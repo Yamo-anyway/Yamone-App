@@ -1,0 +1,103 @@
+name: Migrate Yamone source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/migrate-from-yamo-tool.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Yamone-App
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch legacy Yamone working source
+        shell: bash
+        run: |
+          rm -rf /tmp/yamo-tool
+          git clone --depth 1 --branch yamone-sleep-ui https://github.com/Yamo-anyway/Yamo-Tool.git /tmp/yamo-tool
+
+      - name: Produce fully patched Yamone source
+        shell: bash
+        working-directory: /tmp/yamo-tool
+        run: |
+          mkdir -p snorelab/app/src/main/res/drawable-nodpi
+          base64 -d snorelab/assets/yamone_alarm.webp.b64 > snorelab/app/src/main/res/drawable-nodpi/yamone_alarm.webp
+          base64 -d snorelab/assets/yamone_activity.webp.b64 > snorelab/app/src/main/res/drawable-nodpi/yamone_activity.webp
+          base64 -d snorelab/assets/yamone_home.webp.b64 > snorelab/app/src/main/res/drawable-nodpi/yamone_home.webp
+          base64 -d snorelab/assets/yamone_ski.webp.b64 > snorelab/app/src/main/res/drawable-nodpi/yamone_ski.webp
+          python3 snorelab/tools/apply_v011_ui.py
+          python3 snorelab/tools/apply_v020_alarm_nav.py
+          python3 snorelab/tools/apply_v030_activity_nav.py
+          python3 snorelab/tools/apply_v032_map.py
+          python3 snorelab/tools/apply_v033_yamone_sleep_ui.py
+          python3 snorelab/tools/apply_v034_yamone_shell.py
+          python3 snorelab/tools/apply_v035_status_refresh.py
+          python3 snorelab/tools/apply_v036_fixed_chrome.py
+
+      - name: Copy clean Android project
+        shell: bash
+        run: |
+          rm -rf app
+          cp -R /tmp/yamo-tool/snorelab/app ./app
+          cp /tmp/yamo-tool/snorelab/build.gradle ./build.gradle
+          cp /tmp/yamo-tool/snorelab/gradle.properties ./gradle.properties
+          cp /tmp/yamo-tool/snorelab/settings.gradle ./settings.gradle
+          find app -type d \( -name build -o -name .gradle \) -prune -exec rm -rf {} + || true
+
+      - name: Normalize Yamone baseline
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          settings = Path('settings.gradle')
+          s = settings.read_text(encoding='utf-8')
+          s = s.replace("rootProject.name = 'SnoreLab'", "rootProject.name = 'YamoneApp'")
+          settings.write_text(s, encoding='utf-8')
+
+          gradle = Path('app/build.gradle')
+          g = gradle.read_text(encoding='utf-8')
+          g = g.replace("versionCode 9", "versionCode 10")
+          g = g.replace("versionName '0.3.6-fixed-chrome'", "versionName '0.3.7-yamone-app'")
+          gradle.write_text(g, encoding='utf-8')
+
+          main = Path('app/src/main/java/com/yamo/snorelab/MainActivity.java')
+          m = main.read_text(encoding='utf-8')
+          buggy = '''                boolean recording = prefs.getBoolean(SleepRecorderService.KEY_RECORDING, false);\n        lastSleepRecordingUiState = recording;\n                boolean changed = lastSleepRecordingUiState == null || lastSleepRecordingUiState != recording;\n                if (changed || recording) {\n                    lastSleepRecordingUiState = recording;\n                    showSleep();\n                }'''
+          fixed = '''                boolean recording = prefs.getBoolean(SleepRecorderService.KEY_RECORDING, false);\n                boolean changed = lastSleepRecordingUiState == null || lastSleepRecordingUiState != recording;\n                if (changed || recording) {\n                    lastSleepRecordingUiState = recording;\n                    showSleep();\n                }'''
+          if buggy not in m:
+              raise SystemExit('sleep refresh baseline pattern not found')
+          main.write_text(m.replace(buggy, fixed, 1), encoding='utf-8')
+          PY
+
+          cat > .gitignore <<'EOF'
+          .gradle/
+          **/build/
+          local.properties
+          *.iml
+          .idea/
+          .DS_Store
+          captures/
+          EOF
+
+      - name: Commit migrated baseline
+        shell: bash
+        run: |
+          git config user.name "Yamone Migration"
+          git config user.email "actions@users.noreply.github.com"
+          git add app build.gradle gradle.properties settings.gradle .gitignore
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit"
+            exit 0
+          fi
+          git commit -m "Migrate Yamone Android baseline to dedicated repository"
+          git push origin HEAD:main
