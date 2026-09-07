@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.yamo.snorelab'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.yamo.snorelab'
+        minSdk 26
+        targetSdk 36
+        versionCode 10
+        versionName '0.3.7-yamone-app'
+        manifestPlaceholders = [appLabel: '야모네']
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.dev'
+            versionNameSuffix '-dev'
+            manifestPlaceholders = [appLabel: '야모네']
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'org.maplibre.gl:android-sdk:13.4.1'
+}
