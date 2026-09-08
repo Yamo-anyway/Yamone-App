@@ -62,7 +62,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private static final int NOTIFY_RECORDING = 5101;
     private static final int NOTIFY_GOAL = 5102;
 
-    // Local GPS filter V3. No paid/external road matching API is used.
+    // Local GPS filter V4. No paid/external road matching API is used.
     private static final float MAX_ACCEPTABLE_ACCURACY_M = 45f;
     private static final float MIN_NOISE_FLOOR_M = 2.0f;
     private static final float MAX_NOISE_FLOOR_M = 6.0f;
@@ -137,7 +137,10 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private void begin(Intent intent) {
         if (recording || runtime.getBoolean(KEY_RECORDING, false)) return;
         String requestedType = intent.getStringExtra("activity_type");
-        activityType = "running".equals(requestedType) ? "running" : "walking";
+        if ("cycling".equals(requestedType)) activityType = "cycling";
+        else if ("running".equals(requestedType)) activityType = "running";
+        else activityType = "walking";
+
         startMs = System.currentTimeMillis();
         goalDistanceM = Math.max(0, intent.getLongExtra("goal_distance_m", 0));
         goalTimeMs = Math.max(0, intent.getLongExtra("goal_time_ms", 0));
@@ -150,6 +153,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         stationaryGpsDiscards = 0;
         lastStepDetectedMs = 0;
         lastAcceptedSpeedMps = 0f;
+        steps = 0;
+        stepBase = -1f;
+        stepAvailable = false;
 
         Notification n = buildRecordingNotification(activityLabel() + " 기록을 시작합니다");
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFY_RECORDING, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
@@ -163,7 +169,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         }
 
         startLocation();
-        startSteps();
+        if (!isCycling()) startSteps();
         persistRuntime();
         writeMeta("recording", 0L);
         handler.removeCallbacks(ticker);
@@ -222,8 +228,6 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         }
 
         long dtMs = now - lastAcceptedTime;
-
-        // Do not draw a straight-line distance across a long GPS outage.
         if (dtMs > GPS_GAP_RESET_MS) {
             gpsGapResets++;
             currentSpeedKmh = 0f;
@@ -244,19 +248,18 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         float minMovingSpeedMps = minMovingSpeedMps();
         float maxMovingSpeedMps = maxMovingSpeedMps();
 
-        // Mode-specific impossible-speed rejection. Running permits fast sprint values that walking rejects.
         if (derivedMps > hardMaxSpeedMps && d > teleportDistanceM) {
             rejectedGpsPoints++;
             return;
         }
 
-        // Device-reported speed is used as a second opinion when a coordinate jump appears.
-        float mismatchDerivedLimit = isRunning() ? 7.0f : 4.5f;
-        float mismatchReportedLimit = isRunning() ? 5.5f : 3.0f;
+        float mismatchDerivedLimit = isCycling() ? 18.0f : (isRunning() ? 7.0f : 4.5f);
+        float mismatchReportedLimit = isCycling() ? 12.0f : (isRunning() ? 5.5f : 3.0f);
+        float mismatchDifference = isCycling() ? 5.0f : 2.5f;
         if (!Float.isNaN(reportedMps)
                 && derivedMps > mismatchDerivedLimit
                 && reportedMps < mismatchReportedLimit
-                && derivedMps - reportedMps > 2.5f
+                && derivedMps - reportedMps > mismatchDifference
                 && d > teleportDistanceM) {
             rejectedGpsPoints++;
             return;
@@ -270,15 +273,13 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             }
         }
 
-        boolean recentStep = stepAvailable && lastStepDetectedMs > 0
+        boolean recentStep = !isCycling() && stepAvailable && lastStepDetectedMs > 0
                 && System.currentTimeMillis() - lastStepDetectedMs <= RECENT_STEP_WINDOW_MS;
-        float stoppedSpeedLimit = isRunning() ? 0.45f : 0.30f;
+        float stoppedSpeedLimit = isCycling() ? 0.80f : (isRunning() ? 0.45f : 0.30f);
         boolean deviceSaysStopped = !Float.isNaN(reportedMps) && reportedMps <= stoppedSpeedLimit;
-        float stationaryEnvelopeM = Math.max(8f, combinedAccuracy * 1.10f);
+        float stationaryEnvelopeM = Math.max(isCycling() ? 10f : 8f, combinedAccuracy * 1.10f);
 
-        // When GNSS speed says stopped and the step sensor also has no recent motion,
-        // rebase the anchor instead of letting small drift accumulate into false distance.
-        if (deviceSaysStopped && !recentStep && d <= stationaryEnvelopeM) {
+        if (deviceSaysStopped && (isCycling() || !recentStep) && d <= stationaryEnvelopeM) {
             stationaryGpsDiscards++;
             currentSpeedKmh = 0f;
             rebaseStationaryAnchor(loc, now, false);
@@ -286,7 +287,6 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             return;
         }
 
-        // Small motion inside the GPS accuracy envelope is treated as stationary jitter.
         if (d < noiseFloorM) {
             currentSpeedKmh = 0f;
             if (now - lastWrittenTime >= 10_000L) {
@@ -298,7 +298,6 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             return;
         }
 
-        // Very slow drift updates the anchor without adding false distance.
         if (derivedMps < minMovingSpeedMps) {
             currentSpeedKmh = 0f;
             rebaseStationaryAnchor(loc, now, false);
@@ -337,23 +336,32 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         return "running".equals(activityType);
     }
 
+    private boolean isCycling() {
+        return "cycling".equals(activityType);
+    }
+
     private String activityLabel() {
+        if (isCycling()) return "자전거";
         return isRunning() ? "러닝" : "걷기";
     }
 
     private float hardMaxSpeedMps() {
-        return isRunning() ? 8.5f : 5.5f; // running 30.6 km/h, walking 19.8 km/h
+        if (isCycling()) return 25.0f; // 90 km/h: fast downhill is still retained.
+        return isRunning() ? 8.5f : 5.5f;
     }
 
     private float minMovingSpeedMps() {
+        if (isCycling()) return 0.80f;
         return isRunning() ? 0.60f : 0.35f;
     }
 
     private float maxMovingSpeedMps() {
+        if (isCycling()) return 22.2f; // about 80 km/h moving-time range.
         return isRunning() ? 7.5f : 4.5f;
     }
 
     private float maxAccelerationMps2() {
+        if (isCycling()) return 7.0f;
         return isRunning() ? 5.0f : 3.5f;
     }
 
@@ -382,7 +390,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     }
 
     @Override public void onSensorChanged(SensorEvent event) {
-        if (!recording || event == null || event.sensor == null || event.sensor.getType() != Sensor.TYPE_STEP_COUNTER) return;
+        if (isCycling() || !recording || event == null || event.sensor == null || event.sensor.getType() != Sensor.TYPE_STEP_COUNTER) return;
         float current = event.values.length > 0 ? event.values[0] : 0f;
         if (stepBase < 0) stepBase = current;
         long previousSteps = steps;
@@ -496,8 +504,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             m.put("durationMs", elapsedMs());
             m.put("movingMs", movingMs);
             m.put("distanceM", Math.round(distanceM));
-            m.put("steps", steps);
-            m.put("stepSensorAvailable", stepAvailable);
+            m.put("steps", isCycling() ? 0 : steps);
+            m.put("stepSensorAvailable", !isCycling() && stepAvailable);
             m.put("maxSpeedKmh", maxSpeedKmh);
             m.put("lastAltitudeM", Double.isNaN(altitudeM) ? JSONObject.NULL : altitudeM);
             m.put("goalDistanceM", goalDistanceM);
@@ -505,7 +513,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             m.put("goalState", goalState);
             m.put("splitsMs", WalkingStore.longListToJson(splitsMs));
             m.put("locationStorage", "local_only");
-            m.put("gpsFilter", "local_" + activityType + "_v3");
+            m.put("gpsFilter", "local_" + activityType + "_v4");
             m.put("rejectedGpsPoints", rejectedGpsPoints);
             m.put("gpsGapResets", gpsGapResets);
             m.put("stationaryGpsDiscards", stationaryGpsDiscards);
@@ -547,7 +555,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm == null) return;
         NotificationChannel rec = new NotificationChannel(CHANNEL_RECORDING, "활동 기록", NotificationManager.IMPORTANCE_LOW);
-        rec.setDescription("화면이 꺼진 동안에도 사용자가 시작한 걷기/러닝 GPS 기록을 유지합니다.");
+        rec.setDescription("화면이 꺼진 동안에도 사용자가 시작한 걷기/러닝/자전거 GPS 기록을 유지합니다.");
         nm.createNotificationChannel(rec);
         NotificationChannel goal = new NotificationChannel(CHANNEL_GOAL, "활동 목표", NotificationManager.IMPORTANCE_HIGH);
         goal.setDescription("사용자가 설정한 활동 목표 달성 또는 목표 시간 종료를 알려줍니다.");
@@ -572,7 +580,12 @@ public class WalkingRecorderService extends Service implements SensorEventListen
 
     private void updateForegroundNotification() {
         if (!recording) return;
-        String text = String.format(Locale.KOREAN, "%.2f km · %s · %d걸음", distanceM / 1000.0, formatClock(elapsedMs()), steps);
+        String text;
+        if (isCycling()) {
+            text = String.format(Locale.KOREAN, "%.2f km · %s · %.1f km/h", distanceM / 1000.0, formatClock(elapsedMs()), currentSpeedKmh);
+        } else {
+            text = String.format(Locale.KOREAN, "%.2f km · %s · %d걸음", distanceM / 1000.0, formatClock(elapsedMs()), steps);
+        }
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm != null) nm.notify(NOTIFY_RECORDING, buildRecordingNotification(text));
     }
