@@ -39,8 +39,13 @@
             android:exported="false" />
 
         <activity
-            android:name=".ExerciseActivity"
+            android:name=".EnhancedExerciseActivity"
             android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity-alias
+            android:name=".ExerciseActivity"
+            android:targetActivity=".EnhancedExerciseActivity"
             android:exported="false" />
 
         <activity
