@@ -114,9 +114,10 @@ public class ExerciseActivity extends Activity {
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(9));
         nav.setBackgroundColor(0xFF0E182A);
-        nav.addView(navItem("⏰\n알람", MUTED, v -> { startActivity(new Intent(this, AlarmActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
-        nav.addView(navItem("☾\n수면", MUTED, v -> { startActivity(new Intent(this, MainActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
+        nav.addView(navItem("⌂\n홈", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "home")); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
         nav.addView(navItem("🏃\n활동", PRIMARY2, v -> { detailOpen = false; showHome(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
+        nav.addView(navItem("⏰\n알람", MUTED, v -> { startActivity(new Intent(this, AlarmActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
+        nav.addView(navItem("☾\n수면", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "sleep")); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
         nav.addView(navItem("🎮\n미니게임", MUTED, v -> { startActivity(new Intent(this, MiniGameActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
