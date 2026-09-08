@@ -41,6 +41,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     public static final String PREFS = "snorelab_walking_runtime_v1";
     public static final String KEY_RECORDING = "recording";
     public static final String KEY_PAUSED = "paused";
+    public static final String KEY_ACTIVITY_TYPE = "activity_type";
     public static final String KEY_START_MS = "start_ms";
     public static final String KEY_ELAPSED_MS = "elapsed_ms";
     public static final String KEY_MOVING_MS = "moving_ms";
@@ -61,11 +62,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private static final int NOTIFY_RECORDING = 5101;
     private static final int NOTIFY_GOAL = 5102;
 
-    // Walking GPS filter V2. External map-matching APIs are intentionally not used.
+    // Local GPS filter V2. No paid/external road matching API is used.
     private static final float MAX_ACCEPTABLE_ACCURACY_M = 45f;
-    private static final float HARD_MAX_WALK_SPEED_MPS = 5.5f; // 19.8 km/h
-    private static final float MIN_MOVING_SPEED_MPS = 0.35f;
-    private static final float MAX_ACCELERATION_MPS2 = 3.5f;
     private static final float MIN_NOISE_FLOOR_M = 2.0f;
     private static final float MAX_NOISE_FLOOR_M = 6.0f;
 
@@ -76,6 +74,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private Sensor stepCounter;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    private String activityType = "walking";
     private long startMs;
     private long pausedAccumMs;
     private long pauseStartedMs;
@@ -132,6 +131,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
 
     private void begin(Intent intent) {
         if (recording || runtime.getBoolean(KEY_RECORDING, false)) return;
+        String requestedType = intent.getStringExtra("activity_type");
+        activityType = "running".equals(requestedType) ? "running" : "walking";
         startMs = System.currentTimeMillis();
         goalDistanceM = Math.max(0, intent.getLongExtra("goal_distance_m", 0));
         goalTimeMs = Math.max(0, intent.getLongExtra("goal_time_ms", 0));
@@ -142,7 +143,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         rejectedGpsPoints = 0;
         lastAcceptedSpeedMps = 0f;
 
-        Notification n = buildRecordingNotification("걷기 기록을 시작합니다");
+        Notification n = buildRecordingNotification(activityLabel() + " 기록을 시작합니다");
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFY_RECORDING, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
         else startForeground(NOTIFY_RECORDING, n);
 
@@ -207,7 +208,6 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             return;
         }
 
-        // GPS와 network provider가 섞일 때 과거 시각의 좌표가 늦게 도착하는 경우가 있다.
         if (now <= lastAcceptedTime) {
             rejectedGpsPoints++;
             return;
@@ -222,33 +222,37 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         float noiseFloorM = clamp(combinedAccuracy * 0.25f, MIN_NOISE_FLOOR_M, MAX_NOISE_FLOOR_M);
         float reportedMps = loc.hasSpeed() ? Math.max(0f, loc.getSpeed()) : Float.NaN;
         float teleportDistanceM = Math.max(10f, combinedAccuracy * 0.65f);
+        float hardMaxSpeedMps = hardMaxSpeedMps();
+        float minMovingSpeedMps = minMovingSpeedMps();
+        float maxMovingSpeedMps = maxMovingSpeedMps();
 
-        // 1) 걷기에서 물리적으로 매우 어려운 속도 + 충분한 점프 거리는 GPS 튐으로 본다.
-        if (derivedMps > HARD_MAX_WALK_SPEED_MPS && d > teleportDistanceM) {
+        // Mode-specific impossible-speed rejection. Running permits fast sprint values that walking rejects.
+        if (derivedMps > hardMaxSpeedMps && d > teleportDistanceM) {
             rejectedGpsPoints++;
             return;
         }
 
-        // 2) 기기 자체 속도와 좌표 기반 속도가 크게 충돌하면 좌표 점프 가능성이 높다.
+        // Device-reported speed is used as a second opinion when a coordinate jump appears.
+        float mismatchDerivedLimit = isRunning() ? 7.0f : 4.5f;
+        float mismatchReportedLimit = isRunning() ? 5.5f : 3.0f;
         if (!Float.isNaN(reportedMps)
-                && derivedMps > 4.5f
-                && reportedMps < 3.0f
+                && derivedMps > mismatchDerivedLimit
+                && reportedMps < mismatchReportedLimit
                 && derivedMps - reportedMps > 2.5f
                 && d > teleportDistanceM) {
             rejectedGpsPoints++;
             return;
         }
 
-        // 3) 짧은 시간 안의 비현실적인 가속도 변화도 한 번 더 걸러낸다.
         if (lastAcceptedSpeedMps > 0.3f && dtSec <= 4.0f) {
             float acceleration = Math.abs(derivedMps - lastAcceptedSpeedMps) / Math.max(0.25f, dtSec);
-            if (acceleration > MAX_ACCELERATION_MPS2 && d > Math.max(8f, noiseFloorM * 1.5f)) {
+            if (acceleration > maxAccelerationMps2() && d > Math.max(8f, noiseFloorM * 1.5f)) {
                 rejectedGpsPoints++;
                 return;
             }
         }
 
-        // GPS 정확도 범위 안의 작은 흔들림은 실제 이동 거리로 합산하지 않는다.
+        // Small motion inside the GPS accuracy envelope is treated as stationary jitter.
         if (d < noiseFloorM) {
             currentSpeedKmh = 0f;
             if (now - lastWrittenTime >= 10_000L) {
@@ -260,8 +264,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             return;
         }
 
-        // 매우 느린 변화는 정지 상태의 GPS 드리프트일 가능성이 높아 거리에는 더하지 않고 기준점만 갱신한다.
-        if (derivedMps < MIN_MOVING_SPEED_MPS) {
+        // Very slow drift updates the anchor without adding false distance.
+        if (derivedMps < minMovingSpeedMps) {
             currentSpeedKmh = 0f;
             acceptAnchor(loc, now, 0f, false);
             persistRuntime();
@@ -278,10 +282,10 @@ public class WalkingRecorderService extends Service implements SensorEventListen
 
         distanceM += d;
         currentSpeedKmh = Math.max(0f, filteredMps * 3.6f);
-        if (currentSpeedKmh > maxSpeedKmh && currentSpeedKmh <= HARD_MAX_WALK_SPEED_MPS * 3.6f) {
+        if (currentSpeedKmh > maxSpeedKmh && currentSpeedKmh <= hardMaxSpeedMps * 3.6f) {
             maxSpeedKmh = currentSpeedKmh;
         }
-        if (filteredMps >= MIN_MOVING_SPEED_MPS && filteredMps <= 4.5f) movingMs += dtMs;
+        if (filteredMps >= minMovingSpeedMps && filteredMps <= maxMovingSpeedMps) movingMs += dtMs;
 
         while (distanceM >= nextSplitM) {
             long split = Math.max(0, movingMs - lastSplitMovingMs);
@@ -293,6 +297,30 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         acceptAnchor(loc, now, filteredMps, true);
         persistRuntime();
         checkGoal();
+    }
+
+    private boolean isRunning() {
+        return "running".equals(activityType);
+    }
+
+    private String activityLabel() {
+        return isRunning() ? "러닝" : "걷기";
+    }
+
+    private float hardMaxSpeedMps() {
+        return isRunning() ? 8.5f : 5.5f; // running 30.6 km/h, walking 19.8 km/h
+    }
+
+    private float minMovingSpeedMps() {
+        return isRunning() ? 0.60f : 0.35f;
+    }
+
+    private float maxMovingSpeedMps() {
+        return isRunning() ? 7.5f : 4.5f;
+    }
+
+    private float maxAccelerationMps2() {
+        return isRunning() ? 5.0f : 3.5f;
     }
 
     private void acceptAnchor(Location loc, long now, float speedMps, boolean writeMovingPoint) {
@@ -355,12 +383,12 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             if (goalTimeMs <= 0 || elapsed <= goalTimeMs) {
                 goalState = "SUCCESS";
                 goalNotified = true;
-                notifyGoal("걷기 목표 달성", String.format(Locale.KOREAN, "%.2f km 목표를 달성했습니다.", distanceM / 1000.0));
+                notifyGoal(activityLabel() + " 목표 달성", String.format(Locale.KOREAN, "%.2f km 목표를 달성했습니다.", distanceM / 1000.0));
             }
         } else if (goalDistanceM == 0 && goalTimeMs > 0 && elapsed >= goalTimeMs) {
             goalState = "SUCCESS";
             goalNotified = true;
-            notifyGoal("걷기 목표 달성", "설정한 활동 시간을 완료했습니다.");
+            notifyGoal(activityLabel() + " 목표 달성", "설정한 활동 시간을 완료했습니다.");
         } else if (goalDistanceM > 0 && goalTimeMs > 0 && elapsed > goalTimeMs) {
             goalState = "TIMEOUT";
             goalNotified = true;
@@ -391,6 +419,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         runtime.edit()
                 .putBoolean(KEY_RECORDING, recording)
                 .putBoolean(KEY_PAUSED, paused)
+                .putString(KEY_ACTIVITY_TYPE, activityType)
                 .putLong(KEY_START_MS, startMs)
                 .putLong(KEY_ELAPSED_MS, elapsedMs())
                 .putLong(KEY_MOVING_MS, movingMs)
@@ -412,7 +441,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         if (sessionDir == null) return;
         try {
             JSONObject m = new JSONObject();
-            m.put("type", "walking");
+            m.put("type", activityType);
             m.put("status", status);
             m.put("startEpochMs", startMs);
             if (endMs > 0) m.put("endEpochMs", endMs);
@@ -428,7 +457,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             m.put("goalState", goalState);
             m.put("splitsMs", WalkingStore.longListToJson(splitsMs));
             m.put("locationStorage", "local_only");
-            m.put("gpsFilter", "local_walking_v2");
+            m.put("gpsFilter", "local_" + activityType + "_v2");
             m.put("rejectedGpsPoints", rejectedGpsPoints);
             WalkingStore.writeMeta(sessionDir, m);
         } catch (Exception ignored) {}
@@ -467,8 +496,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm == null) return;
-        NotificationChannel rec = new NotificationChannel(CHANNEL_RECORDING, "걷기 기록", NotificationManager.IMPORTANCE_LOW);
-        rec.setDescription("화면이 꺼진 동안에도 사용자가 시작한 걷기 GPS 기록을 유지합니다.");
+        NotificationChannel rec = new NotificationChannel(CHANNEL_RECORDING, "활동 기록", NotificationManager.IMPORTANCE_LOW);
+        rec.setDescription("화면이 꺼진 동안에도 사용자가 시작한 걷기/러닝 GPS 기록을 유지합니다.");
         nm.createNotificationChannel(rec);
         NotificationChannel goal = new NotificationChannel(CHANNEL_GOAL, "활동 목표", NotificationManager.IMPORTANCE_HIGH);
         goal.setDescription("사용자가 설정한 활동 목표 달성 또는 목표 시간 종료를 알려줍니다.");
@@ -483,7 +512,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         PendingIntent stopPi = PendingIntent.getService(this, 5103, stop, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL_RECORDING) : new Notification.Builder(this);
         return b.setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle(paused ? "걷기 기록 일시정지" : "걷기 기록 중")
+                .setContentTitle(paused ? activityLabel() + " 기록 일시정지" : activityLabel() + " 기록 중")
                 .setContentText(message)
                 .setContentIntent(openPi)
                 .setOngoing(true)
