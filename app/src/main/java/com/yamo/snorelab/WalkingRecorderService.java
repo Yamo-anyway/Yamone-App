@@ -61,6 +61,14 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private static final int NOTIFY_RECORDING = 5101;
     private static final int NOTIFY_GOAL = 5102;
 
+    // Walking GPS filter V2. External map-matching APIs are intentionally not used.
+    private static final float MAX_ACCEPTABLE_ACCURACY_M = 45f;
+    private static final float HARD_MAX_WALK_SPEED_MPS = 5.5f; // 19.8 km/h
+    private static final float MIN_MOVING_SPEED_MPS = 0.35f;
+    private static final float MAX_ACCELERATION_MPS2 = 3.5f;
+    private static final float MIN_NOISE_FLOOR_M = 2.0f;
+    private static final float MAX_NOISE_FLOOR_M = 6.0f;
+
     private SharedPreferences runtime;
     private LocationManager locationManager;
     private LocationListener locationListener;
@@ -84,7 +92,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private float accuracyM = Float.NaN;
     private Location lastAccepted;
     private long lastAcceptedTime;
+    private float lastAcceptedSpeedMps;
     private long lastWrittenTime;
+    private int rejectedGpsPoints;
     private File sessionDir;
     private long goalDistanceM;
     private long goalTimeMs;
@@ -129,6 +139,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         recording = true;
         paused = false;
         goalState = "ACTIVE";
+        rejectedGpsPoints = 0;
+        lastAcceptedSpeedMps = 0f;
 
         Notification n = buildRecordingNotification("걷기 기록을 시작합니다");
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFY_RECORDING, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
@@ -176,56 +188,124 @@ public class WalkingRecorderService extends Service implements SensorEventListen
 
     private void onLocationChanged(Location loc) {
         if (!recording || paused || loc == null) return;
-        if (loc.hasAccuracy() && loc.getAccuracy() > 50f) return;
+
+        if (loc.hasAccuracy() && loc.getAccuracy() > MAX_ACCEPTABLE_ACCURACY_M) {
+            rejectedGpsPoints++;
+            return;
+        }
+
         long now = loc.getTime() > 0 ? loc.getTime() : System.currentTimeMillis();
         accuracyM = loc.hasAccuracy() ? loc.getAccuracy() : Float.NaN;
-        if (loc.hasAltitude()) altitudeM = loc.getAltitude();
+        if (loc.hasAltitude()) {
+            if (Double.isNaN(altitudeM)) altitudeM = loc.getAltitude();
+            else if (!loc.hasAccuracy() || loc.getAccuracy() <= 25f) altitudeM = altitudeM * 0.80 + loc.getAltitude() * 0.20;
+        }
 
         if (lastAccepted == null) {
-            lastAccepted = new Location(loc);
-            lastAcceptedTime = now;
-            WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
-                    Double.isNaN(altitudeM) ? 0 : altitudeM, 0f);
-            lastWrittenTime = now;
+            acceptAnchor(loc, now, 0f, false);
             persistRuntime();
             return;
         }
 
-        long dtMs = Math.max(1, now - lastAcceptedTime);
-        float d = lastAccepted.distanceTo(loc);
-        float derivedMps = d / (dtMs / 1000f);
-
-        // 걷기 모드에서 현실적으로 불가능한 순간이동은 GPS 튐으로 제거한다.
-        if (derivedMps > 7.0f && d > 12f) return;
-
-        if (d >= 2.0f) {
-            distanceM += d;
-            currentSpeedKmh = Math.max(0, derivedMps * 3.6f);
-            if (currentSpeedKmh > maxSpeedKmh && currentSpeedKmh < 25.2f) maxSpeedKmh = currentSpeedKmh;
-            if (derivedMps >= 0.40f && derivedMps <= 4.5f) movingMs += dtMs;
-
-            while (distanceM >= nextSplitM) {
-                long split = Math.max(0, movingMs - lastSplitMovingMs);
-                splitsMs.add(split);
-                lastSplitMovingMs = movingMs;
-                nextSplitM += 1000;
-            }
-
-            lastAccepted = new Location(loc);
-            lastAcceptedTime = now;
-            WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
-                    Double.isNaN(altitudeM) ? 0 : altitudeM, derivedMps);
-            lastWrittenTime = now;
-        } else if (now - lastWrittenTime >= 10_000L) {
-            currentSpeedKmh = 0;
-            WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
-                    Double.isNaN(altitudeM) ? 0 : altitudeM, 0f);
-            lastWrittenTime = now;
-        } else {
-            currentSpeedKmh = 0;
+        // GPS와 network provider가 섞일 때 과거 시각의 좌표가 늦게 도착하는 경우가 있다.
+        if (now <= lastAcceptedTime) {
+            rejectedGpsPoints++;
+            return;
         }
+
+        long dtMs = now - lastAcceptedTime;
+        float dtSec = dtMs / 1000f;
+        float d = lastAccepted.distanceTo(loc);
+        float derivedMps = d / Math.max(0.001f, dtSec);
+        float previousAccuracy = lastAccepted.hasAccuracy() ? lastAccepted.getAccuracy() : 0f;
+        float combinedAccuracy = Math.max(previousAccuracy, loc.hasAccuracy() ? loc.getAccuracy() : 0f);
+        float noiseFloorM = clamp(combinedAccuracy * 0.25f, MIN_NOISE_FLOOR_M, MAX_NOISE_FLOOR_M);
+        float reportedMps = loc.hasSpeed() ? Math.max(0f, loc.getSpeed()) : Float.NaN;
+        float teleportDistanceM = Math.max(10f, combinedAccuracy * 0.65f);
+
+        // 1) 걷기에서 물리적으로 매우 어려운 속도 + 충분한 점프 거리는 GPS 튐으로 본다.
+        if (derivedMps > HARD_MAX_WALK_SPEED_MPS && d > teleportDistanceM) {
+            rejectedGpsPoints++;
+            return;
+        }
+
+        // 2) 기기 자체 속도와 좌표 기반 속도가 크게 충돌하면 좌표 점프 가능성이 높다.
+        if (!Float.isNaN(reportedMps)
+                && derivedMps > 4.5f
+                && reportedMps < 3.0f
+                && derivedMps - reportedMps > 2.5f
+                && d > teleportDistanceM) {
+            rejectedGpsPoints++;
+            return;
+        }
+
+        // 3) 짧은 시간 안의 비현실적인 가속도 변화도 한 번 더 걸러낸다.
+        if (lastAcceptedSpeedMps > 0.3f && dtSec <= 4.0f) {
+            float acceleration = Math.abs(derivedMps - lastAcceptedSpeedMps) / Math.max(0.25f, dtSec);
+            if (acceleration > MAX_ACCELERATION_MPS2 && d > Math.max(8f, noiseFloorM * 1.5f)) {
+                rejectedGpsPoints++;
+                return;
+            }
+        }
+
+        // GPS 정확도 범위 안의 작은 흔들림은 실제 이동 거리로 합산하지 않는다.
+        if (d < noiseFloorM) {
+            currentSpeedKmh = 0f;
+            if (now - lastWrittenTime >= 10_000L) {
+                WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
+                        Double.isNaN(altitudeM) ? 0 : altitudeM, 0f);
+                lastWrittenTime = now;
+            }
+            persistRuntime();
+            return;
+        }
+
+        // 매우 느린 변화는 정지 상태의 GPS 드리프트일 가능성이 높아 거리에는 더하지 않고 기준점만 갱신한다.
+        if (derivedMps < MIN_MOVING_SPEED_MPS) {
+            currentSpeedKmh = 0f;
+            acceptAnchor(loc, now, 0f, false);
+            persistRuntime();
+            return;
+        }
+
+        float filteredMps = derivedMps;
+        if (!Float.isNaN(reportedMps)) {
+            filteredMps = derivedMps * 0.65f + reportedMps * 0.35f;
+        }
+        if (lastAcceptedSpeedMps > 0f) {
+            filteredMps = lastAcceptedSpeedMps * 0.25f + filteredMps * 0.75f;
+        }
+
+        distanceM += d;
+        currentSpeedKmh = Math.max(0f, filteredMps * 3.6f);
+        if (currentSpeedKmh > maxSpeedKmh && currentSpeedKmh <= HARD_MAX_WALK_SPEED_MPS * 3.6f) {
+            maxSpeedKmh = currentSpeedKmh;
+        }
+        if (filteredMps >= MIN_MOVING_SPEED_MPS && filteredMps <= 4.5f) movingMs += dtMs;
+
+        while (distanceM >= nextSplitM) {
+            long split = Math.max(0, movingMs - lastSplitMovingMs);
+            splitsMs.add(split);
+            lastSplitMovingMs = movingMs;
+            nextSplitM += 1000;
+        }
+
+        acceptAnchor(loc, now, filteredMps, true);
         persistRuntime();
         checkGoal();
+    }
+
+    private void acceptAnchor(Location loc, long now, float speedMps, boolean writeMovingPoint) {
+        lastAccepted = new Location(loc);
+        lastAcceptedTime = now;
+        lastAcceptedSpeedMps = Math.max(0f, speedMps);
+        WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
+                Double.isNaN(altitudeM) ? 0 : altitudeM, writeMovingPoint ? speedMps : 0f);
+        lastWrittenTime = now;
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     @Override public void onSensorChanged(SensorEvent event) {
@@ -255,6 +335,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         paused = false;
         lastAccepted = null;
         lastAcceptedTime = 0;
+        lastAcceptedSpeedMps = 0f;
         currentSpeedKmh = 0;
         persistRuntime();
         updateForegroundNotification();
@@ -347,6 +428,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             m.put("goalState", goalState);
             m.put("splitsMs", WalkingStore.longListToJson(splitsMs));
             m.put("locationStorage", "local_only");
+            m.put("gpsFilter", "local_walking_v2");
+            m.put("rejectedGpsPoints", rejectedGpsPoints);
             WalkingStore.writeMeta(sessionDir, m);
         } catch (Exception ignored) {}
     }
