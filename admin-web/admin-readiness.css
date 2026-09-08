@@ -1,0 +1,6 @@
+.readiness-card { margin-top: 16px; }
+.readiness-pill.ready { background: var(--primary-light); color: var(--primary-dark); }
+.readiness-pill.blocked { background: #fff1f4; color: var(--danger); border-color: #f4ccd5; }
+.readiness-ok { color: var(--primary-dark); }
+.readiness-bad { color: var(--danger); }
+.readiness-hint { margin: 12px 0 0; line-height: 1.55; }
