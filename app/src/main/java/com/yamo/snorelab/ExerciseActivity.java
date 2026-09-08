@@ -417,6 +417,14 @@ public class ExerciseActivity extends Activity {
     }
 
     private void showDetail(File dir) {
+        showActivitySummary(dir, false);
+    }
+
+    private void showResult(File dir) {
+        showActivitySummary(dir, true);
+    }
+
+    private void showActivitySummary(File dir, boolean justFinished) {
         detailOpen = true; detailDir = dir; content.removeAllViews();
         ScrollView scroll = new ScrollView(this); LinearLayout page = page(); scroll.addView(page); content.addView(scroll);
         JSONObject m = WalkingStore.readMeta(dir);
@@ -427,7 +435,21 @@ public class ExerciseActivity extends Activity {
 
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
         TextView back = text("‹", 34, TEXT, false); back.setGravity(Gravity.CENTER); back.setOnClickListener(v -> { detailOpen = false; showHome(); }); top.addView(back, new LinearLayout.LayoutParams(dp(42), dp(50)));
-        top.addView(text(icon + " " + label + " 기록", 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(50), 1f)); page.addView(top);
+        top.addView(text(justFinished ? icon + " " + label + " 완료" : icon + " " + label + " 기록", 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(50), 1f)); page.addView(top);
+
+        if (justFinished) {
+            LinearLayout completed = card();
+            completed.setGravity(Gravity.CENTER_HORIZONTAL);
+            TextView check = text("✓", 34, SUCCESS, true); check.setGravity(Gravity.CENTER); completed.addView(check, match(dp(48)));
+            TextView done = text(label + " 기록이 저장되었습니다.", 17, TEXT, true); done.setGravity(Gravity.CENTER); completed.addView(done);
+            String goalState = m.optString("goalState", "ACTIVE");
+            if ("SUCCESS".equals(goalState)) {
+                TextView goalDone = text("설정한 목표도 달성했어요.", 12, SUCCESS, true); goalDone.setGravity(Gravity.CENTER); goalDone.setPadding(0, dp(5), 0, 0); completed.addView(goalDone);
+            } else if ("TIMEOUT".equals(goalState)) {
+                TextView goalEnd = text("설정한 목표 시간은 종료되었습니다.", 12, WARNING, true); goalEnd.setGravity(Gravity.CENTER); goalEnd.setPadding(0, dp(5), 0, 0); completed.addView(goalEnd);
+            }
+            page.addView(completed, cardParams());
+        }
 
         long start = m.optLong("startEpochMs", 0); long dist = m.optLong("distanceM", 0); long duration = m.optLong("durationMs", 0); long moving = m.optLong("movingMs", 0);
         TextView date = text(new SimpleDateFormat("yyyy년 M월 d일 (E) HH:mm", Locale.KOREAN).format(new Date(start)), 12, MUTED, false); date.setPadding(0, 0, 0, dp(10)); page.addView(date);
@@ -452,6 +474,14 @@ public class ExerciseActivity extends Activity {
             LinearLayout splitCard = card(); splitCard.addView(text("1km 구간", 15, TEXT, true));
             for (int i = 0; i < splits.length(); i++) splitCard.addView(kv((i + 1) + " km", formatClock(splits.optLong(i, 0))));
             page.addView(splitCard, cardParams());
+        }
+
+        if (justFinished) {
+            Button done = actionButton("완료", true, v -> { detailOpen = false; detailDir = null; showHome(); });
+            LinearLayout.LayoutParams dpv = match(dp(56));
+            dpv.topMargin = dp(2);
+            dpv.bottomMargin = dp(10);
+            page.addView(done, dpv);
         }
     }
 
@@ -491,9 +521,28 @@ public class ExerciseActivity extends Activity {
 
     private void stopExercise() {
         String type = runtime.getString(WalkingRecorderService.KEY_ACTIVITY_TYPE, "walking");
+        String path = runtime.getString(WalkingRecorderService.KEY_SESSION_DIR, "");
+        File completedDir = path.isEmpty() ? null : new File(path);
         startService(new Intent(this, WalkingRecorderService.class).setAction(WalkingRecorderService.ACTION_STOP));
         Toast.makeText(this, activityLabel(type) + " 기록을 저장합니다.", Toast.LENGTH_SHORT).show();
-        handler.postDelayed(this::showHome, 700);
+        waitForExerciseStop(completedDir, 0);
+    }
+
+    private void waitForExerciseStop(File completedDir, int attempt) {
+        handler.postDelayed(() -> {
+            boolean recording = runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false);
+            boolean complete = completedDir != null && completedDir.exists()
+                    && "complete".equals(WalkingStore.readMeta(completedDir).optString("status"));
+            if (!recording && complete) {
+                showResult(completedDir);
+                return;
+            }
+            if (attempt >= 20) {
+                if (complete) showResult(completedDir); else showHome();
+                return;
+            }
+            waitForExerciseStop(completedDir, attempt + 1);
+        }, 200L);
     }
 
     private static String activityLabel(String type) {
