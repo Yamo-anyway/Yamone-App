@@ -62,6 +62,7 @@ public class ExerciseActivity extends Activity {
     private TextView liveMoving;
     private TextView liveAltitude;
     private TextView liveAccuracy;
+    private TextView liveModeBreakdown;
     private TextView liveGoal;
     private ProgressBar liveProgress;
     private WalkingMapView liveRoute;
@@ -135,6 +136,7 @@ public class ExerciseActivity extends Activity {
     private void showHome() {
         detailOpen = false;
         detailDir = null;
+        liveModeBreakdown = null;
         content.removeAllViews();
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = page();
@@ -171,7 +173,7 @@ public class ExerciseActivity extends Activity {
         today.addView(text("걷기/러닝 기록 중 측정된 걸음만 합산합니다. 자전거는 걸음수에 포함하지 않습니다.", 11, MUTED, false));
         page.addView(today, cardParams());
 
-        addCategoryCard(page, "🚶  🏃", "걷기 / 러닝", "걷기 또는 러닝을 선택해 GPS 활동 기록을 시작합니다.", v -> showWalkRunMenu());
+        addCategoryCard(page, "🚶  🏃", "걷기 / 러닝", "걷기·러닝 단일 모드 또는 자동 통합모드로 기록합니다.", v -> showWalkRunMenu());
         addCategoryCard(page, "🚴", "자전거", "거리와 현재·평균·최고 속도, 이동 경로를 기록합니다.", v -> showCyclingMenu());
         addCategoryCard(page, "⛷  🏂", "스키 / 스노우보드", "겨울 활동은 지금은 준비된 화면만 보여줍니다.", v -> showSkiPreview());
     }
@@ -205,8 +207,14 @@ public class ExerciseActivity extends Activity {
         scroll.addView(page);
         content.addView(scroll);
         page.addView(backHeader("걷기 / 러닝"));
+
+        TextView guide = text("운동 방식을 선택하세요. 통합모드는 걷기와 러닝을 자동으로 구분합니다.", 12, MUTED, false);
+        guide.setPadding(0, 0, 0, dp(12));
+        page.addView(guide);
+
         addActivityStartCard(page, "walking", "🚶", "걷기", "예: 거리 5 + 제한시간 60 → 60분 안에 5km 목표");
         addActivityStartCard(page, "running", "🏃", "러닝", "예: 거리 10 + 제한시간 60 → 60분 안에 10km 목표");
+        addActivityStartCard(page, "walkrun", "🚶🏃", "통합모드", "걷기와 러닝을 섞어 운동할 때 자동으로 구간을 구분합니다.");
     }
 
     private void showCyclingMenu() {
@@ -247,11 +255,17 @@ public class ExerciseActivity extends Activity {
 
     private void addActivityStartCard(LinearLayout page, String type, String icon, String label, String example) {
         boolean cycling = "cycling".equals(type);
+        boolean walkrun = "walkrun".equals(type);
         LinearLayout startCard = card();
         startCard.addView(text(icon + " " + label, 19, TEXT, true));
-        String description = cycling
-                ? "GPS 경로 · 거리 · 시간 · 이동/정지 · 현재/평균/최고 속도 · 1km 구간을 기록합니다."
-                : "GPS 경로 · 거리 · 시간 · 이동/정지 · 걸음수 · 페이스 · 1km 랩을 기록합니다.";
+        String description;
+        if (cycling) {
+            description = "GPS 경로 · 거리 · 시간 · 이동/정지 · 현재/평균/최고 속도 · 1km 구간을 기록합니다.";
+        } else if (walkrun) {
+            description = "GPS와 걸음 정보를 이용해 걷기/러닝을 자동 구분합니다. 순간 속도 한 번으로는 모드를 바꾸지 않습니다.";
+        } else {
+            description = "GPS 경로 · 거리 · 시간 · 이동/정지 · 걸음수 · 페이스 · 1km 랩을 기록합니다.";
+        }
         TextView desc = text(description, 12, MUTED, false);
         desc.setPadding(0, dp(6), 0, dp(12));
         startCard.addView(desc);
@@ -280,13 +294,18 @@ public class ExerciseActivity extends Activity {
         String label = activityLabel(type);
         String icon = activityIcon(type);
         boolean cycling = "cycling".equals(type);
+        boolean walkrun = "walkrun".equals(type);
 
         LinearLayout hero = card();
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.addView(text(icon + " " + label + " 기록 중", 18, TEXT, true), new LinearLayout.LayoutParams(0, dp(38), 1f));
-        TextView state = text(runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false) ? "일시정지" : "GPS 기록", 12,
+        String stateText;
+        if (runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false)) stateText = "일시정지";
+        else if (walkrun) stateText = "running".equals(runtime.getString(WalkingRecorderService.KEY_AUTO_MOTION_MODE, "walking")) ? "현재 러닝" : "현재 걷기";
+        else stateText = "GPS 기록";
+        TextView state = text(stateText, 12,
                 runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false) ? WARNING : SUCCESS, true);
         state.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         top.addView(state, new LinearLayout.LayoutParams(dp(100), dp(38)));
@@ -313,6 +332,12 @@ public class ExerciseActivity extends Activity {
         row2.addView(metricBox("GPS 고도", liveAltitude), new LinearLayout.LayoutParams(0, dp(70), 1f));
         hero.addView(row2);
         liveAccuracy = text("GPS 정확도 --", 11, MUTED, false); liveAccuracy.setGravity(Gravity.CENTER); hero.addView(liveAccuracy);
+        if (walkrun) {
+            liveModeBreakdown = text("자동 구분 준비 중", 12, PRIMARY2, true);
+            liveModeBreakdown.setGravity(Gravity.CENTER);
+            liveModeBreakdown.setPadding(0, dp(8), 0, 0);
+            hero.addView(liveModeBreakdown);
+        }
         page.addView(hero, cardParams());
 
         long gd = runtime.getLong(WalkingRecorderService.KEY_GOAL_DISTANCE_M, 0);
@@ -345,6 +370,7 @@ public class ExerciseActivity extends Activity {
         if (liveDistance == null) return;
         String type = runtime.getString(WalkingRecorderService.KEY_ACTIVITY_TYPE, "walking");
         boolean cycling = "cycling".equals(type);
+        boolean walkrun = "walkrun".equals(type);
         long distance = runtime.getLong(WalkingRecorderService.KEY_DISTANCE_M, 0);
         long elapsed = runtime.getLong(WalkingRecorderService.KEY_ELAPSED_MS, 0);
         long moving = runtime.getLong(WalkingRecorderService.KEY_MOVING_MS, 0);
@@ -364,6 +390,15 @@ public class ExerciseActivity extends Activity {
         liveSpeed.setText(String.format(Locale.KOREAN, "%.1f km/h", speed));
         liveAltitude.setText(Float.isNaN(altitude) ? "-- m" : String.format(Locale.KOREAN, "%.0f m", altitude));
         liveAccuracy.setText(Float.isNaN(accuracy) ? "GPS 정확도 확인 중" : String.format(Locale.KOREAN, "GPS 정확도 ±%.0fm", accuracy));
+
+        if (walkrun && liveModeBreakdown != null) {
+            long wd = runtime.getLong(WalkingRecorderService.KEY_WALKING_DISTANCE_M, 0);
+            long rd = runtime.getLong(WalkingRecorderService.KEY_RUNNING_DISTANCE_M, 0);
+            long wt = runtime.getLong(WalkingRecorderService.KEY_WALKING_MOVING_MS, 0);
+            long rt = runtime.getLong(WalkingRecorderService.KEY_RUNNING_MOVING_MS, 0);
+            String mode = "running".equals(runtime.getString(WalkingRecorderService.KEY_AUTO_MOTION_MODE, "walking")) ? "🏃 러닝" : "🚶 걷기";
+            liveModeBreakdown.setText(String.format(Locale.KOREAN, "%s · 걷기 %.2fkm %s · 러닝 %.2fkm %s", mode, wd / 1000.0, formatClock(wt), rd / 1000.0, formatClock(rt)));
+        }
 
         if (liveGoal != null && liveProgress != null) {
             long gd = runtime.getLong(WalkingRecorderService.KEY_GOAL_DISTANCE_M, 0);
@@ -402,13 +437,19 @@ public class ExerciseActivity extends Activity {
             String label = activityLabel(type);
             String icon = activityIcon(type);
             boolean cycling = "cycling".equals(type);
+            boolean walkrun = "walkrun".equals(type);
             LinearLayout c = card(); c.setOrientation(LinearLayout.HORIZONTAL);
             LinearLayout left = new LinearLayout(this); left.setOrientation(LinearLayout.VERTICAL);
             long start = m.optLong("startEpochMs", 0); long dist = m.optLong("distanceM", 0); long moving = m.optLong("movingMs", 0);
             left.addView(text(icon + " " + label + " · " + new SimpleDateFormat("M월 d일 (E) HH:mm", Locale.KOREAN).format(new Date(start)), 14, TEXT, true));
-            String line = cycling
-                    ? String.format(Locale.KOREAN, "%.2f km · %s · 평균 %s · 최고 %.1f km/h", dist / 1000.0, formatClock(m.optLong("durationMs", 0)), formatAverageSpeed(moving, dist), m.optDouble("maxSpeedKmh", 0))
-                    : String.format(Locale.KOREAN, "%.2f km · %s · %s · %,d걸음", dist / 1000.0, formatClock(m.optLong("durationMs", 0)), formatPace(moving, dist), m.optLong("steps", 0));
+            String line;
+            if (cycling) {
+                line = String.format(Locale.KOREAN, "%.2f km · %s · 평균 %s · 최고 %.1f km/h", dist / 1000.0, formatClock(m.optLong("durationMs", 0)), formatAverageSpeed(moving, dist), m.optDouble("maxSpeedKmh", 0));
+            } else if (walkrun) {
+                line = String.format(Locale.KOREAN, "%.2f km · 걷기 %.2f km · 러닝 %.2f km · %,d걸음", dist / 1000.0, m.optLong("walkingDistanceM", 0) / 1000.0, m.optLong("runningDistanceM", 0) / 1000.0, m.optLong("steps", 0));
+            } else {
+                line = String.format(Locale.KOREAN, "%.2f km · %s · %s · %,d걸음", dist / 1000.0, formatClock(m.optLong("durationMs", 0)), formatPace(moving, dist), m.optLong("steps", 0));
+            }
             left.addView(text(line, 12, MUTED, false));
             c.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             TextView arrow = text("›", 28, PRIMARY2, false); arrow.setGravity(Gravity.CENTER); c.addView(arrow, new LinearLayout.LayoutParams(dp(32), ViewGroup.LayoutParams.MATCH_PARENT));
@@ -416,13 +457,8 @@ public class ExerciseActivity extends Activity {
         }
     }
 
-    private void showDetail(File dir) {
-        showActivitySummary(dir, false);
-    }
-
-    private void showResult(File dir) {
-        showActivitySummary(dir, true);
-    }
+    private void showDetail(File dir) { showActivitySummary(dir, false); }
+    private void showResult(File dir) { showActivitySummary(dir, true); }
 
     private void showActivitySummary(File dir, boolean justFinished) {
         detailOpen = true; detailDir = dir; content.removeAllViews();
@@ -432,6 +468,7 @@ public class ExerciseActivity extends Activity {
         String label = activityLabel(type);
         String icon = activityIcon(type);
         boolean cycling = "cycling".equals(type);
+        boolean walkrun = "walkrun".equals(type);
 
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
         TextView back = text("‹", 34, TEXT, false); back.setGravity(Gravity.CENTER); back.setOnClickListener(v -> { detailOpen = false; showHome(); }); top.addView(back, new LinearLayout.LayoutParams(dp(42), dp(50)));
@@ -466,6 +503,22 @@ public class ExerciseActivity extends Activity {
             summary.addView(kv("최고 속도", String.format(Locale.KOREAN, "%.1f km/h", m.optDouble("maxSpeedKmh", 0))));
         }
         page.addView(summary, cardParams());
+
+        if (walkrun) {
+            long wd = m.optLong("walkingDistanceM", 0);
+            long rd = m.optLong("runningDistanceM", 0);
+            long wt = m.optLong("walkingMovingMs", 0);
+            long rt = m.optLong("runningMovingMs", 0);
+            LinearLayout modes = card();
+            modes.addView(text("걷기 / 러닝 자동 구분", 15, TEXT, true));
+            modes.addView(kv("🚶 걷기", String.format(Locale.KOREAN, "%.2f km · %s · %s", wd / 1000.0, formatClock(wt), formatPace(wt, wd))));
+            modes.addView(kv("🏃 러닝", String.format(Locale.KOREAN, "%.2f km · %s · %s", rd / 1000.0, formatClock(rt), formatPace(rt, rd))));
+            modes.addView(kv("자동 전환", m.optInt("autoModeSwitches", 0) + "회"));
+            TextView note = text("속도 변화가 일정 시간 유지될 때만 걷기↔러닝을 전환합니다.", 11, MUTED, false);
+            note.setPadding(0, dp(7), 0, 0);
+            modes.addView(note);
+            page.addView(modes, cardParams());
+        }
 
         LinearLayout routeCard = card(); routeCard.addView(text("이동 경로", 15, TEXT, true)); WalkingMapView rv = new WalkingMapView(this); rv.setPoints(WalkingStore.readRoute(dir, 1200)); LinearLayout.LayoutParams rp = match(dp(230)); rp.topMargin = dp(8); routeCard.addView(rv, rp); page.addView(routeCard, cardParams());
 
@@ -547,11 +600,13 @@ public class ExerciseActivity extends Activity {
 
     private static String activityLabel(String type) {
         if ("cycling".equals(type)) return "자전거";
+        if ("walkrun".equals(type)) return "통합모드";
         return "running".equals(type) ? "러닝" : "걷기";
     }
 
     private static String activityIcon(String type) {
         if ("cycling".equals(type)) return "🚴";
+        if ("walkrun".equals(type)) return "🚶🏃";
         return "running".equals(type) ? "🏃" : "🚶";
     }
 
