@@ -97,11 +97,22 @@ public final class SleepUploadUiEnhancer {
             return;
         }
 
+        String message = "이 수면 기록의 분석 데이터를 서버로 보낼까요?\n\n"
+                + "보내는 정보\n"
+                + "• 수면 시작·종료 시각과 기록 시간\n"
+                + "• 코골이 후보 구간의 시점과 길이\n"
+                + "• 점수, 소리 크기(dBFS), 저주파 비율, 주기성, 제로크로싱, 판정 임계값 등 분석 수치\n"
+                + "• 코골이 후보 판정과 사용자가 수정한 판정 상태, 판정 엔진 버전\n\n"
+                + "보내지 않는 정보\n"
+                + "• 전체 녹음 및 코골이 후보 음원\n"
+                + "• 음원 파일명이나 저장 경로\n\n"
+                + "자동으로 전송하지 않으며, 이 기록은 한 번만 전송됩니다.";
+
         new AlertDialog.Builder(activity)
-                .setTitle("수면 기록 업로드")
-                .setMessage("이 수면 기록 1건을 서버로 업로드할까요?\n\n현재 수면 시간·코골이 후보·분석값·판정 상태만 전송합니다. 전체 녹음과 후보 음원은 전송하지 않습니다.\n\n한 번 업로드하면 이후 판정 내용을 바꾸더라도 다시 보내지 않습니다.")
+                .setTitle("수면 분석 데이터 업로드")
+                .setMessage(message)
                 .setNegativeButton("취소", null)
-                .setPositiveButton("업로드", (dialog, which) -> startUpload(activity, sessionDir, button))
+                .setPositiveButton("확인 후 업로드", (dialog, which) -> startUpload(activity, sessionDir, button))
                 .show();
     }
 
@@ -116,7 +127,7 @@ public final class SleepUploadUiEnhancer {
                 activity.runOnUiThread(() -> {
                     setUploadedStyle(activity, button);
                     Toast.makeText(activity,
-                            alreadyUploaded ? "이미 서버에 업로드된 기록입니다." : "수면 기록 1건을 업로드했습니다.",
+                            alreadyUploaded ? "이미 서버에 업로드된 기록입니다." : "수면 분석 데이터 1건을 업로드했습니다.",
                             Toast.LENGTH_SHORT).show();
                 });
             }
@@ -144,12 +155,12 @@ public final class SleepUploadUiEnhancer {
     private static void updatePrivacyCopy(View root) {
         TextView homePrivacy = findContainingText(root, "녹음과 분석 기록은 앱 내부에 저장하며 자동 업로드하지 않습니다.");
         if (homePrivacy != null) {
-            homePrivacy.setText("녹음과 분석 기록은 기본적으로 앱 내부에만 저장됩니다. 완료된 수면 기록에서 사용자가 직접 업로드를 선택한 경우에만 분석 기록 1건을 전송하며, 녹음 원음과 후보 음원은 보내지 않습니다.");
+            homePrivacy.setText("녹음과 분석 기록은 기본적으로 앱 내부에만 저장됩니다. 완료된 수면 기록에서 사용자가 직접 확인하고 업로드를 선택한 경우에만 분석 수치와 판정 기록 1건을 전송하며, 녹음 원음과 후보 음원은 보내지 않습니다.");
         }
 
         TextView settingsPrivacy = findContainingText(root, "수면 기록을 자체 서버로 자동 업로드하지 않습니다.");
         if (settingsPrivacy != null) {
-            settingsPrivacy.setText("✓  완료된 수면 기록은 사용자가 직접 선택할 때만 분석 기록 1건을 업로드하며, 녹음은 보내지 않습니다.");
+            settingsPrivacy.setText("✓  완료된 수면 기록은 사용자가 전송 내용을 확인한 뒤 직접 선택할 때만 분석 데이터 1건을 업로드하며, 녹음은 보내지 않습니다.");
         }
     }
 
