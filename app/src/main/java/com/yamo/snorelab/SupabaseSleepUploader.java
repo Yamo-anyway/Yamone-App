@@ -33,9 +33,30 @@ public final class SupabaseSleepUploader {
                 if (result.success) callback.onSuccess(result.alreadyUploaded);
                 else callback.onFailure(result.message);
             } catch (Exception e) {
-                callback.onFailure("수면 기록 업로드 중 오류가 발생했습니다.");
+                callback.onFailure(uploadErrorMessage(e));
             }
         });
+    }
+
+    private static String uploadErrorMessage(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase();
+                if (lower.contains("anonymous sign-in disabled")) {
+                    return "서버의 익명 로그인 설정이 꺼져 있어 업로드할 수 없습니다. 관리자 설정을 확인해 주세요.";
+                }
+                if (lower.contains("anonymous sign-in failed")) {
+                    return "익명 서버 연결을 만들지 못했습니다. 네트워크 또는 서버 인증 설정을 확인해 주세요.";
+                }
+                if (lower.contains("receipt check failed")) {
+                    return "이 기록의 기존 업로드 여부를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+                }
+            }
+            current = current.getCause();
+        }
+        return "수면 기록 업로드 중 오류가 발생했습니다.";
     }
 
     private static Result uploadBlocking(Context context, File sessionDir) throws Exception {
@@ -120,7 +141,7 @@ public final class SupabaseSleepUploader {
                 putDoubleIfPresent(event, "zero_cross_rate_avg", source, "zeroCrossRateAvg");
                 putDoubleIfPresent(event, "threshold_avg", source, "thresholdAvg");
                 if (source.has("candidateWindowCount") && !source.isNull("candidateWindowCount")) {
-                    event.put("candidate_window_count", Math.max(0, source.optInt("candidateWindowCount", 0)));
+                    event.put("candidate_windows", Math.max(0, source.optInt("candidateWindowCount", 0)));
                 }
                 event.put("review_label", reviewLabel(source.optString("reviewLabel", "UNREVIEWED")));
                 cleanEvents.put(event);
