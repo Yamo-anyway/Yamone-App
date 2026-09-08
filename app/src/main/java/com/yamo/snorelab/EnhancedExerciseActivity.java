@@ -22,7 +22,7 @@ import java.util.Locale;
  * Keeps the existing ExerciseActivity UI intact and upgrades only the weekly
  * chart with activity-family and metric filters.
  */
-public class EnhancedExerciseActivity extends ExerciseActivity {
+public class EnhancedExerciseActivity extends UploadExerciseActivity {
     private static final int CARD = 0xFF16243B;
     private static final int CARD2 = 0xFF111C31;
     private static final int TEXT = 0xFFF5F7FF;
