@@ -17,8 +17,11 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 public final class WalkingStore {
+    private static volatile File lastReadMetaDir;
+
     private WalkingStore() {}
 
     public static final class Point {
@@ -77,6 +80,7 @@ public final class WalkingStore {
         if (dir == null) return new JSONObject();
         File f = new File(dir, "session.json");
         if (!f.exists()) return new JSONObject();
+        lastReadMetaDir = dir;
         try (BufferedReader r = new BufferedReader(new FileReader(f))) {
             StringBuilder b = new StringBuilder();
             String line;
@@ -84,6 +88,50 @@ public final class WalkingStore {
             return new JSONObject(b.toString());
         } catch (Exception e) {
             return new JSONObject();
+        }
+    }
+
+    public static File getLastReadMetaDir() {
+        return lastReadMetaDir;
+    }
+
+    public static synchronized String ensureClientRecordId(File dir) {
+        JSONObject meta = readMeta(dir);
+        if (!"complete".equals(meta.optString("status"))) return "";
+
+        String existing = meta.optString("clientRecordId", "").trim();
+        if (!existing.isEmpty()) {
+            try {
+                UUID.fromString(existing);
+                return existing;
+            } catch (Exception ignored) {}
+        }
+
+        String created = UUID.randomUUID().toString();
+        try {
+            meta.put("clientRecordId", created);
+            writeMeta(dir, meta);
+            String saved = readMeta(dir).optString("clientRecordId", "");
+            return created.equals(saved) ? created : "";
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static boolean wasUploaded(File dir) {
+        return readMeta(dir).optBoolean("uploaded", false);
+    }
+
+    public static synchronized boolean markUploaded(File dir, long uploadedAtEpochMs) {
+        JSONObject meta = readMeta(dir);
+        if (!"complete".equals(meta.optString("status"))) return false;
+        try {
+            meta.put("uploaded", true);
+            meta.put("uploadedAtEpochMs", uploadedAtEpochMs);
+            writeMeta(dir, meta);
+            return readMeta(dir).optBoolean("uploaded", false);
+        } catch (Exception e) {
+            return false;
         }
     }
 
