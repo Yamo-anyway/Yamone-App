@@ -1,0 +1,46 @@
+.record-delete-button {
+  appearance: none;
+  border: 1px solid rgba(205, 79, 88, 0.22);
+  background: rgba(255, 238, 240, 0.96);
+  color: #b63f49;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
+}
+
+.record-delete-button:hover:not(:disabled) {
+  background: #ffe4e7;
+  transform: translateY(-1px);
+}
+
+.record-delete-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.delete-column-head,
+.delete-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sleep-delete-button {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.sleep-title-row {
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .record-delete-button {
+    padding: 6px 10px;
+  }
+}
