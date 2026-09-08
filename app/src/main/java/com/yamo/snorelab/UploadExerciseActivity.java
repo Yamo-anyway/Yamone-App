@@ -16,6 +16,7 @@ import android.widget.Toast;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.lang.reflect.Field;
 
 /**
  * Adds opt-in upload controls without changing the existing activity design.
@@ -62,7 +63,7 @@ public class UploadExerciseActivity extends ExerciseActivity {
         ViewGroup page = (ViewGroup) deleteButton.getParent();
         if (page.findViewWithTag(UPLOAD_TAG) != null) return;
 
-        File dir = WalkingStore.getLastReadMetaDir();
+        File dir = currentDetailDir();
         if (!isOwnedCompletedSession(dir)) return;
 
         Button upload = buildUploadButton(dir);
@@ -75,6 +76,17 @@ public class UploadExerciseActivity extends ExerciseActivity {
         params.topMargin = dp(2);
         params.bottomMargin = dp(8);
         page.addView(upload, index, params);
+    }
+
+    private File currentDetailDir() {
+        try {
+            Field field = ExerciseActivity.class.getDeclaredField("detailDir");
+            field.setAccessible(true);
+            Object value = field.get(this);
+            return value instanceof File ? (File) value : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private Button buildUploadButton(File dir) {
