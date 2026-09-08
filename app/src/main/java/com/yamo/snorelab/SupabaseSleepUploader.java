@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
 
 /**
  * Sends one completed sleep record only after an explicit user action.
- * Audio files and audio file paths are intentionally excluded.
+ * Audio bytes, audio file names, and audio file paths are intentionally excluded.
  */
 public final class SupabaseSleepUploader {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
@@ -106,19 +106,31 @@ public final class SupabaseSleepUploader {
 
                 JSONObject event = new JSONObject();
                 event.put("index", i);
+                event.put("auto_candidate", true);
                 event.put("start_offset_ms", Math.max(0, source.optLong("startOffsetMs", 0)));
                 event.put("end_offset_ms", Math.max(0, source.optLong("endOffsetMs", 0)));
                 event.put("duration_ms", eventDuration);
-                event.put("score_avg", source.optDouble("scoreAvg", 0));
-                event.put("score_max", source.optDouble("scoreMax", 0));
-                event.put("dbfs_max", source.optDouble("dbfsMax", 0));
-                event.put("low_band_ratio_avg", source.optDouble("lowBandRatioAvg", 0));
+                putDoubleIfPresent(event, "score_avg", source, "scoreAvg");
+                putDoubleIfPresent(event, "score_max", source, "scoreMax");
+                putDoubleIfPresent(event, "dbfs_avg", source, "dbfsAvg");
+                putDoubleIfPresent(event, "dbfs_max", source, "dbfsMax");
+                putDoubleIfPresent(event, "low_band_ratio_avg", source, "lowBandRatioAvg");
+                putDoubleIfPresent(event, "periodicity_avg", source, "periodicityAvg");
+                putDoubleIfPresent(event, "periodicity_max", source, "periodicityMax");
+                putDoubleIfPresent(event, "zero_cross_rate_avg", source, "zeroCrossRateAvg");
+                putDoubleIfPresent(event, "threshold_avg", source, "thresholdAvg");
+                if (source.has("candidateWindowCount") && !source.isNull("candidateWindowCount")) {
+                    event.put("candidate_window_count", Math.max(0, source.optInt("candidateWindowCount", 0)));
+                }
                 event.put("review_label", reviewLabel(source.optString("reviewLabel", "UNREVIEWED")));
                 cleanEvents.put(event);
             }
         }
 
         JSONObject metrics = new JSONObject();
+        metrics.put("analysis_schema", "sleep_features_v2");
+        String detectorVersion = meta.optString("detectorVersion", "");
+        if (!detectorVersion.isEmpty()) metrics.put("detector_version", detectorVersion);
         metrics.put("candidate_count", cleanEvents.length());
         metrics.put("candidate_duration_ms", candidateMs);
         metrics.put("reviewed_count", Math.max(0, meta.optInt("reviewedCount", 0)));
@@ -138,6 +150,13 @@ public final class SupabaseSleepUploader {
         payload.put("snore_events", confirmed);
         payload.put("metrics", metrics);
         return payload;
+    }
+
+    private static void putDoubleIfPresent(JSONObject target, String targetKey,
+                                           JSONObject source, String sourceKey) throws Exception {
+        if (!source.has(sourceKey) || source.isNull(sourceKey)) return;
+        double value = source.optDouble(sourceKey, Double.NaN);
+        if (!Double.isNaN(value) && !Double.isInfinite(value)) target.put(targetKey, value);
     }
 
     private static boolean recordWasUploaded(String accessToken, String clientRecordId) throws Exception {
