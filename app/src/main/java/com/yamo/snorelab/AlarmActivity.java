@@ -122,11 +122,11 @@ public class AlarmActivity extends Activity {
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
         nav.setBackgroundColor(CARD);
+        nav.addView(navItem("⌂\n홈", false, v -> goMain("home")), new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(navItem("🏃\n활동", false, v -> { startActivity(new Intent(this, ExerciseActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(navItem("⏰\n알람", true, v -> showList()), new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(navItem("☾\n수면", false, v -> goMain("sleep")), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("⌂\n홈", false, v -> goMain("home")), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("🏃\n활동", false, v -> goMain("activity")), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("⛷\n스키", false, v -> goMain("ski")), new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(navItem("🎮\n미니게임", false, v -> { startActivity(new Intent(this, MiniGameActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         if (Build.VERSION.SDK_INT >= 21) {
