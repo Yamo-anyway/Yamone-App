@@ -18,8 +18,8 @@
 
         <form id="loginForm" class="login-form">
           <label>
-            <span>이메일</span>
-            <input id="emailInput" type="email" autocomplete="username" required placeholder="admin@example.com" />
+            <span>관리자 ID</span>
+            <input id="emailInput" type="text" autocomplete="username" required placeholder="yamone" autocapitalize="none" spellcheck="false" />
           </label>
           <label>
             <span>비밀번호</span>
@@ -31,7 +31,7 @@
 
         <div class="security-note">
           <strong>관리자 전용</strong>
-          <span>일반 계정은 서버에서 다시 차단됩니다. 서비스 키는 이 웹에 포함되지 않습니다.</span>
+          <span>관리자 ID는 yamone 하나만 사용합니다. 일반 계정은 서버에서 다시 차단되며 서비스 키는 이 웹에 포함되지 않습니다.</span>
         </div>
       </div>
     </section>
@@ -126,6 +126,7 @@
     </section>
   </main>
 
+  <script src="./admin-id.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
