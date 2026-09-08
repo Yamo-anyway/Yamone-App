@@ -653,6 +653,15 @@ public class ExerciseActivity extends Activity {
         }
         page.addView(summary, cardParams());
 
+        if (!cycling) {
+            Button editType = ghostButton("운동 종류 변경", v -> showActivityTypeEditor(dir, justFinished));
+            editType.setTextColor(PRIMARY2);
+            LinearLayout.LayoutParams editParams = match(dp(52));
+            editParams.topMargin = dp(2);
+            editParams.bottomMargin = dp(10);
+            page.addView(editType, editParams);
+        }
+
         if (walkrun) {
             long wd = m.optLong("walkingDistanceM", 0);
             long rd = m.optLong("runningDistanceM", 0);
@@ -691,6 +700,93 @@ public class ExerciseActivity extends Activity {
             dpv.topMargin = dp(2);
             dpv.bottomMargin = dp(10);
             page.addView(done, dpv);
+        }
+    }
+
+    private void showActivityTypeEditor(File dir, boolean justFinished) {
+        if (dir == null || !dir.exists() || !isOwnedSessionDir(dir)) {
+            Toast.makeText(this, "수정할 수 없는 기록입니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        JSONObject meta = WalkingStore.readMeta(dir);
+        if (!"complete".equals(meta.optString("status"))) {
+            Toast.makeText(this, "완료된 기록만 수정할 수 있습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String currentType = meta.optString("type", "walking");
+        if ("cycling".equals(currentType)) {
+            Toast.makeText(this, "자전거 기록은 운동 종류를 변경하지 않습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        boolean hasWalkRunBreakdown = meta.has("walkingDistanceM") || meta.has("runningDistanceM")
+                || "walkrun".equals(meta.optString("originalType", ""));
+        final String[] types = hasWalkRunBreakdown
+                ? new String[]{"walking", "running", "walkrun"}
+                : new String[]{"walking", "running"};
+        final String[] labels = hasWalkRunBreakdown
+                ? new String[]{"🚶 걷기", "🏃 러닝", "🚶🏃 통합모드"}
+                : new String[]{"🚶 걷기", "🏃 러닝"};
+
+        int selected = 0;
+        for (int i = 0; i < types.length; i++) {
+            if (types[i].equals(currentType)) { selected = i; break; }
+        }
+        final int[] chosen = {selected};
+
+        new AlertDialog.Builder(this)
+                .setTitle("운동 종류 변경")
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> chosen[0] = which)
+                .setNegativeButton("취소", null)
+                .setPositiveButton("변경", (dialog, which) -> updateActivityType(dir, types[chosen[0]], justFinished))
+                .show();
+    }
+
+    private void updateActivityType(File dir, String newType, boolean justFinished) {
+        if (dir == null || !dir.exists() || !isOwnedSessionDir(dir)) {
+            Toast.makeText(this, "수정할 수 없는 기록입니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!"walking".equals(newType) && !"running".equals(newType) && !"walkrun".equals(newType)) {
+            Toast.makeText(this, "지원하지 않는 운동 종류입니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        JSONObject meta = WalkingStore.readMeta(dir);
+        if (!"complete".equals(meta.optString("status"))) {
+            Toast.makeText(this, "완료된 기록만 수정할 수 있습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String oldType = meta.optString("type", "walking");
+        if ("cycling".equals(oldType)) {
+            Toast.makeText(this, "자전거 기록은 운동 종류를 변경하지 않습니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        boolean canUseWalkRun = meta.has("walkingDistanceM") || meta.has("runningDistanceM")
+                || "walkrun".equals(meta.optString("originalType", "")) || "walkrun".equals(oldType);
+        if ("walkrun".equals(newType) && !canUseWalkRun) {
+            Toast.makeText(this, "통합모드 구간 정보가 없는 기록입니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (newType.equals(oldType)) {
+            Toast.makeText(this, "이미 " + activityLabel(newType) + " 기록입니다.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            if (!meta.has("originalType")) meta.put("originalType", oldType);
+            meta.put("type", newType);
+            meta.put("typeEditedAtEpochMs", System.currentTimeMillis());
+            WalkingStore.writeMeta(dir, meta);
+            String savedType = WalkingStore.readMeta(dir).optString("type", "");
+            if (!newType.equals(savedType)) {
+                Toast.makeText(this, "운동 종류 변경에 실패했습니다.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            Toast.makeText(this, activityLabel(newType) + " 기록으로 변경했습니다.", Toast.LENGTH_SHORT).show();
+            showActivitySummary(dir, justFinished);
+        } catch (Exception e) {
+            Toast.makeText(this, "운동 종류 변경에 실패했습니다.", Toast.LENGTH_LONG).show();
         }
     }
 
