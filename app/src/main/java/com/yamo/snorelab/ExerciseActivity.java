@@ -152,6 +152,7 @@ public class ExerciseActivity extends Activity {
             buildLive(page);
         } else {
             buildStart(page);
+            buildPeriodSummary(page);
             buildRecent(page);
         }
 
@@ -232,6 +233,59 @@ public class ExerciseActivity extends Activity {
         addCategoryCard(page, "🚶  🏃", "걷기 / 러닝", "걷기·러닝 단일 모드 또는 자동 통합모드로 기록합니다.", v -> showWalkRunMenu());
         addCategoryCard(page, "🚴", "자전거", "거리와 현재·평균·최고 속도, 이동 경로를 기록합니다.", v -> showCyclingMenu());
         addCategoryCard(page, "⛷  🏂", "스키 / 스노우보드", "겨울 활동은 지금은 준비된 화면만 보여줍니다.", v -> showSkiPreview());
+    }
+
+    private void buildPeriodSummary(LinearLayout page) {
+        long todayStart = startOfDay(System.currentTimeMillis());
+        long weekStart = todayStart - 6L * 24L * 60L * 60L * 1000L;
+        java.util.Calendar month = java.util.Calendar.getInstance();
+        month.setTimeInMillis(todayStart);
+        month.set(java.util.Calendar.DAY_OF_MONTH, 1);
+        long monthStart = month.getTimeInMillis();
+
+        long weekDistance = 0, weekDuration = 0, weekSteps = 0;
+        long monthDistance = 0, monthDuration = 0, monthSteps = 0;
+        int weekCount = 0, monthCount = 0;
+
+        for (File dir : WalkingStore.listSessions(this)) {
+            JSONObject m = WalkingStore.readMeta(dir);
+            if (!"complete".equals(m.optString("status"))) continue;
+            long start = m.optLong("startEpochMs", 0);
+            if (start <= 0) continue;
+            long distance = Math.max(0, m.optLong("distanceM", 0));
+            long duration = Math.max(0, m.optLong("durationMs", 0));
+            long steps = Math.max(0, m.optLong("steps", 0));
+
+            if (start >= weekStart) {
+                weekCount++;
+                weekDistance += distance;
+                weekDuration += duration;
+                weekSteps += steps;
+            }
+            if (start >= monthStart) {
+                monthCount++;
+                monthDistance += distance;
+                monthDuration += duration;
+                monthSteps += steps;
+            }
+        }
+
+        LinearLayout stats = card();
+        stats.addView(text("누적 활동", 15, TEXT, true));
+        TextView weekTitle = text("최근 7일", 12, PRIMARY2, true);
+        weekTitle.setPadding(0, dp(10), 0, dp(2));
+        stats.addView(weekTitle);
+        stats.addView(text(String.format(Locale.KOREAN, "%.2f km · %s · %,d회 · %,d걸음", weekDistance / 1000.0, formatClock(weekDuration), weekCount, weekSteps), 12, TEXT, true));
+
+        TextView monthTitle = text("이번 달", 12, PRIMARY2, true);
+        monthTitle.setPadding(0, dp(10), 0, dp(2));
+        stats.addView(monthTitle);
+        stats.addView(text(String.format(Locale.KOREAN, "%.2f km · %s · %,d회 · %,d걸음", monthDistance / 1000.0, formatClock(monthDuration), monthCount, monthSteps), 12, TEXT, true));
+
+        TextView note = text("완료된 활동만 합산하며, 자전거는 걸음수에 포함하지 않습니다.", 11, MUTED, false);
+        note.setPadding(0, dp(8), 0, 0);
+        stats.addView(note);
+        page.addView(stats, cardParams());
     }
 
     private void addCategoryCard(LinearLayout page, String icon, String title, String desc, View.OnClickListener click) {
@@ -485,10 +539,25 @@ public class ExerciseActivity extends Activity {
     private void buildRecent(LinearLayout page) {
         List<File> sessions = WalkingStore.listSessions(this);
         if (sessions.isEmpty()) return;
-        TextView h = text("최근 활동", 17, TEXT, true); h.setPadding(0, dp(12), 0, dp(8)); page.addView(h);
-        for (int i = 0; i < Math.min(8, sessions.size()); i++) {
-            File dir = sessions.get(i); JSONObject m = WalkingStore.readMeta(dir);
+        TextView h = text("활동 기록", 17, TEXT, true); h.setPadding(0, dp(12), 0, dp(5)); page.addView(h);
+
+        String lastDay = "";
+        int shown = 0;
+        for (File dir : sessions) {
+            if (shown >= 20) break;
+            JSONObject m = WalkingStore.readMeta(dir);
             if (!"complete".equals(m.optString("status"))) continue;
+            long start = m.optLong("startEpochMs", 0);
+            if (start <= 0) continue;
+
+            String dayKey = new SimpleDateFormat("yyyyMMdd", Locale.KOREAN).format(new Date(start));
+            if (!dayKey.equals(lastDay)) {
+                TextView group = text(dayLabel(start), 13, MUTED, true);
+                group.setPadding(0, dp(10), 0, dp(6));
+                page.addView(group);
+                lastDay = dayKey;
+            }
+
             String type = m.optString("type", "walking");
             String label = activityLabel(type);
             String icon = activityIcon(type);
@@ -496,8 +565,9 @@ public class ExerciseActivity extends Activity {
             boolean walkrun = "walkrun".equals(type);
             LinearLayout c = card(); c.setOrientation(LinearLayout.HORIZONTAL);
             LinearLayout left = new LinearLayout(this); left.setOrientation(LinearLayout.VERTICAL);
-            long start = m.optLong("startEpochMs", 0); long dist = m.optLong("distanceM", 0); long moving = m.optLong("movingMs", 0);
-            left.addView(text(icon + " " + label + " · " + new SimpleDateFormat("M월 d일 (E) HH:mm", Locale.KOREAN).format(new Date(start)), 14, TEXT, true));
+            long dist = m.optLong("distanceM", 0); long moving = m.optLong("movingMs", 0);
+            String time = new SimpleDateFormat("HH:mm", Locale.KOREAN).format(new Date(start));
+            left.addView(text(icon + " " + label + " · " + time, 14, TEXT, true));
             String line;
             if (cycling) {
                 line = String.format(Locale.KOREAN, "%.2f km · %s · 평균 %s · 최고 %.1f km/h", dist / 1000.0, formatClock(m.optLong("durationMs", 0)), formatAverageSpeed(moving, dist), m.optDouble("maxSpeedKmh", 0));
@@ -510,7 +580,29 @@ public class ExerciseActivity extends Activity {
             c.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             TextView arrow = text("›", 28, PRIMARY2, false); arrow.setGravity(Gravity.CENTER); c.addView(arrow, new LinearLayout.LayoutParams(dp(32), ViewGroup.LayoutParams.MATCH_PARENT));
             c.setOnClickListener(v -> showDetail(dir)); page.addView(c, cardParamsCompact());
+            shown++;
         }
+    }
+
+    private static long startOfDay(long epochMs) {
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        c.setTimeInMillis(epochMs);
+        c.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        c.set(java.util.Calendar.MINUTE, 0);
+        c.set(java.util.Calendar.SECOND, 0);
+        c.set(java.util.Calendar.MILLISECOND, 0);
+        return c.getTimeInMillis();
+    }
+
+    private static String dayLabel(long epochMs) {
+        long day = startOfDay(epochMs);
+        long today = startOfDay(System.currentTimeMillis());
+        java.util.Calendar yesterday = java.util.Calendar.getInstance();
+        yesterday.setTimeInMillis(today);
+        yesterday.add(java.util.Calendar.DAY_OF_MONTH, -1);
+        if (day == today) return "오늘";
+        if (day == yesterday.getTimeInMillis()) return "어제";
+        return new SimpleDateFormat("M월 d일 (E)", Locale.KOREAN).format(new Date(epochMs));
     }
 
     private void showDetail(File dir) { showActivitySummary(dir, false); }
