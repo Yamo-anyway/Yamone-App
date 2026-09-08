@@ -20,6 +20,7 @@ import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
@@ -116,7 +117,7 @@ public class ExerciseActivity extends Activity {
         nav.addView(navItem("⏰\n알람", MUTED, v -> { startActivity(new Intent(this, AlarmActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
         nav.addView(navItem("☾\n수면", MUTED, v -> { startActivity(new Intent(this, MainActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
         nav.addView(navItem("🏃\n활동", PRIMARY2, v -> { detailOpen = false; showHome(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
-        nav.addView(navItem("⚙\n설정", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "settings")); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
+        nav.addView(navItem("🎮\n미니게임", MUTED, v -> { startActivity(new Intent(this, MiniGameActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(56), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         if (Build.VERSION.SDK_INT >= 21) {
@@ -140,7 +141,7 @@ public class ExerciseActivity extends Activity {
         content.addView(scroll);
 
         page.addView(text("활동", 24, TEXT, true));
-        TextView sub = text("휴대폰만으로 기록하는 활동 · 걷기 / 러닝 / 자전거", 12, MUTED, false);
+        TextView sub = text("걷기/러닝 · 자전거 · 스키/스노우보드", 12, MUTED, false);
         sub.setPadding(0, dp(3), 0, dp(14));
         page.addView(sub);
 
@@ -169,9 +170,78 @@ public class ExerciseActivity extends Activity {
         today.addView(text("걷기/러닝 기록 중 측정된 걸음만 합산합니다. 자전거는 걸음수에 포함하지 않습니다.", 11, MUTED, false));
         page.addView(today, cardParams());
 
+        addCategoryCard(page, "🚶  🏃", "걷기 / 러닝", "걷기 또는 러닝을 선택해 GPS 활동 기록을 시작합니다.", v -> showWalkRunMenu());
+        addCategoryCard(page, "🚴", "자전거", "거리와 현재·평균·최고 속도, 이동 경로를 기록합니다.", v -> showCyclingMenu());
+        addCategoryCard(page, "⛷  🏂", "스키 / 스노우보드", "겨울 활동은 지금은 준비된 화면만 보여줍니다.", v -> showSkiPreview());
+    }
+
+    private void addCategoryCard(LinearLayout page, String icon, String title, String desc, View.OnClickListener click) {
+        LinearLayout c = card();
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.addView(text(icon + "  " + title, 18, TEXT, true));
+        TextView d = text(desc, 12, MUTED, false);
+        d.setPadding(0, dp(6), dp(8), 0);
+        words.addView(d);
+        head.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView arrow = text("›", 30, PRIMARY2, false);
+        arrow.setGravity(Gravity.CENTER);
+        head.addView(arrow, new LinearLayout.LayoutParams(dp(34), dp(60)));
+        c.addView(head);
+        c.setOnClickListener(click);
+        page.addView(c, cardParams());
+    }
+
+    private void showWalkRunMenu() {
+        detailOpen = true;
+        detailDir = null;
+        content.removeAllViews();
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout page = page();
+        scroll.addView(page);
+        content.addView(scroll);
+        page.addView(backHeader("걷기 / 러닝"));
         addActivityStartCard(page, "walking", "🚶", "걷기", "예: 거리 5 + 제한시간 60 → 60분 안에 5km 목표");
         addActivityStartCard(page, "running", "🏃", "러닝", "예: 거리 10 + 제한시간 60 → 60분 안에 10km 목표");
+    }
+
+    private void showCyclingMenu() {
+        detailOpen = true;
+        detailDir = null;
+        content.removeAllViews();
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout page = page();
+        scroll.addView(page);
+        content.addView(scroll);
+        page.addView(backHeader("자전거"));
         addActivityStartCard(page, "cycling", "🚴", "자전거", "예: 거리 20 + 제한시간 90 → 90분 안에 20km 목표");
+    }
+
+    private void showSkiPreview() {
+        detailOpen = true;
+        detailDir = null;
+        content.removeAllViews();
+        ImageView image = new ImageView(this);
+        image.setImageResource(R.drawable.yamone_ski);
+        image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        image.setBackgroundColor(BG);
+        image.setPadding(dp(18), dp(18), dp(18), dp(18));
+        content.addView(image, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private View backHeader(String title) {
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView back = text("‹", 34, TEXT, false);
+        back.setGravity(Gravity.CENTER);
+        back.setOnClickListener(v -> showHome());
+        top.addView(back, new LinearLayout.LayoutParams(dp(42), dp(52)));
+        top.addView(text(title, 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(52), 1f));
+        return top;
     }
 
     private void addActivityStartCard(LinearLayout page, String type, String icon, String label, String example) {
