@@ -63,9 +63,10 @@ public class MiniGameActivity extends Activity {
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
         nav.setBackgroundColor(CARD);
-        nav.addView(navItem("⏰\n알람", false, v -> go(AlarmActivity.class)), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("☾\n수면", false, v -> go(MainActivity.class)), new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(navItem("⌂\n홈", false, v -> goMain("home")), new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(navItem("🏃\n활동", false, v -> go(ExerciseActivity.class)), new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(navItem("⏰\n알람", false, v -> go(AlarmActivity.class)), new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(navItem("☾\n수면", false, v -> goMain("sleep")), new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(navItem("🎮\n미니게임", true, v -> showPlaceholder()), new LinearLayout.LayoutParams(0, dp(60), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -112,6 +113,11 @@ public class MiniGameActivity extends Activity {
 
     private void go(Class<?> cls) {
         startActivity(new Intent(this, cls));
+        finish();
+    }
+
+    private void goMain(String screen) {
+        startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", screen));
         finish();
     }
 
