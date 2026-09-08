@@ -3,13 +3,25 @@
 (() => {
   const cache = { activity: [], sleep: [] };
 
+  function normalizeSleepRecord(record) {
+    const events = Array.isArray(record?.metrics?.events) ? record.metrics.events : [];
+    for (const event of events) {
+      if (event && event.candidate_windows == null && event.candidate_window_count != null) {
+        event.candidate_windows = event.candidate_window_count;
+      }
+    }
+    return record;
+  }
+
   const originalRpc = rpc;
   rpc = async function(name, params = {}, retry = true) {
     const data = await originalRpc(name, params, retry);
     if (name === 'admin_activity_records') {
       cache.activity = Array.isArray(data?.records) ? data.records : [];
     } else if (name === 'admin_sleep_records') {
-      cache.sleep = Array.isArray(data?.records) ? data.records : [];
+      const records = Array.isArray(data?.records) ? data.records : [];
+      records.forEach(normalizeSleepRecord);
+      cache.sleep = records;
     }
     return data;
   };
