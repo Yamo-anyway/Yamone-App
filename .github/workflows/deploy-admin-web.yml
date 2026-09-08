@@ -28,14 +28,17 @@ jobs:
           node --check admin-web/app.js
           node --check admin-web/admin-id.js
           node --check admin-web/admin-delete.js
+          node --check admin-web/admin-readiness.js
       - name: Check required files
         run: |
           test -f admin-web/index.html
           test -f admin-web/styles.css
           test -f admin-web/admin-delete.css
+          test -f admin-web/admin-readiness.css
           test -f admin-web/app.js
           test -f admin-web/admin-id.js
           test -f admin-web/admin-delete.js
+          test -f admin-web/admin-readiness.js
 
   deploy:
     needs: validate
