@@ -24,12 +24,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Check JavaScript syntax
-        run: node --check admin-web/app.js
+        run: |
+          node --check admin-web/app.js
+          node --check admin-web/admin-id.js
+          node --check admin-web/admin-delete.js
       - name: Check required files
         run: |
           test -f admin-web/index.html
           test -f admin-web/styles.css
+          test -f admin-web/admin-delete.css
           test -f admin-web/app.js
+          test -f admin-web/admin-id.js
+          test -f admin-web/admin-delete.js
 
   deploy:
     needs: validate
