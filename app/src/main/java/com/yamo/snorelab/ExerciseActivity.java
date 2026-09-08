@@ -55,6 +55,7 @@ public class ExerciseActivity extends Activity {
     private boolean detailOpen;
     private File detailDir;
     private String activityFilter = "all";
+    private String weeklyChartMetric = "distance";
 
     private TextView liveDistance;
     private TextView liveTime;
@@ -292,9 +293,11 @@ public class ExerciseActivity extends Activity {
     }
 
     private void buildWeeklyDistanceChart(LinearLayout page) {
+        boolean timeMode = "time".equals(weeklyChartMetric);
         long todayStart = startOfDay(System.currentTimeMillis());
         long[] dayStarts = new long[7];
         long[] distances = new long[7];
+        long[] durations = new long[7];
         java.util.Calendar cursor = java.util.Calendar.getInstance();
         cursor.setTimeInMillis(todayStart);
         cursor.add(java.util.Calendar.DAY_OF_MONTH, -6);
@@ -312,23 +315,38 @@ public class ExerciseActivity extends Activity {
             for (int i = 0; i < 7; i++) {
                 if (sessionDay == dayStarts[i]) {
                     distances[i] += Math.max(0, m.optLong("distanceM", 0));
+                    durations[i] += Math.max(0, m.optLong("durationMs", 0));
                     break;
                 }
             }
         }
 
-        long maxDistance = 0;
-        long totalDistance = 0;
+        long maxValue = 0;
+        long totalValue = 0;
         int activeDays = 0;
-        for (long distance : distances) {
-            maxDistance = Math.max(maxDistance, distance);
-            totalDistance += distance;
-            if (distance > 0) activeDays++;
+        for (int i = 0; i < 7; i++) {
+            long value = timeMode ? durations[i] : distances[i];
+            maxValue = Math.max(maxValue, value);
+            totalValue += value;
+            if (value > 0) activeDays++;
         }
 
         LinearLayout chart = card();
-        chart.addView(text("최근 7일 거리", 15, TEXT, true));
-        TextView summary = text(String.format(Locale.KOREAN, "합계 %.2f km · 활동한 날 %d일", totalDistance / 1000.0, activeDays), 12, MUTED, false);
+        chart.addView(text("최근 7일 활동", 15, TEXT, true));
+
+        LinearLayout toggles = new LinearLayout(this);
+        toggles.setOrientation(LinearLayout.HORIZONTAL);
+        toggles.setPadding(0, dp(8), 0, dp(4));
+        toggles.addView(weeklyMetricChip("distance", "거리"), new LinearLayout.LayoutParams(0, dp(38), 1f));
+        LinearLayout.LayoutParams timeToggle = new LinearLayout.LayoutParams(0, dp(38), 1f);
+        timeToggle.leftMargin = dp(7);
+        toggles.addView(weeklyMetricChip("time", "활동시간"), timeToggle);
+        chart.addView(toggles);
+
+        String summaryText = timeMode
+                ? String.format(Locale.KOREAN, "합계 %s · 활동한 날 %d일", formatClock(totalValue), activeDays)
+                : String.format(Locale.KOREAN, "합계 %.2f km · 활동한 날 %d일", totalValue / 1000.0, activeDays);
+        TextView summary = text(summaryText, 12, MUTED, false);
         summary.setPadding(0, dp(4), 0, dp(10));
         chart.addView(summary);
 
@@ -338,23 +356,31 @@ public class ExerciseActivity extends Activity {
 
         for (int i = 0; i < 7; i++) {
             final boolean today = i == 6;
+            long value = timeMode ? durations[i] : distances[i];
             LinearLayout column = new LinearLayout(this);
             column.setOrientation(LinearLayout.VERTICAL);
             column.setGravity(Gravity.CENTER_HORIZONTAL);
 
-            String kmText = distances[i] <= 0 ? "0" : String.format(Locale.KOREAN, "%.1f", distances[i] / 1000.0);
-            TextView km = text(kmText, 9, today ? PRIMARY2 : MUTED, true);
-            km.setGravity(Gravity.CENTER);
-            column.addView(km, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(18)));
+            String valueText;
+            if (timeMode) {
+                if (durations[i] <= 0) valueText = "0";
+                else if (durations[i] < 3_600_000L) valueText = String.format(Locale.KOREAN, "%.0f분", durations[i] / 60_000.0);
+                else valueText = String.format(Locale.KOREAN, "%.1fh", durations[i] / 3_600_000.0);
+            } else {
+                valueText = distances[i] <= 0 ? "0" : String.format(Locale.KOREAN, "%.1f", distances[i] / 1000.0);
+            }
+            TextView valueLabel = text(valueText, 9, today ? PRIMARY2 : MUTED, true);
+            valueLabel.setGravity(Gravity.CENTER);
+            column.addView(valueLabel, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(18)));
 
             View spacer = new View(this);
             column.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1f));
 
             int barHeight;
-            if (distances[i] <= 0 || maxDistance <= 0) {
+            if (value <= 0 || maxValue <= 0) {
                 barHeight = dp(4);
             } else {
-                barHeight = dp(14) + (int) Math.round(dp(76) * (distances[i] / (double) maxDistance));
+                barHeight = dp(14) + (int) Math.round(dp(76) * (value / (double) maxValue));
             }
             View bar = new View(this);
             bar.setBackground(round(today ? PRIMARY2 : PRIMARY, 7, 0, 0));
@@ -372,10 +398,26 @@ public class ExerciseActivity extends Activity {
         }
 
         chart.addView(row, match(dp(158)));
-        TextView note = text("걷기·러닝·통합·자전거의 완료된 거리 기록을 날짜별로 합산합니다.", 10, MUTED, false);
+        TextView note = text(timeMode
+                ? "걷기·러닝·통합·자전거의 완료된 활동시간을 날짜별로 합산합니다."
+                : "걷기·러닝·통합·자전거의 완료된 거리 기록을 날짜별로 합산합니다.", 10, MUTED, false);
         note.setPadding(0, dp(8), 0, 0);
         chart.addView(note);
         page.addView(chart, cardParams());
+    }
+
+    private TextView weeklyMetricChip(String key, String label) {
+        boolean selected = key.equals(weeklyChartMetric);
+        TextView chip = text(label, 12, selected ? Color.WHITE : MUTED, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setBackground(round(selected ? PRIMARY : CARD2, 12, selected ? 0 : 1, 0xFF35445F));
+        chip.setOnClickListener(v -> {
+            if (!key.equals(weeklyChartMetric)) {
+                weeklyChartMetric = key;
+                showHome();
+            }
+        });
+        return chip;
     }
 
     private void addCategoryCard(LinearLayout page, String icon, String title, String desc, View.OnClickListener click) {
