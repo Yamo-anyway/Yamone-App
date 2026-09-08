@@ -164,13 +164,69 @@ public class ExerciseActivity extends Activity {
     }
 
     private void buildStart(LinearLayout page) {
+        long totalDistance = 0;
+        long totalDuration = 0;
+        long totalSteps = 0;
+        long walkRunDistance = 0;
+        long walkRunDuration = 0;
+        long cyclingDistance = 0;
+        long cyclingDuration = 0;
+        int activityCount = 0;
+        String todayKey = new SimpleDateFormat("yyyyMMdd", Locale.KOREAN).format(new Date());
+
+        for (File dir : WalkingStore.listSessions(this)) {
+            JSONObject m = WalkingStore.readMeta(dir);
+            if (!"complete".equals(m.optString("status"))) continue;
+            long start = m.optLong("startEpochMs", 0);
+            if (start <= 0) continue;
+            String recordDay = new SimpleDateFormat("yyyyMMdd", Locale.KOREAN).format(new Date(start));
+            if (!todayKey.equals(recordDay)) continue;
+
+            long distance = Math.max(0, m.optLong("distanceM", 0));
+            long duration = Math.max(0, m.optLong("durationMs", 0));
+            long steps = Math.max(0, m.optLong("steps", 0));
+            String type = m.optString("type", "walking");
+
+            activityCount++;
+            totalDistance += distance;
+            totalDuration += duration;
+            totalSteps += steps;
+            if ("cycling".equals(type)) {
+                cyclingDistance += distance;
+                cyclingDuration += duration;
+            } else {
+                walkRunDistance += distance;
+                walkRunDuration += duration;
+            }
+        }
+
         LinearLayout today = card();
-        today.addView(text("오늘", 14, MUTED, true));
-        long todaySteps = WalkingStore.recordedStepsToday(this);
-        TextView steps = text(String.format(Locale.KOREAN, "%,d걸음", todaySteps), 32, TEXT, true);
-        steps.setPadding(0, dp(5), 0, 0);
-        today.addView(steps);
-        today.addView(text("걷기/러닝 기록 중 측정된 걸음만 합산합니다. 자전거는 걸음수에 포함하지 않습니다.", 11, MUTED, false));
+        today.addView(text("오늘의 활동", 14, MUTED, true));
+        TextView distance = text(String.format(Locale.KOREAN, "%.2f km", totalDistance / 1000.0), 32, TEXT, true);
+        distance.setPadding(0, dp(5), 0, dp(7));
+        today.addView(distance);
+
+        LinearLayout totals = new LinearLayout(this);
+        totals.setOrientation(LinearLayout.HORIZONTAL);
+        TextView totalDistanceValue = metricValue(String.format(Locale.KOREAN, "%.2f km", totalDistance / 1000.0));
+        TextView totalTimeValue = metricValue(formatClock(totalDuration));
+        TextView totalStepsValue = metricValue(String.format(Locale.KOREAN, "%,d", totalSteps));
+        totals.addView(metricBox("총 거리", totalDistanceValue), new LinearLayout.LayoutParams(0, dp(66), 1f));
+        totals.addView(metricBox("활동 시간", totalTimeValue), new LinearLayout.LayoutParams(0, dp(66), 1f));
+        totals.addView(metricBox("걸음", totalStepsValue), new LinearLayout.LayoutParams(0, dp(66), 1f));
+        today.addView(totals);
+
+        TextView walkRun = text(String.format(Locale.KOREAN, "🚶🏃 걷기/러닝  %.2f km · %s", walkRunDistance / 1000.0, formatClock(walkRunDuration)), 12, TEXT, true);
+        walkRun.setPadding(0, dp(8), 0, dp(4));
+        today.addView(walkRun);
+        today.addView(text(String.format(Locale.KOREAN, "🚴 자전거  %.2f km · %s", cyclingDistance / 1000.0, formatClock(cyclingDuration)), 12, TEXT, true));
+
+        TextView note = text(activityCount == 0
+                ? "오늘 완료한 활동이 아직 없어요."
+                : String.format(Locale.KOREAN, "오늘 완료한 활동 %,d회 · 걸음수는 걷기/러닝 기록만 합산합니다.", activityCount),
+                11, MUTED, false);
+        note.setPadding(0, dp(8), 0, 0);
+        today.addView(note);
         page.addView(today, cardParams());
 
         addCategoryCard(page, "🚶  🏃", "걷기 / 러닝", "걷기·러닝 단일 모드 또는 자동 통합모드로 기록합니다.", v -> showWalkRunMenu());
