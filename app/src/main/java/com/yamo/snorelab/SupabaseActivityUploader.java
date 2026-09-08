@@ -8,7 +8,6 @@ import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -55,9 +54,30 @@ public final class SupabaseActivityUploader {
                 if (result.success) callback.onSuccess(result.alreadyUploaded);
                 else callback.onFailure(result.message);
             } catch (Exception e) {
-                callback.onFailure("업로드 중 오류가 발생했습니다.");
+                callback.onFailure(uploadErrorMessage(e));
             }
         });
+    }
+
+    private static String uploadErrorMessage(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null) {
+                String lower = message.toLowerCase(Locale.US);
+                if (lower.contains("anonymous sign-in disabled")) {
+                    return "서버의 익명 로그인 설정이 꺼져 있어 업로드할 수 없습니다. 관리자 설정을 확인해 주세요.";
+                }
+                if (lower.contains("anonymous sign-in failed")) {
+                    return "익명 서버 연결을 만들지 못했습니다. 네트워크 또는 서버 인증 설정을 확인해 주세요.";
+                }
+                if (lower.contains("receipt check failed")) {
+                    return "이 기록의 기존 업로드 여부를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+                }
+            }
+            current = current.getCause();
+        }
+        return "업로드 중 오류가 발생했습니다.";
     }
 
     private static Result uploadBlocking(Context context, File sessionDir) throws Exception {
@@ -77,8 +97,6 @@ public final class SupabaseActivityUploader {
         AuthSession auth = ensureAnonymousSession(context);
         if (auth == null) return Result.fail("익명 서버 연결을 만들 수 없습니다.");
 
-        // A permanent receipt survives server-side record deletion. Check it
-        // before any route bytes are sent so a deleted record is never sent again.
         if (recordWasUploaded(auth.accessToken, clientRecordId)) {
             WalkingStore.markUploaded(sessionDir, System.currentTimeMillis());
             return Result.ok(true);
@@ -126,7 +144,6 @@ public final class SupabaseActivityUploader {
             return Result.ok(true);
         }
 
-        // Do not leave an orphan object when the metadata insert fails.
         if (routeUploadedNow && routeStoragePath != null) deleteRoute(auth.accessToken, routeStoragePath);
         return Result.fail(serverMessage(insert, "활동 기록 업로드에 실패했습니다."));
     }
@@ -267,7 +284,8 @@ public final class SupabaseActivityUploader {
         anonymousBody.put("data", new JSONObject());
         HttpResult created = authRequest("/auth/v1/signup", anonymousBody.toString());
         if (created.code < 200 || created.code >= 300) {
-            if (created.body.toLowerCase(Locale.US).contains("anonymous") && created.body.toLowerCase(Locale.US).contains("disabled")) {
+            String lower = created.body.toLowerCase(Locale.US);
+            if (lower.contains("anonymous") && lower.contains("disabled")) {
                 throw new IllegalStateException("anonymous sign-in disabled");
             }
             throw new IllegalStateException("anonymous sign-in failed");
