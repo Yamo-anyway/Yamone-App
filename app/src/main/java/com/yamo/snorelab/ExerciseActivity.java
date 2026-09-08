@@ -2,6 +2,7 @@ package com.yamo.snorelab;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -677,6 +678,13 @@ public class ExerciseActivity extends Activity {
             page.addView(splitCard, cardParams());
         }
 
+        Button delete = ghostButton("기록 삭제", v -> confirmDeleteActivity(dir));
+        delete.setTextColor(WARNING);
+        LinearLayout.LayoutParams deleteParams = match(dp(52));
+        deleteParams.topMargin = dp(2);
+        deleteParams.bottomMargin = dp(8);
+        page.addView(delete, deleteParams);
+
         if (justFinished) {
             Button done = actionButton("완료", true, v -> { detailOpen = false; detailDir = null; showHome(); });
             LinearLayout.LayoutParams dpv = match(dp(56));
@@ -684,6 +692,56 @@ public class ExerciseActivity extends Activity {
             dpv.bottomMargin = dp(10);
             page.addView(done, dpv);
         }
+    }
+
+    private void confirmDeleteActivity(File dir) {
+        if (dir == null || !dir.exists()) {
+            Toast.makeText(this, "이미 삭제된 기록입니다.", Toast.LENGTH_SHORT).show();
+            showHome();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("활동 기록 삭제")
+                .setMessage("이 기록을 삭제할까요? 저장된 GPS 경로와 운동 기록도 함께 삭제되며 되돌릴 수 없습니다.")
+                .setNegativeButton("취소", null)
+                .setPositiveButton("삭제", (dialog, which) -> {
+                    if (!isOwnedSessionDir(dir)) {
+                        Toast.makeText(this, "삭제할 수 없는 기록입니다.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    boolean deleted = deleteRecursively(dir);
+                    if (deleted || !dir.exists()) {
+                        detailOpen = false;
+                        detailDir = null;
+                        Toast.makeText(this, "활동 기록을 삭제했습니다.", Toast.LENGTH_SHORT).show();
+                        showHome();
+                    } else {
+                        Toast.makeText(this, "기록 삭제에 실패했습니다.", Toast.LENGTH_LONG).show();
+                    }
+                })
+                .show();
+    }
+
+    private boolean isOwnedSessionDir(File dir) {
+        try {
+            String rootPath = WalkingStore.root(this).getCanonicalPath() + File.separator;
+            String dirPath = dir.getCanonicalPath();
+            return dirPath.startsWith(rootPath) && !dirPath.equals(WalkingStore.root(this).getCanonicalPath());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean deleteRecursively(File file) {
+        if (file == null || !file.exists()) return true;
+        boolean ok = true;
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) ok = deleteRecursively(child) && ok;
+            }
+        }
+        return file.delete() && ok;
     }
 
     private void startExercise(String type, String kmText, String minText) {
