@@ -54,6 +54,7 @@ public class ExerciseActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean detailOpen;
     private File detailDir;
+    private String activityFilter = "all";
 
     private TextView liveDistance;
     private TextView liveTime;
@@ -539,8 +540,34 @@ public class ExerciseActivity extends Activity {
 
     private void buildRecent(LinearLayout page) {
         List<File> sessions = WalkingStore.listSessions(this);
-        if (sessions.isEmpty()) return;
-        TextView h = text("활동 기록", 17, TEXT, true); h.setPadding(0, dp(12), 0, dp(5)); page.addView(h);
+        TextView h = text("활동 기록", 17, TEXT, true); h.setPadding(0, dp(12), 0, dp(7)); page.addView(h);
+
+        LinearLayout filters1 = new LinearLayout(this);
+        filters1.setOrientation(LinearLayout.HORIZONTAL);
+        filters1.addView(filterChip("all", "전체"), new LinearLayout.LayoutParams(0, dp(40), 1f));
+        LinearLayout.LayoutParams f12 = new LinearLayout.LayoutParams(0, dp(40), 1f); f12.leftMargin = dp(6);
+        filters1.addView(filterChip("walking", "걷기"), f12);
+        LinearLayout.LayoutParams f13 = new LinearLayout.LayoutParams(0, dp(40), 1f); f13.leftMargin = dp(6);
+        filters1.addView(filterChip("running", "러닝"), f13);
+        page.addView(filters1);
+
+        LinearLayout filters2 = new LinearLayout(this);
+        filters2.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams filters2Params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
+        filters2Params.topMargin = dp(6);
+        filters2Params.bottomMargin = dp(2);
+        filters2.addView(filterChip("walkrun", "통합"), new LinearLayout.LayoutParams(0, dp(40), 1f));
+        LinearLayout.LayoutParams f22 = new LinearLayout.LayoutParams(0, dp(40), 1f); f22.leftMargin = dp(6);
+        filters2.addView(filterChip("cycling", "자전거"), f22);
+        page.addView(filters2, filters2Params);
+
+        if (sessions.isEmpty()) {
+            TextView empty = text("아직 저장된 활동 기록이 없어요.", 12, MUTED, false);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, dp(18), 0, dp(10));
+            page.addView(empty);
+            return;
+        }
 
         String lastDay = "";
         int shown = 0;
@@ -550,6 +577,8 @@ public class ExerciseActivity extends Activity {
             if (!"complete".equals(m.optString("status"))) continue;
             long start = m.optLong("startEpochMs", 0);
             if (start <= 0) continue;
+            String type = m.optString("type", "walking");
+            if (!matchesActivityFilter(type)) continue;
 
             String dayKey = new SimpleDateFormat("yyyyMMdd", Locale.KOREAN).format(new Date(start));
             if (!dayKey.equals(lastDay)) {
@@ -559,7 +588,6 @@ public class ExerciseActivity extends Activity {
                 lastDay = dayKey;
             }
 
-            String type = m.optString("type", "walking");
             String label = activityLabel(type);
             String icon = activityIcon(type);
             boolean cycling = "cycling".equals(type);
@@ -583,6 +611,31 @@ public class ExerciseActivity extends Activity {
             c.setOnClickListener(v -> showDetail(dir)); page.addView(c, cardParamsCompact());
             shown++;
         }
+
+        if (shown == 0) {
+            TextView empty = text("해당 활동 기록이 없어요.", 12, MUTED, false);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, dp(18), 0, dp(10));
+            page.addView(empty);
+        }
+    }
+
+    private TextView filterChip(String key, String label) {
+        boolean selected = key.equals(activityFilter);
+        TextView chip = text(label, 12, selected ? Color.WHITE : MUTED, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setBackground(round(selected ? PRIMARY : CARD2, 12, selected ? 0 : 1, 0xFF35445F));
+        chip.setOnClickListener(v -> {
+            if (!key.equals(activityFilter)) {
+                activityFilter = key;
+                showHome();
+            }
+        });
+        return chip;
+    }
+
+    private boolean matchesActivityFilter(String type) {
+        return "all".equals(activityFilter) || activityFilter.equals(type);
     }
 
     private static long startOfDay(long epochMs) {
