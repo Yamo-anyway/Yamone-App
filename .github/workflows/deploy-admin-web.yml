@@ -40,14 +40,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Configure Pages
+      - name: Check Pages availability
+        id: pages
+        continue-on-error: true
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      - name: Pages activation notice
+        if: steps.pages.outcome != 'success'
+        run: echo "GitHub Pages is not enabled yet. Enable Settings > Pages > Source > GitHub Actions, then run this workflow again."
       - name: Upload Pages artifact
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: admin-web
       - name: Deploy to GitHub Pages
+        if: steps.pages.outcome == 'success'
         id: deployment
         uses: actions/deploy-pages@v4
