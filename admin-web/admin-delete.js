@@ -83,9 +83,6 @@
       await removeStorageObjects(plan?.storage_objects);
       await rpc('admin_record_delete_finalize', { p_request_id: requestId });
 
-      const label = kind === 'activity' ? '활동 기록' : '수면 분석 기록';
-      setGlobalMessage(`${label}을 삭제했습니다. 1회 업로드 이력은 유지됩니다.`, 'success');
-
       if (kind === 'activity') {
         state.activityLoaded = false;
         await loadActivity(true);
@@ -94,6 +91,9 @@
         await loadSleep(true);
       }
       await loadDashboard();
+
+      const label = kind === 'activity' ? '활동 기록' : '수면 분석 기록';
+      setGlobalMessage(`${label}을 삭제했습니다. 1회 업로드 이력은 유지됩니다.`, 'success');
     } catch (error) {
       if (requestId) {
         try {
