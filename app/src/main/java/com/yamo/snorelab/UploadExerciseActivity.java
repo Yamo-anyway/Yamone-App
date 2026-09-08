@@ -21,9 +21,8 @@ import java.io.File;
  * Adds opt-in upload controls without changing the existing activity design.
  * Upload is only offered for a completed, locally saved record.
  */
-public class UploadExerciseActivity extends EnhancedExerciseActivity {
+public class UploadExerciseActivity extends ExerciseActivity {
     private static final int CARD2 = 0xFF111C31;
-    private static final int TEXT = 0xFFF5F7FF;
     private static final int MUTED = 0xFF9DA9BF;
     private static final int PRIMARY = 0xFF6D72FF;
     private static final int SUCCESS = 0xFF61D6A8;
