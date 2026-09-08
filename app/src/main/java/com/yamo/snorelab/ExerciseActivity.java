@@ -155,6 +155,7 @@ public class ExerciseActivity extends Activity {
         } else {
             buildStart(page);
             buildPeriodSummary(page);
+            buildWeeklyDistanceChart(page);
             buildRecent(page);
         }
 
@@ -288,6 +289,93 @@ public class ExerciseActivity extends Activity {
         note.setPadding(0, dp(8), 0, 0);
         stats.addView(note);
         page.addView(stats, cardParams());
+    }
+
+    private void buildWeeklyDistanceChart(LinearLayout page) {
+        long todayStart = startOfDay(System.currentTimeMillis());
+        long[] dayStarts = new long[7];
+        long[] distances = new long[7];
+        java.util.Calendar cursor = java.util.Calendar.getInstance();
+        cursor.setTimeInMillis(todayStart);
+        cursor.add(java.util.Calendar.DAY_OF_MONTH, -6);
+        for (int i = 0; i < 7; i++) {
+            dayStarts[i] = cursor.getTimeInMillis();
+            cursor.add(java.util.Calendar.DAY_OF_MONTH, 1);
+        }
+
+        for (File dir : WalkingStore.listSessions(this)) {
+            JSONObject m = WalkingStore.readMeta(dir);
+            if (!"complete".equals(m.optString("status"))) continue;
+            long start = m.optLong("startEpochMs", 0);
+            if (start <= 0) continue;
+            long sessionDay = startOfDay(start);
+            for (int i = 0; i < 7; i++) {
+                if (sessionDay == dayStarts[i]) {
+                    distances[i] += Math.max(0, m.optLong("distanceM", 0));
+                    break;
+                }
+            }
+        }
+
+        long maxDistance = 0;
+        long totalDistance = 0;
+        int activeDays = 0;
+        for (long distance : distances) {
+            maxDistance = Math.max(maxDistance, distance);
+            totalDistance += distance;
+            if (distance > 0) activeDays++;
+        }
+
+        LinearLayout chart = card();
+        chart.addView(text("최근 7일 거리", 15, TEXT, true));
+        TextView summary = text(String.format(Locale.KOREAN, "합계 %.2f km · 활동한 날 %d일", totalDistance / 1000.0, activeDays), 12, MUTED, false);
+        summary.setPadding(0, dp(4), 0, dp(10));
+        chart.addView(summary);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.BOTTOM);
+
+        for (int i = 0; i < 7; i++) {
+            final boolean today = i == 6;
+            LinearLayout column = new LinearLayout(this);
+            column.setOrientation(LinearLayout.VERTICAL);
+            column.setGravity(Gravity.CENTER_HORIZONTAL);
+
+            String kmText = distances[i] <= 0 ? "0" : String.format(Locale.KOREAN, "%.1f", distances[i] / 1000.0);
+            TextView km = text(kmText, 9, today ? PRIMARY2 : MUTED, true);
+            km.setGravity(Gravity.CENTER);
+            column.addView(km, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(18)));
+
+            View spacer = new View(this);
+            column.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1f));
+
+            int barHeight;
+            if (distances[i] <= 0 || maxDistance <= 0) {
+                barHeight = dp(4);
+            } else {
+                barHeight = dp(14) + (int) Math.round(dp(76) * (distances[i] / (double) maxDistance));
+            }
+            View bar = new View(this);
+            bar.setBackground(round(today ? PRIMARY2 : PRIMARY, 7, 0, 0));
+            column.addView(bar, new LinearLayout.LayoutParams(dp(18), barHeight));
+
+            String day = new SimpleDateFormat("E", Locale.KOREAN).format(new Date(dayStarts[i]));
+            String date = new SimpleDateFormat("M/d", Locale.KOREAN).format(new Date(dayStarts[i]));
+            TextView label = text(today ? "오늘\n" + date : day + "\n" + date, 9, today ? PRIMARY2 : MUTED, today);
+            label.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38));
+            lp.topMargin = dp(5);
+            column.addView(label, lp);
+
+            row.addView(column, new LinearLayout.LayoutParams(0, dp(158), 1f));
+        }
+
+        chart.addView(row, match(dp(158)));
+        TextView note = text("걷기·러닝·통합·자전거의 완료된 거리 기록을 날짜별로 합산합니다.", 10, MUTED, false);
+        note.setPadding(0, dp(8), 0, 0);
+        chart.addView(note);
+        page.addView(chart, cardParams());
     }
 
     private void addCategoryCard(LinearLayout page, String icon, String title, String desc, View.OnClickListener click) {
