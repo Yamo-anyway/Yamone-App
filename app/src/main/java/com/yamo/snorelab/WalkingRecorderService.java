@@ -62,10 +62,12 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private static final int NOTIFY_RECORDING = 5101;
     private static final int NOTIFY_GOAL = 5102;
 
-    // Local GPS filter V2. No paid/external road matching API is used.
+    // Local GPS filter V3. No paid/external road matching API is used.
     private static final float MAX_ACCEPTABLE_ACCURACY_M = 45f;
     private static final float MIN_NOISE_FLOOR_M = 2.0f;
     private static final float MAX_NOISE_FLOOR_M = 6.0f;
+    private static final long GPS_GAP_RESET_MS = 12_000L;
+    private static final long RECENT_STEP_WINDOW_MS = 5_000L;
 
     private SharedPreferences runtime;
     private LocationManager locationManager;
@@ -83,6 +85,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private long steps;
     private float stepBase = -1f;
     private boolean stepAvailable;
+    private long lastStepDetectedMs;
     private boolean recording;
     private boolean paused;
     private float currentSpeedKmh;
@@ -94,6 +97,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private float lastAcceptedSpeedMps;
     private long lastWrittenTime;
     private int rejectedGpsPoints;
+    private int gpsGapResets;
+    private int stationaryGpsDiscards;
     private File sessionDir;
     private long goalDistanceM;
     private long goalTimeMs;
@@ -141,6 +146,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         paused = false;
         goalState = "ACTIVE";
         rejectedGpsPoints = 0;
+        gpsGapResets = 0;
+        stationaryGpsDiscards = 0;
+        lastStepDetectedMs = 0;
         lastAcceptedSpeedMps = 0f;
 
         Notification n = buildRecordingNotification(activityLabel() + " 기록을 시작합니다");
@@ -214,6 +222,16 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         }
 
         long dtMs = now - lastAcceptedTime;
+
+        // Do not draw a straight-line distance across a long GPS outage.
+        if (dtMs > GPS_GAP_RESET_MS) {
+            gpsGapResets++;
+            currentSpeedKmh = 0f;
+            rebaseStationaryAnchor(loc, now, true);
+            persistRuntime();
+            return;
+        }
+
         float dtSec = dtMs / 1000f;
         float d = lastAccepted.distanceTo(loc);
         float derivedMps = d / Math.max(0.001f, dtSec);
@@ -252,6 +270,22 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             }
         }
 
+        boolean recentStep = stepAvailable && lastStepDetectedMs > 0
+                && System.currentTimeMillis() - lastStepDetectedMs <= RECENT_STEP_WINDOW_MS;
+        float stoppedSpeedLimit = isRunning() ? 0.45f : 0.30f;
+        boolean deviceSaysStopped = !Float.isNaN(reportedMps) && reportedMps <= stoppedSpeedLimit;
+        float stationaryEnvelopeM = Math.max(8f, combinedAccuracy * 1.10f);
+
+        // When GNSS speed says stopped and the step sensor also has no recent motion,
+        // rebase the anchor instead of letting small drift accumulate into false distance.
+        if (deviceSaysStopped && !recentStep && d <= stationaryEnvelopeM) {
+            stationaryGpsDiscards++;
+            currentSpeedKmh = 0f;
+            rebaseStationaryAnchor(loc, now, false);
+            persistRuntime();
+            return;
+        }
+
         // Small motion inside the GPS accuracy envelope is treated as stationary jitter.
         if (d < noiseFloorM) {
             currentSpeedKmh = 0f;
@@ -267,7 +301,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         // Very slow drift updates the anchor without adding false distance.
         if (derivedMps < minMovingSpeedMps) {
             currentSpeedKmh = 0f;
-            acceptAnchor(loc, now, 0f, false);
+            rebaseStationaryAnchor(loc, now, false);
             persistRuntime();
             return;
         }
@@ -332,6 +366,17 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         lastWrittenTime = now;
     }
 
+    private void rebaseStationaryAnchor(Location loc, long now, boolean forceWrite) {
+        lastAccepted = new Location(loc);
+        lastAcceptedTime = now;
+        lastAcceptedSpeedMps = 0f;
+        if (forceWrite || now - lastWrittenTime >= 10_000L) {
+            WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
+                    Double.isNaN(altitudeM) ? 0 : altitudeM, 0f);
+            lastWrittenTime = now;
+        }
+    }
+
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -340,7 +385,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         if (!recording || event == null || event.sensor == null || event.sensor.getType() != Sensor.TYPE_STEP_COUNTER) return;
         float current = event.values.length > 0 ? event.values[0] : 0f;
         if (stepBase < 0) stepBase = current;
+        long previousSteps = steps;
         steps = Math.max(0, Math.round(current - stepBase));
+        if (steps > previousSteps) lastStepDetectedMs = System.currentTimeMillis();
         persistRuntime();
     }
 
@@ -364,6 +411,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         lastAccepted = null;
         lastAcceptedTime = 0;
         lastAcceptedSpeedMps = 0f;
+        lastStepDetectedMs = 0;
         currentSpeedKmh = 0;
         persistRuntime();
         updateForegroundNotification();
@@ -457,8 +505,10 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             m.put("goalState", goalState);
             m.put("splitsMs", WalkingStore.longListToJson(splitsMs));
             m.put("locationStorage", "local_only");
-            m.put("gpsFilter", "local_" + activityType + "_v2");
+            m.put("gpsFilter", "local_" + activityType + "_v3");
             m.put("rejectedGpsPoints", rejectedGpsPoints);
+            m.put("gpsGapResets", gpsGapResets);
+            m.put("stationaryGpsDiscards", stationaryGpsDiscards);
             WalkingStore.writeMeta(sessionDir, m);
         } catch (Exception ignored) {}
     }
