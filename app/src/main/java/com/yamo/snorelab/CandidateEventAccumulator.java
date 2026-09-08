@@ -26,8 +26,13 @@ public final class CandidateEventAccumulator {
     private double scoreSum;
     private int scoreCount;
     private double scoreMax;
+    private double dbfsSum;
     private double dbfsMax = -120;
     private double lowRatioSum;
+    private double periodicitySum;
+    private double periodicityMax;
+    private double zeroCrossRateSum;
+    private double thresholdSum;
     private int nextIndex = 1;
 
     public CandidateEventAccumulator(File sessionDir, int sampleRate, boolean saveClips, int existingEvents) {
@@ -49,8 +54,13 @@ public final class CandidateEventAccumulator {
                 scoreSum += result.score;
                 scoreCount++;
                 scoreMax = Math.max(scoreMax, result.score);
+                dbfsSum += result.dbfs;
                 dbfsMax = Math.max(dbfsMax, result.dbfs);
                 lowRatioSum += result.lowBandRatio;
+                periodicitySum += result.periodicity;
+                periodicityMax = Math.max(periodicityMax, result.periodicity);
+                zeroCrossRateSum += result.zeroCrossRate;
+                thresholdSum += result.threshold;
             } else {
                 trailingQuiet++;
             }
@@ -78,8 +88,13 @@ public final class CandidateEventAccumulator {
         scoreSum = 0;
         scoreCount = 0;
         scoreMax = 0;
+        dbfsSum = 0;
         dbfsMax = -120;
         lowRatioSum = 0;
+        periodicitySum = 0;
+        periodicityMax = 0;
+        zeroCrossRateSum = 0;
+        thresholdSum = 0;
         clipPcm = saveClips ? new ByteArrayOutputStream((PRE_ROLL_WINDOWS + 12) * sampleRate * 2) : null;
         if (saveClips) {
             for (short[] pre : preRoll) appendPcm(pre);
@@ -105,8 +120,14 @@ public final class CandidateEventAccumulator {
         e.put("durationMs", duration);
         e.put("scoreAvg", scoreCount == 0 ? 0 : scoreSum / scoreCount);
         e.put("scoreMax", scoreMax);
+        e.put("dbfsAvg", scoreCount == 0 ? 0 : dbfsSum / scoreCount);
         e.put("dbfsMax", dbfsMax);
         e.put("lowBandRatioAvg", scoreCount == 0 ? 0 : lowRatioSum / scoreCount);
+        e.put("periodicityAvg", scoreCount == 0 ? 0 : periodicitySum / scoreCount);
+        e.put("periodicityMax", periodicityMax);
+        e.put("zeroCrossRateAvg", scoreCount == 0 ? 0 : zeroCrossRateSum / scoreCount);
+        e.put("thresholdAvg", scoreCount == 0 ? 0 : thresholdSum / scoreCount);
+        e.put("candidateWindowCount", scoreCount);
         e.put("reviewLabel", "UNREVIEWED");
         e.put("clipFile", clipName == null ? JSONObject.NULL : "clips/" + clipName);
         e.put("preRollMs", saveClips ? PRE_ROLL_WINDOWS * 1000 : 0);
