@@ -140,7 +140,7 @@ public class ExerciseActivity extends Activity {
         content.addView(scroll);
 
         page.addView(text("활동", 24, TEXT, true));
-        TextView sub = text("휴대폰만으로 기록하는 활동 · 현재 걷기 V1", 12, MUTED, false);
+        TextView sub = text("휴대폰만으로 기록하는 활동 · 걷기 / 러닝 V2", 12, MUTED, false);
         sub.setPadding(0, dp(3), 0, dp(14));
         page.addView(sub);
 
@@ -166,16 +166,21 @@ public class ExerciseActivity extends Activity {
         TextView steps = text(String.format(Locale.KOREAN, "%,d걸음", todaySteps), 32, TEXT, true);
         steps.setPadding(0, dp(5), 0, 0);
         today.addView(steps);
-        today.addView(text("앱에서 걷기 기록을 시작한 시간의 걸음만 합산합니다.", 11, MUTED, false));
+        today.addView(text("앱에서 걷기/러닝 기록을 시작한 시간의 걸음만 합산합니다.", 11, MUTED, false));
         page.addView(today, cardParams());
 
+        addActivityStartCard(page, "walking", "🚶", "걷기", "예: 거리 5 + 제한시간 60 → 60분 안에 5km 목표");
+        addActivityStartCard(page, "running", "🏃", "러닝", "예: 거리 10 + 제한시간 60 → 60분 안에 10km 목표");
+    }
+
+    private void addActivityStartCard(LinearLayout page, String type, String icon, String label, String example) {
         LinearLayout startCard = card();
-        startCard.addView(text("🚶 걷기", 19, TEXT, true));
+        startCard.addView(text(icon + " " + label, 19, TEXT, true));
         TextView desc = text("GPS 경로 · 거리 · 시간 · 이동/정지 · 걸음수 · 페이스 · 1km 랩을 기록합니다.", 12, MUTED, false);
         desc.setPadding(0, dp(6), 0, dp(12));
         startCard.addView(desc);
 
-        startCard.addView(text("이번 걷기 목표 (선택)", 13, PRIMARY2, true));
+        startCard.addView(text("이번 " + label + " 목표 (선택)", 13, PRIMARY2, true));
         LinearLayout goals = new LinearLayout(this);
         goals.setOrientation(LinearLayout.HORIZONTAL);
         EditText km = numberField("거리 km");
@@ -184,21 +189,26 @@ public class ExerciseActivity extends Activity {
         LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(0, dp(52), 1f); gp.leftMargin = dp(8);
         goals.addView(minutes, gp);
         startCard.addView(goals);
-        TextView hint = text("예: 거리 5 + 제한시간 60 → 60분 안에 5km 목표", 11, MUTED, false);
+        TextView hint = text(example, 11, MUTED, false);
         hint.setPadding(0, dp(6), 0, dp(12));
         startCard.addView(hint);
 
-        Button start = actionButton("▶ 걷기 기록 시작", true, v -> startWalking(km.getText().toString(), minutes.getText().toString()));
+        Button start = actionButton("▶ " + label + " 기록 시작", true,
+                v -> startExercise(type, km.getText().toString(), minutes.getText().toString()));
         startCard.addView(start, match(dp(56)));
         page.addView(startCard, cardParams());
     }
 
     private void buildLive(LinearLayout page) {
+        String type = runtime.getString(WalkingRecorderService.KEY_ACTIVITY_TYPE, "walking");
+        String label = activityLabel(type);
+        String icon = activityIcon(type);
+
         LinearLayout hero = card();
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(text("🚶 걷기 기록 중", 18, TEXT, true), new LinearLayout.LayoutParams(0, dp(38), 1f));
+        top.addView(text(icon + " " + label + " 기록 중", 18, TEXT, true), new LinearLayout.LayoutParams(0, dp(38), 1f));
         TextView state = text(runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false) ? "일시정지" : "GPS 기록", 12,
                 runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false) ? WARNING : SUCCESS, true);
         state.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
@@ -229,7 +239,7 @@ public class ExerciseActivity extends Activity {
         long gd = runtime.getLong(WalkingRecorderService.KEY_GOAL_DISTANCE_M, 0);
         long gt = runtime.getLong(WalkingRecorderService.KEY_GOAL_TIME_MS, 0);
         if (gd > 0 || gt > 0) {
-            LinearLayout goal = card(); goal.addView(text("오늘의 이번 걷기 목표", 15, TEXT, true));
+            LinearLayout goal = card(); goal.addView(text("오늘의 이번 " + label + " 목표", 15, TEXT, true));
             liveGoal = text("", 13, MUTED, false); liveGoal.setPadding(0, dp(8), 0, dp(7)); goal.addView(liveGoal);
             liveProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); liveProgress.setMax(100); goal.addView(liveProgress, match(dp(24)));
             page.addView(goal, cardParams());
@@ -244,7 +254,7 @@ public class ExerciseActivity extends Activity {
         LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.HORIZONTAL);
         boolean paused = runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false);
         Button pause = ghostButton(paused ? "▶ 계속" : "Ⅱ 일시정지", v -> togglePause());
-        Button stop = actionButton("■ 종료", false, v -> stopWalking());
+        Button stop = actionButton("■ 종료", false, v -> stopExercise());
         controls.addView(pause, new LinearLayout.LayoutParams(0, dp(54), 1f));
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, dp(54), 1f); sp.leftMargin = dp(10); controls.addView(stop, sp);
         page.addView(controls, cardParams());
@@ -301,14 +311,17 @@ public class ExerciseActivity extends Activity {
     private void buildRecent(LinearLayout page) {
         List<File> sessions = WalkingStore.listSessions(this);
         if (sessions.isEmpty()) return;
-        TextView h = text("최근 걷기", 17, TEXT, true); h.setPadding(0, dp(12), 0, dp(8)); page.addView(h);
+        TextView h = text("최근 활동", 17, TEXT, true); h.setPadding(0, dp(12), 0, dp(8)); page.addView(h);
         for (int i = 0; i < Math.min(8, sessions.size()); i++) {
             File dir = sessions.get(i); JSONObject m = WalkingStore.readMeta(dir);
             if (!"complete".equals(m.optString("status"))) continue;
+            String type = m.optString("type", "walking");
+            String label = activityLabel(type);
+            String icon = activityIcon(type);
             LinearLayout c = card(); c.setOrientation(LinearLayout.HORIZONTAL);
             LinearLayout left = new LinearLayout(this); left.setOrientation(LinearLayout.VERTICAL);
             long start = m.optLong("startEpochMs", 0); long dist = m.optLong("distanceM", 0); long moving = m.optLong("movingMs", 0);
-            left.addView(text(new SimpleDateFormat("M월 d일 (E) HH:mm", Locale.KOREAN).format(new Date(start)), 14, TEXT, true));
+            left.addView(text(icon + " " + label + " · " + new SimpleDateFormat("M월 d일 (E) HH:mm", Locale.KOREAN).format(new Date(start)), 14, TEXT, true));
             left.addView(text(String.format(Locale.KOREAN, "%.2f km · %s · %s · %,d걸음", dist / 1000.0, formatClock(m.optLong("durationMs", 0)), formatPace(moving, dist), m.optLong("steps", 0)), 12, MUTED, false));
             c.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             TextView arrow = text("›", 28, PRIMARY2, false); arrow.setGravity(Gravity.CENTER); c.addView(arrow, new LinearLayout.LayoutParams(dp(32), ViewGroup.LayoutParams.MATCH_PARENT));
@@ -320,10 +333,13 @@ public class ExerciseActivity extends Activity {
         detailOpen = true; detailDir = dir; content.removeAllViews();
         ScrollView scroll = new ScrollView(this); LinearLayout page = page(); scroll.addView(page); content.addView(scroll);
         JSONObject m = WalkingStore.readMeta(dir);
+        String type = m.optString("type", "walking");
+        String label = activityLabel(type);
+        String icon = activityIcon(type);
 
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
         TextView back = text("‹", 34, TEXT, false); back.setGravity(Gravity.CENTER); back.setOnClickListener(v -> { detailOpen = false; showHome(); }); top.addView(back, new LinearLayout.LayoutParams(dp(42), dp(50)));
-        top.addView(text("걷기 기록", 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(50), 1f)); page.addView(top);
+        top.addView(text(icon + " " + label + " 기록", 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(50), 1f)); page.addView(top);
 
         long start = m.optLong("startEpochMs", 0); long dist = m.optLong("distanceM", 0); long duration = m.optLong("durationMs", 0); long moving = m.optLong("movingMs", 0);
         TextView date = text(new SimpleDateFormat("yyyy년 M월 d일 (E) HH:mm", Locale.KOREAN).format(new Date(start)), 12, MUTED, false); date.setPadding(0, 0, 0, dp(10)); page.addView(date);
@@ -343,23 +359,25 @@ public class ExerciseActivity extends Activity {
         }
     }
 
-    private void startWalking(String kmText, String minText) {
+    private void startExercise(String type, String kmText, String minText) {
+        String label = activityLabel(type);
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
                 (Build.VERSION.SDK_INT >= 29 && checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED)) {
             if (Build.VERSION.SDK_INT >= 29) requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACTIVITY_RECOGNITION}, REQ_ACTIVITY);
             else requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQ_ACTIVITY);
-            Toast.makeText(this, "위치와 활동 권한을 허용한 뒤 시작 버튼을 다시 눌러주세요.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "위치와 활동 권한을 허용한 뒤 " + label + " 시작 버튼을 다시 눌러주세요.", Toast.LENGTH_LONG).show();
             return;
         }
         double km = parseDouble(kmText); long minutes = Math.round(parseDouble(minText));
         Intent i = new Intent(this, WalkingRecorderService.class).setAction(WalkingRecorderService.ACTION_START)
+                .putExtra("activity_type", type)
                 .putExtra("goal_distance_m", Math.max(0, Math.round(km * 1000.0)))
                 .putExtra("goal_time_ms", Math.max(0, minutes * 60_000L));
         try {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
-            Toast.makeText(this, "걷기 기록을 시작합니다. 화면을 꺼도 GPS 기록은 계속됩니다.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, label + " 기록을 시작합니다. 화면을 꺼도 GPS 기록은 계속됩니다.", Toast.LENGTH_LONG).show();
             handler.postDelayed(this::showHome, 500);
-        } catch (Exception e) { Toast.makeText(this, "걷기 기록 시작 실패: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+        } catch (Exception e) { Toast.makeText(this, label + " 기록 시작 실패: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
     }
 
     private void togglePause() {
@@ -368,11 +386,15 @@ public class ExerciseActivity extends Activity {
         handler.postDelayed(this::showHome, 250);
     }
 
-    private void stopWalking() {
+    private void stopExercise() {
+        String type = runtime.getString(WalkingRecorderService.KEY_ACTIVITY_TYPE, "walking");
         startService(new Intent(this, WalkingRecorderService.class).setAction(WalkingRecorderService.ACTION_STOP));
-        Toast.makeText(this, "걷기 기록을 저장합니다.", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, activityLabel(type) + " 기록을 저장합니다.", Toast.LENGTH_SHORT).show();
         handler.postDelayed(this::showHome, 700);
     }
+
+    private static String activityLabel(String type) { return "running".equals(type) ? "러닝" : "걷기"; }
+    private static String activityIcon(String type) { return "running".equals(type) ? "🏃" : "🚶"; }
 
     private EditText numberField(String hint) {
         EditText e = new EditText(this); e.setHint(hint); e.setTextColor(TEXT); e.setHintTextColor(MUTED); e.setTextSize(13); e.setSingleLine(true);
