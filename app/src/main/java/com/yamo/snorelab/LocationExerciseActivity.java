@@ -11,19 +11,24 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
-/** Adds location sharing access without changing the existing activity screen layout. */
+/** Adds location sharing and ski entry without changing the established activity layout. */
 public class LocationExerciseActivity extends EnhancedExerciseActivity {
     private static final String TAG = "yamone_location_share_entry";
     private static final int PRIMARY = 0xFF6D72FF;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        attachLocationEntry();
+        attachEnhancements();
     }
 
     @Override protected void onResume() {
         super.onResume();
+        attachEnhancements();
+    }
+
+    private void attachEnhancements() {
         attachLocationEntry();
+        attachSkiEntry();
     }
 
     private void attachLocationEntry() {
@@ -52,6 +57,37 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         p.rightMargin = dp(16);
         p.bottomMargin = dp(78);
         frame.addView(button, p);
+    }
+
+    private void attachSkiEntry() {
+        View root = findViewById(android.R.id.content);
+        TextView title = findText(root, "스키 / 스노우보드");
+        if (title == null) return;
+
+        View current = title;
+        while (current != null && current != root) {
+            if (current.hasOnClickListeners()) {
+                current.setOnClickListener(v -> startActivity(new Intent(this, SkiActivity.class)));
+                return;
+            }
+            if (!(current.getParent() instanceof View)) break;
+            current = (View) current.getParent();
+        }
+    }
+
+    private TextView findText(View view, String wanted) {
+        if (view instanceof TextView) {
+            CharSequence value = ((TextView) view).getText();
+            if (value != null && wanted.contentEquals(value)) return (TextView) view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                TextView found = findText(group.getChildAt(i), wanted);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private int dp(float value) {
