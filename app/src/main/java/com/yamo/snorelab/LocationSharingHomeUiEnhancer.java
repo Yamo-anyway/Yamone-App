@@ -13,12 +13,13 @@ import android.widget.TextView;
 
 import java.util.WeakHashMap;
 
-/** Adds the standalone location-sharing entry to Home without modifying MainActivity's established layout code. */
+/** Adds the approved standalone location-sharing menu/state card to Home. */
 public final class LocationSharingHomeUiEnhancer {
-    private static final String CARD_TAG = "yamone_home_location_share_card_v1";
-    private static final String TITLE_TAG = "yamone_home_location_share_title_v1";
-    private static final String DESC_TAG = "yamone_home_location_share_desc_v1";
-    private static final String ACTION_TAG = "yamone_home_location_share_action_v1";
+    private static final String CARD_TAG = "yamone_home_location_share_card_v2";
+    private static final String TITLE_TAG = "yamone_home_location_share_title_v2";
+    private static final String DESC_TAG = "yamone_home_location_share_desc_v2";
+    private static final String INFO_TAG = "yamone_home_location_share_info_v2";
+    private static final String ACTION_TAG = "yamone_home_location_share_action_v2";
     private static final WeakHashMap<MainActivity, ViewTreeObserver.OnGlobalLayoutListener> LISTENERS = new WeakHashMap<>();
 
     private LocationSharingHomeUiEnhancer() {}
@@ -77,17 +78,18 @@ public final class LocationSharingHomeUiEnhancer {
     private static LinearLayout buildCard(MainActivity activity) {
         LinearLayout card = new LinearLayout(activity);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(activity, 18), dp(activity, 16), dp(activity, 18), dp(activity, 16));
+        card.setPadding(dp(activity, 16), dp(activity, 15), dp(activity, 16), dp(activity, 15));
         card.setBackground(round(activity, cardColor(activity), 22, 1, border(activity)));
+        card.setOnClickListener(v -> activity.startActivity(new Intent(activity, LocationSharingActivityV2.class)));
 
         LinearLayout top = new LinearLayout(activity);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView icon = text(activity, "📍", 24, textColor(activity), false);
+        TextView icon = text(activity, "📍", 26, textColor(activity), false);
         icon.setGravity(Gravity.CENTER);
-        icon.setBackground(round(activity, card2(activity), 17, 0, 0));
-        top.addView(icon, new LinearLayout.LayoutParams(dp(activity, 48), dp(activity, 48)));
+        icon.setBackground(round(activity, card2(activity), 18, 0, 0));
+        top.addView(icon, new LinearLayout.LayoutParams(dp(activity, 52), dp(activity, 52)));
 
         LinearLayout words = new LinearLayout(activity);
         words.setOrientation(LinearLayout.VERTICAL);
@@ -95,20 +97,29 @@ public final class LocationSharingHomeUiEnhancer {
         TextView title = text(activity, "위치 공유", 16, textColor(activity), true);
         title.setTag(TITLE_TAG);
         words.addView(title);
-        TextView desc = text(activity, "방을 만들거나 참여해 서로의 현재 위치를 확인해요.", 11, muted(activity), false);
+        TextView desc = text(activity, "지금, 친구와 함께 있어요", 11, muted(activity), false);
         desc.setTag(DESC_TAG);
         desc.setPadding(0, dp(activity, 3), 0, 0);
         words.addView(desc);
         top.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView arrow = text(activity, "›", 28, primary2(activity), false);
+        arrow.setGravity(Gravity.CENTER);
+        top.addView(arrow, new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 44)));
         card.addView(top);
 
-        TextView action = text(activity, "위치 공유 열기", 13, Color.WHITE, true);
+        TextView info = text(activity, "", 12, muted(activity), true);
+        info.setTag(INFO_TAG);
+        info.setPadding(0, dp(activity, 10), 0, 0);
+        card.addView(info);
+
+        TextView action = text(activity, "방 만들기 / 참여하기", 13, Color.WHITE, true);
         action.setTag(ACTION_TAG);
         action.setGravity(Gravity.CENTER);
         action.setBackground(round(activity, primary(activity), 16, 0, 0));
         action.setOnClickListener(v -> activity.startActivity(new Intent(activity, LocationSharingActivityV2.class)));
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 48));
-        ap.topMargin = dp(activity, 13);
+        ap.topMargin = dp(activity, 12);
         card.addView(action, ap);
         return card;
     }
@@ -117,23 +128,28 @@ public final class LocationSharingHomeUiEnhancer {
         boolean active = LocationSharingStateStore.isActive(activity);
         TextView title = card.findViewWithTag(TITLE_TAG);
         TextView desc = card.findViewWithTag(DESC_TAG);
+        TextView info = card.findViewWithTag(INFO_TAG);
         TextView action = card.findViewWithTag(ACTION_TAG);
-        if (title == null || desc == null || action == null) return;
+        if (title == null || desc == null || info == null || action == null) return;
 
         if (active) {
-            title.setText("● 위치 공유 중 · " + LocationSharingStateStore.roomName(activity));
+            title.setText("● 위치 공유 중");
             title.setTextColor(primary2(activity));
+            desc.setText(LocationSharingStateStore.roomName(activity));
             String remaining = LocationSharingStateStore.remainingText(activity);
             int count = LocationSharingStateStore.memberCount(activity);
-            desc.setText("참여 " + count + "명" + (remaining.isEmpty() ? "" : " · " + remaining) + " · 현재 위치만 공유 중");
+            int interval = Math.max(1, LocationSharingStateStore.intervalSeconds(activity) / 60);
+            info.setVisibility(View.VISIBLE);
+            info.setText("👥 참여 " + count + "명   ⏱ " + remaining + "   · " + interval + "분 간격");
             action.setText("공유 중인 방 보기");
         } else {
             title.setText("위치 공유");
             title.setTextColor(textColor(activity));
-            desc.setText("방을 만들거나 참여해 서로의 현재 위치를 확인해요.");
-            action.setText("위치 공유 열기");
+            desc.setText("지금, 친구와 함께 있어요");
+            info.setVisibility(View.GONE);
+            action.setText("방 만들기 / 참여하기");
         }
-        card.setBackground(round(activity, cardColor(activity), 22, 1, border(activity)));
+        card.setBackground(round(activity, cardColor(activity), 22, 1, active ? primary(activity) : border(activity)));
         action.setBackground(round(activity, primary(activity), 16, 0, 0));
     }
 
