@@ -55,6 +55,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".SkiSessionDetailActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".LocationSharingActivity"
             android:screenOrientation="portrait"
             android:exported="false" />
