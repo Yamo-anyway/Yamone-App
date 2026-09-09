@@ -101,6 +101,11 @@
             android:exported="false" />
 
         <service
+            android:name=".SkiRecorderService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+
+        <service
             android:name=".LocationSharingService"
             android:foregroundServiceType="location"
             android:exported="false" />
