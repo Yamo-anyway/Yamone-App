@@ -1,11 +1,16 @@
 package com.yamo.snorelab;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
@@ -27,10 +32,15 @@ import org.json.JSONObject;
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
-/** Room creation/joining UI for location sharing. Map and background service are layered on next. */
+/** Room creation/joining and live MapLibre location-sharing UI. */
 public class LocationSharingActivity extends Activity {
+    private static final int REQ_SHARE_PERMISSIONS = 7111;
+    private static final long ACTIVE_POLL_MS = 15_000L;
+
     private static final int BG = 0xFF0B1324;
     private static final int CARD = 0xFF16243B;
     private static final int CARD2 = 0xFF111C31;
@@ -46,6 +56,8 @@ public class LocationSharingActivity extends Activity {
     private static final String[] DURATION_LABELS = {"30분", "1시간", "2시간", "4시간", "8시간", "12시간"};
     private static final int[] DURATION_MINUTES = {30, 60, 120, 240, 480, 720};
 
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
     private LinearLayout rootPage;
     private EditText roomNameInput;
     private EditText passwordInput;
@@ -60,6 +72,24 @@ public class LocationSharingActivity extends Activity {
     private boolean createMode = true;
     private boolean availabilityOk;
     private String checkedRoomName = "";
+    private boolean pendingSubmitAfterPermission;
+    private boolean askedActivePermission;
+
+    private boolean activeScreen;
+    private TextView activeRoomTitle;
+    private TextView activeInfo;
+    private TextView activeRemaining;
+    private TextView activeNetworkHint;
+    private LinearLayout participantList;
+    private LocationSharingMapView sharingMap;
+
+    private final Runnable activePoller = new Runnable() {
+        @Override public void run() {
+            if (!activeScreen) return;
+            refreshActiveSnapshot();
+            handler.postDelayed(this, ACTIVE_POLL_MS);
+        }
+    };
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -69,7 +99,32 @@ public class LocationSharingActivity extends Activity {
         loadCurrentRoom();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (activeScreen) {
+            scheduleActivePolling();
+            ensureSharingService();
+        }
+    }
+
+    @Override protected void onPause() {
+        handler.removeCallbacks(activePoller);
+        super.onPause();
+    }
+
+    @Override protected void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
+    }
+
+    @Override public void onLowMemory() {
+        super.onLowMemory();
+        if (sharingMap != null) sharingMap.onLowMemory();
+    }
+
     private void showLoading() {
+        activeScreen = false;
+        handler.removeCallbacks(activePoller);
         ScrollView scroll = shell();
         rootPage.addView(text("📍 위치 공유", 25, TEXT, true));
         TextView sub = text("현재 위치만 공유하며 이동 경로는 서버에 저장하지 않습니다.", 12, MUTED, false);
@@ -91,6 +146,7 @@ public class LocationSharingActivity extends Activity {
                     else showEntry();
                 });
             }
+
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> {
                     showEntry();
@@ -101,6 +157,9 @@ public class LocationSharingActivity extends Activity {
     }
 
     private void showEntry() {
+        activeScreen = false;
+        handler.removeCallbacks(activePoller);
+        sharingMap = null;
         ScrollView scroll = shell();
         addHeader("📍 위치 공유", "방을 만들거나 기존 방에 참여해 서로의 마지막 위치를 확인합니다.");
 
@@ -178,12 +237,12 @@ public class LocationSharingActivity extends Activity {
         durationSpinner = spinner(DURATION_LABELS);
         durationSpinner.setSelection(3);
         form.addView(durationSpinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
-        TextView expiry = text("종료 5분 전에 알림으로 알려주고, 이후 시간을 연장하거나 종료할 수 있게 연결할 예정입니다.", 11, MUTED, false);
+        TextView expiry = text("공유 시간이 끝나면 자동으로 방에서 나갑니다. 종료 5분 전 알림과 시간 연장은 다음 단계에서 연결합니다.", 11, MUTED, false);
         expiry.setPadding(0, dp(6), 0, dp(14));
         form.addView(expiry);
 
         actionButton = primaryButton("방 만들기");
-        actionButton.setOnClickListener(v -> submit());
+        actionButton.setOnClickListener(v -> ensurePermissionsThenSubmit());
         form.addView(actionButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
         rootPage.addView(form, cardParams());
 
@@ -232,6 +291,7 @@ public class LocationSharingActivity extends Activity {
                     availabilityText.setTextColor(available ? SUCCESS : WARNING);
                 });
             }
+
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> {
                     availabilityButton.setEnabled(true);
@@ -242,6 +302,15 @@ public class LocationSharingActivity extends Activity {
                 });
             }
         });
+    }
+
+    private void ensurePermissionsThenSubmit() {
+        if (hasLocationPermission()) {
+            submit();
+            return;
+        }
+        pendingSubmitAfterPermission = true;
+        requestSharePermissions();
     }
 
     private void submit() {
@@ -265,6 +334,7 @@ public class LocationSharingActivity extends Activity {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> showActive(data));
             }
+
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> {
                     actionButton.setEnabled(true);
@@ -279,43 +349,48 @@ public class LocationSharingActivity extends Activity {
     }
 
     private void showActive(JSONObject initial) {
+        activeScreen = true;
         ScrollView scroll = shell();
-        addHeader("📍 위치 공유 중", "활동 기록과 별개로 위치 공유 방을 유지합니다.");
-
-        String roomName = initial.optString("room_name", "위치 공유 방");
-        JSONArray members = initial.optJSONArray("members");
-        int count = members == null ? 1 : members.length();
-        String nickname = initial.optString("nickname", "");
-        String shareUntil = initial.optString("share_until", "");
-        if (members != null) {
-            for (int i = 0; i < members.length(); i++) {
-                JSONObject m = members.optJSONObject(i);
-                if (m != null && m.optBoolean("is_self", false)) {
-                    nickname = m.optString("nickname", nickname);
-                    shareUntil = m.optString("share_until", shareUntil);
-                    break;
-                }
-            }
-        }
+        addHeader("📍 위치 공유 중", "활동과 별개로 화면이 꺼져도 위치 공유가 계속됩니다.");
 
         LinearLayout status = card();
-        status.addView(text(roomName, 22, TEXT, true));
-        TextView info = text(String.format(Locale.KOREAN, "참여 %d명 · 내 닉네임 %s", count, nickname.isEmpty() ? "-" : nickname), 12, MUTED, false);
-        info.setPadding(0, dp(7), 0, dp(4));
-        status.addView(info);
-        status.addView(text("공유 종료까지 " + remainingText(shareUntil), 12, PRIMARY2, true));
+        activeRoomTitle = text("위치 공유 방", 22, TEXT, true);
+        status.addView(activeRoomTitle);
+        activeInfo = text("참여 상태 확인 중…", 12, MUTED, false);
+        activeInfo.setPadding(0, dp(7), 0, dp(4));
+        status.addView(activeInfo);
+        activeRemaining = text("공유 종료까지 -", 12, PRIMARY2, true);
+        status.addView(activeRemaining);
+        activeNetworkHint = text("상대 위치가 갱신 주기를 넘겨 들어오지 않으면 마지막 위치를 유지하고 ‘연결 끊김’으로 표시합니다.", 11, MUTED, false);
+        activeNetworkHint.setPadding(0, dp(7), 0, 0);
+        status.addView(activeNetworkHint);
         rootPage.addView(status, cardParams());
 
-        LinearLayout next = card();
-        next.addView(text("다음 연결 단계", 14, TEXT, true));
-        TextView nextText = text("방 생성·참여 서버 연결은 완료되었습니다. 다음 빌드에서 MapLibre 지도, 마지막 위치 표시, 화면이 꺼져도 동작하는 위치 공유 서비스를 이 화면에 연결합니다.", 12, MUTED, false);
-        nextText.setPadding(0, dp(8), 0, 0);
-        next.addView(nextText);
-        rootPage.addView(next, cardParams());
+        sharingMap = new LocationSharingMapView(this);
+        LinearLayout.LayoutParams mapParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(360));
+        mapParams.topMargin = dp(12);
+        rootPage.addView(sharingMap, mapParams);
+
+        LinearLayout participants = card();
+        LinearLayout participantHead = new LinearLayout(this);
+        participantHead.setOrientation(LinearLayout.HORIZONTAL);
+        participantHead.setGravity(Gravity.CENTER_VERTICAL);
+        participantHead.addView(text("참여자", 14, TEXT, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Button nick = tinyButton("내 닉네임 변경");
+        nick.setOnClickListener(v -> showNicknameDialog());
+        participantHead.addView(nick, new LinearLayout.LayoutParams(dp(122), dp(38)));
+        participants.addView(participantHead);
+        participantList = new LinearLayout(this);
+        participantList.setOrientation(LinearLayout.VERTICAL);
+        participantList.setPadding(0, dp(8), 0, 0);
+        participants.addView(participantList);
+        rootPage.addView(participants, cardParams());
 
         Button refresh = softButton("방 상태 새로고침");
-        refresh.setOnClickListener(v -> loadCurrentRoom());
-        rootPage.addView(refresh, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
+        refresh.setOnClickListener(v -> refreshActiveSnapshot());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        rp.topMargin = dp(12);
+        rootPage.addView(refresh, rp);
 
         Button leave = dangerButton("위치 공유 종료 · 방 나가기");
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
@@ -329,20 +404,202 @@ public class LocationSharingActivity extends Activity {
                 .show());
 
         setContentView(scroll);
+        applySnapshot(initial);
+        ensureSharingService();
+        scheduleActivePolling();
+    }
+
+    private void applySnapshot(JSONObject data) {
+        if (!activeScreen) return;
+        if (!data.optBoolean("active", false)) {
+            LocationSharingService.stop(this);
+            toast("위치 공유가 종료되었습니다.");
+            showEntry();
+            return;
+        }
+
+        String roomName = data.optString("room_name", "위치 공유 방");
+        JSONArray members = data.optJSONArray("members");
+        if (members == null) members = new JSONArray();
+        JSONObject self = findSelf(members);
+        String nickname = self == null ? "-" : self.optString("nickname", "-");
+        String shareUntil = self == null ? "" : self.optString("share_until", "");
+        int interval = self == null ? 60 : self.optInt("update_interval_seconds", 60);
+
+        activeRoomTitle.setText(roomName);
+        activeInfo.setText(String.format(Locale.KOREAN, "참여 %d명 · 내 닉네임 %s · %s 갱신", members.length(), nickname, intervalLabel(interval)));
+        activeRemaining.setText("공유 종료까지 " + remainingText(shareUntil));
+        sharingMap.setMembers(members);
+        renderParticipants(members);
+    }
+
+    private void renderParticipants(JSONArray members) {
+        participantList.removeAllViews();
+        if (members.length() == 0) {
+            participantList.addView(text("참여자가 없습니다.", 12, MUTED, false));
+            return;
+        }
+        for (int i = 0; i < members.length(); i++) {
+            JSONObject member = members.optJSONObject(i);
+            if (member == null) continue;
+            boolean self = member.optBoolean("is_self", false);
+            String nickname = member.optString("nickname", "사용자");
+            String state = member.optString("connection_state", "waiting");
+            String lastLocationAt = member.optString("last_location_at", "");
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(10), dp(9), dp(10), dp(9));
+            row.setBackground(round(CARD2, 13, 0, 0));
+            String title = self ? "● " + nickname + "  (나)" : "● " + nickname;
+            if ("disconnected".equals(state) || "location_stale".equals(state)) title = "⚠ " + nickname + (self ? "  (나)" : "");
+            else if ("waiting".equals(state)) title = "… " + nickname + (self ? "  (나)" : "");
+            row.addView(text(title, 12, TEXT, true));
+            TextView detail = text(connectionText(state, lastLocationAt), 11,
+                    "connected".equals(state) ? SUCCESS : ("waiting".equals(state) ? MUTED : WARNING), false);
+            detail.setPadding(0, dp(3), 0, 0);
+            row.addView(detail);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (i > 0) p.topMargin = dp(7);
+            participantList.addView(row, p);
+        }
+    }
+
+    private String connectionText(String state, String lastLocationAt) {
+        String age = ageText(lastLocationAt);
+        if ("connected".equals(state)) return "연결됨" + (age.isEmpty() ? "" : " · 위치 " + age);
+        if ("disconnected".equals(state)) return "연결 끊김 · 마지막 위치" + (age.isEmpty() ? "" : " " + age);
+        if ("location_stale".equals(state)) return "위치 갱신 끊김 · 마지막 위치" + (age.isEmpty() ? "" : " " + age);
+        return "첫 위치를 기다리는 중";
+    }
+
+    private void refreshActiveSnapshot() {
+        if (!activeScreen) return;
+        LocationSharingApi.snapshot(this, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                runOnUiThread(() -> applySnapshot(data));
+            }
+
+            @Override public void onFailure(String message) {
+                runOnUiThread(() -> {
+                    if (activeNetworkHint != null) {
+                        activeNetworkHint.setText("네트워크 연결을 확인하는 중입니다. 지도에는 마지막으로 받은 위치를 유지합니다.");
+                        activeNetworkHint.setTextColor(WARNING);
+                    }
+                });
+            }
+        });
+    }
+
+    private void scheduleActivePolling() {
+        handler.removeCallbacks(activePoller);
+        if (activeScreen) handler.postDelayed(activePoller, ACTIVE_POLL_MS);
+    }
+
+    private void ensureSharingService() {
+        if (!activeScreen) return;
+        if (hasLocationPermission()) {
+            LocationSharingService.start(this);
+            return;
+        }
+        if (!askedActivePermission) {
+            askedActivePermission = true;
+            requestSharePermissions();
+        }
+    }
+
+    private void showNicknameDialog() {
+        JSONObject dummy = new JSONObject();
+        final EditText input = input("새 닉네임", InputType.TYPE_CLASS_TEXT);
+        input.setSingleLine(true);
+        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(24)});
+        new AlertDialog.Builder(this)
+                .setTitle("위치 공유 닉네임")
+                .setMessage("이 방에서 표시할 닉네임만 변경합니다.")
+                .setView(input)
+                .setNegativeButton("취소", null)
+                .setPositiveButton("변경", (d, w) -> {
+                    String nickname = input.getText().toString().trim();
+                    if (nickname.isEmpty()) { toast("닉네임을 입력해 주세요."); return; }
+                    LocationSharingApi.updateNickname(this, nickname, new LocationSharingApi.JsonCallback() {
+                        @Override public void onSuccess(JSONObject data) {
+                            runOnUiThread(() -> {
+                                toast("닉네임을 변경했습니다.");
+                                applySnapshot(data);
+                            });
+                        }
+                        @Override public void onFailure(String message) { runOnUiThread(() -> toast(message)); }
+                    });
+                })
+                .show();
     }
 
     private void leaveRoom() {
         LocationSharingApi.leave(this, new LocationSharingApi.JsonCallback() {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> {
+                    LocationSharingService.stop(LocationSharingActivity.this);
                     toast("위치 공유를 종료했습니다.");
                     showEntry();
                 });
             }
+
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> toast(message));
             }
         });
+    }
+
+    private void requestSharePermissions() {
+        List<String> permissions = new ArrayList<>();
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+        if (permissions.isEmpty()) {
+            if (pendingSubmitAfterPermission) {
+                pendingSubmitAfterPermission = false;
+                submit();
+            } else if (activeScreen) {
+                LocationSharingService.start(this);
+            }
+            return;
+        }
+        requestPermissions(permissions.toArray(new String[0]), REQ_SHARE_PERMISSIONS);
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQ_SHARE_PERMISSIONS) return;
+        if (!hasLocationPermission()) {
+            pendingSubmitAfterPermission = false;
+            toast("화면이 꺼져도 위치를 공유하려면 위치 권한이 필요합니다.");
+            return;
+        }
+        if (pendingSubmitAfterPermission) {
+            pendingSubmitAfterPermission = false;
+            submit();
+        } else if (activeScreen) {
+            LocationSharingService.start(this);
+        }
+    }
+
+    private boolean hasLocationPermission() {
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private JSONObject findSelf(JSONArray members) {
+        for (int i = 0; i < members.length(); i++) {
+            JSONObject member = members.optJSONObject(i);
+            if (member != null && member.optBoolean("is_self", false)) return member;
+        }
+        return null;
     }
 
     private ScrollView shell() {
@@ -417,6 +674,7 @@ public class LocationSharingActivity extends Activity {
         b.setTextColor(Color.WHITE);
         b.setTextSize(14);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setAllCaps(false);
         b.setBackground(round(PRIMARY, 15, 0, 0));
         return b;
     }
@@ -438,6 +696,13 @@ public class LocationSharingActivity extends Activity {
     private Button smallButton(String value) {
         Button b = primaryButton(value);
         b.setTextSize(11);
+        return b;
+    }
+
+    private Button tinyButton(String value) {
+        Button b = softButton(value);
+        b.setTextSize(10);
+        b.setPadding(dp(5), 0, dp(5), 0);
         return b;
     }
 
@@ -493,6 +758,25 @@ public class LocationSharingActivity extends Activity {
         } catch (DateTimeParseException e) {
             return "-";
         }
+    }
+
+    private String ageText(String iso) {
+        if (iso == null || iso.isEmpty()) return "";
+        try {
+            long seconds = Math.max(0, (System.currentTimeMillis() - Instant.parse(iso).toEpochMilli()) / 1000L);
+            if (seconds < 60) return "방금";
+            long minutes = seconds / 60;
+            if (minutes < 60) return minutes + "분 전";
+            long hours = minutes / 60;
+            return hours + "시간 전";
+        } catch (DateTimeParseException e) {
+            return "";
+        }
+    }
+
+    private String intervalLabel(int seconds) {
+        if (seconds < 60) return seconds + "초";
+        return (seconds / 60) + "분";
     }
 
     private void toast(String message) {
