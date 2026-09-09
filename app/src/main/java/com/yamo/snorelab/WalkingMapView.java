@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
@@ -28,6 +29,10 @@ import static org.maplibre.android.style.layers.PropertyFactory.lineJoin;
 import static org.maplibre.android.style.layers.PropertyFactory.lineOpacity;
 import static org.maplibre.android.style.layers.PropertyFactory.lineWidth;
 
+/**
+ * Fixed route preview used by walking/running/cycling and ski summaries.
+ * The map is intentionally non-interactive: it only shows the recorded route bounds.
+ */
 public class WalkingMapView extends FrameLayout {
     private static final String STYLE_URI = "https://tiles.openfreemap.org/styles/liberty";
     private static final String SOURCE_ID = "walking-route-source";
@@ -41,53 +46,72 @@ public class WalkingMapView extends FrameLayout {
     private boolean started;
     private boolean resumed;
     private boolean destroyed;
+    private boolean styleReady;
 
     public WalkingMapView(Context context) {
         super(context);
-        setBackgroundColor(0xFF101B2D);
+        boolean pink = "pink".equals(context.getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "mint"));
+        int previewBg = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
+        int previewText = pink ? 0xFF9A7180 : 0xFF718984;
+        String routeColor = pink ? "#FF769F" : "#35C6A6";
+        setBackgroundColor(previewBg);
 
         MapLibre.getInstance(context.getApplicationContext());
         mapView = new MapView(context);
         mapView.onCreate(null);
-        addView(mapView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mapView.setAlpha(0f); // Never flash the default/world camera before route fitting.
+        mapView.setClickable(false);
+        mapView.setFocusable(false);
+        mapView.setOnTouchListener((v, event) -> true); // snapshot-like: no drag/zoom/rotate.
+        addView(mapView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         status = new TextView(context);
-        status.setText("지도 불러오는 중…");
-        status.setTextColor(Color.WHITE);
+        status.setText("이동 경로 준비 중…");
+        status.setTextColor(previewText);
         status.setTextSize(12);
         status.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         status.setGravity(Gravity.CENTER);
-        status.setBackgroundColor(0x990B1324);
-        FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(36));
-        sp.gravity = Gravity.TOP;
-        addView(status, sp);
+        status.setBackgroundColor(previewBg);
+        addView(status, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mapView.getMapAsync(value -> {
             map = value;
+            try {
+                map.getUiSettings().setAllGesturesEnabled(false);
+                map.getUiSettings().setCompassEnabled(false);
+            } catch (Exception ignored) {}
             map.setStyle(STYLE_URI, style -> {
                 routeSource = new GeoJsonSource(SOURCE_ID);
                 style.addSource(routeSource);
                 LineLayer routeLayer = new LineLayer(LAYER_ID, SOURCE_ID).withProperties(
-                        lineColor("#32D7B4"),
+                        lineColor(routeColor),
                         lineWidth(5.0f),
                         lineOpacity(0.96f),
                         lineCap("round"),
                         lineJoin("round")
                 );
                 style.addLayer(routeLayer);
-                status.setVisibility(GONE);
-                updateRoute(true);
+                styleReady = true;
+                updateRoute();
             });
         });
     }
 
     public void setPoints(List<WalkingStore.Point> value) {
         points = value == null ? new ArrayList<>() : new ArrayList<>(value);
-        updateRoute(false);
+        if (points.isEmpty()) {
+            status.setText("표시할 이동 경로가 없어요.");
+            status.setVisibility(VISIBLE);
+            mapView.setAlpha(0f);
+        }
+        updateRoute();
     }
 
-    private void updateRoute(boolean forceFit) {
-        if (routeSource == null || map == null || points.isEmpty()) return;
+    private void updateRoute() {
+        if (!styleReady || routeSource == null || map == null || points.isEmpty()) return;
         ArrayList<Point> geo = new ArrayList<>();
         LatLngBounds.Builder bounds = new LatLngBounds.Builder();
         for (WalkingStore.Point p : points) {
@@ -102,11 +126,22 @@ public class WalkingMapView extends FrameLayout {
             try {
                 WalkingStore.Point last = points.get(points.size() - 1);
                 if (points.size() == 1) {
-                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(last.lat, last.lon), 16.0));
+                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                            new LatLng(last.lat, last.lon), 16.0));
                 } else {
-                    map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds.build(), dp(30)), forceFit ? 0 : 450);
+                    // Fit only the user's recorded route with a small visual margin.
+                    map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds.build(), dp(26)));
                 }
-            } catch (Exception ignored) {}
+                // Reveal only after the route camera is already fitted.
+                mapView.postDelayed(() -> {
+                    mapView.setAlpha(1f);
+                    status.setVisibility(GONE);
+                }, 80L);
+            } catch (Exception ignored) {
+                status.setText("이동 경로를 표시하지 못했어요.");
+                status.setVisibility(VISIBLE);
+                mapView.setAlpha(0f);
+            }
         });
     }
 
@@ -133,5 +168,7 @@ public class WalkingMapView extends FrameLayout {
         if (!destroyed) try { mapView.onLowMemory(); } catch (Exception ignored) {}
     }
 
-    private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
+    private int dp(float v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
 }
