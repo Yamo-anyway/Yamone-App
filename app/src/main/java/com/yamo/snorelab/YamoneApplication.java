@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
 
-/** Installs small UI enhancements without changing the existing MainActivity layout implementation. */
+/** Installs small UI enhancements without changing established screen implementations. */
 public class YamoneApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
         super.onCreate();
@@ -17,6 +17,13 @@ public class YamoneApplication extends Application implements Application.Activi
             SleepUploadUiEnhancer.attach(main);
             ProfileSettingsUiEnhancer.attach(main);
             LocationSharingHomeUiEnhancer.attach(main);
+        }
+
+        if (activity instanceof LocationExerciseActivity
+                || activity instanceof SkiActivity
+                || activity instanceof SkiSessionDetailActivity
+                || activity instanceof SkiWaitTimesActivity) {
+            ActivitySystemBarUiEnhancer.apply(activity);
         }
     }
 
