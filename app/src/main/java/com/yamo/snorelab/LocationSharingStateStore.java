@@ -25,10 +25,12 @@ public final class LocationSharingStateStore {
                 .putInt(KEY_INTERVAL, intervalSeconds)
                 .putInt(KEY_MEMBER_COUNT, Math.max(0, memberCount))
                 .apply();
+        LocationSharingUiBus.notifyChanged();
     }
 
     public static void clear(Context context) {
         prefs(context).edit().clear().apply();
+        LocationSharingUiBus.notifyChanged();
     }
 
     public static boolean isActive(Context context) {
