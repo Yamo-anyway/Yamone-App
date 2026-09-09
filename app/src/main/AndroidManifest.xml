@@ -37,6 +37,7 @@
         <activity android:name=".AlarmActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".EnhancedExerciseActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".LocationExerciseActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".HikingActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".SkiActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".SkiSessionDetailActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".SkiWaitTimesActivity" android:screenOrientation="portrait" android:exported="false" />
@@ -55,6 +56,7 @@
         <service android:name=".SleepRecorderService" android:foregroundServiceType="microphone" android:exported="false" />
         <service android:name=".AlarmRingService" android:foregroundServiceType="mediaPlayback" android:exported="false" />
         <service android:name=".WalkingRecorderService" android:foregroundServiceType="location" android:exported="false" />
+        <service android:name=".HikingRecorderService" android:foregroundServiceType="location" android:exported="false" />
         <service android:name=".SkiRecorderService" android:foregroundServiceType="location" android:exported="false" />
         <service android:name=".LocationSharingService" android:foregroundServiceType="location" android:exported="false" />
 
