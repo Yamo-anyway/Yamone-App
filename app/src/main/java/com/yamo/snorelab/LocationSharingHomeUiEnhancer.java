@@ -13,13 +13,10 @@ import android.widget.TextView;
 
 import java.util.WeakHashMap;
 
-/** Adds the approved standalone location-sharing menu/state card to Home. */
+/** Replaces the old Home hero with the approved Yamone rounded quick-menu layout. */
 public final class LocationSharingHomeUiEnhancer {
-    private static final String CARD_TAG = "yamone_home_location_share_card_v2";
-    private static final String TITLE_TAG = "yamone_home_location_share_title_v2";
-    private static final String DESC_TAG = "yamone_home_location_share_desc_v2";
-    private static final String INFO_TAG = "yamone_home_location_share_info_v2";
-    private static final String ACTION_TAG = "yamone_home_location_share_action_v2";
+    private static final String PANEL_TAG = "yamone_home_quick_panel_v3";
+    private static final String ACTIVE_TAG = "yamone_home_location_active_v3";
     private static final WeakHashMap<MainActivity, ViewTreeObserver.OnGlobalLayoutListener> LISTENERS = new WeakHashMap<>();
 
     private LocationSharingHomeUiEnhancer() {}
@@ -46,10 +43,10 @@ public final class LocationSharingHomeUiEnhancer {
 
     private static void enhance(MainActivity activity) {
         View root = activity.getWindow().getDecorView();
-        TextView homeHeroTitle = findExactText(root, "편하게 기록하고, 천천히 쌓아가요.");
-        if (homeHeroTitle == null) return;
+        TextView heroTitle = findExactText(root, "편하게 기록하고, 천천히 쌓아가요.");
+        if (heroTitle == null) return;
 
-        View hero = homeHeroTitle;
+        View hero = heroTitle;
         while (hero.getParent() instanceof View && !(hero.getParent() instanceof android.widget.ScrollView)) {
             View parent = (View) hero.getParent();
             if (parent.getParent() instanceof LinearLayout) {
@@ -61,96 +58,161 @@ public final class LocationSharingHomeUiEnhancer {
         if (!(hero.getParent() instanceof LinearLayout)) return;
         LinearLayout page = (LinearLayout) hero.getParent();
 
-        View existing = page.findViewWithTag(CARD_TAG);
-        if (existing == null) {
-            LinearLayout card = buildCard(activity);
-            card.setTag(CARD_TAG);
-            int index = Math.min(page.indexOfChild(hero) + 1, page.getChildCount());
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            params.topMargin = dp(activity, 12);
-            page.addView(card, index, params);
-            existing = card;
+        View oldPanel = page.findViewWithTag(PANEL_TAG);
+        if (oldPanel != null) {
+            refreshActive(activity, oldPanel);
+            return;
         }
-        updateCard(activity, existing);
+
+        int index = page.indexOfChild(hero);
+        if (index < 0) return;
+        ViewGroup.LayoutParams oldParams = hero.getLayoutParams();
+        page.removeView(hero);
+
+        LinearLayout panel = buildPanel(activity);
+        panel.setTag(PANEL_TAG);
+        page.addView(panel, index, oldParams);
+        refreshActive(activity, panel);
     }
 
-    private static LinearLayout buildCard(MainActivity activity) {
+    private static LinearLayout buildPanel(MainActivity activity) {
+        LinearLayout panel = new LinearLayout(activity);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(0, dp(activity, 4), 0, dp(activity, 8));
+
+        LinearLayout active = buildActiveCard(activity);
+        active.setTag(ACTIVE_TAG);
+        panel.addView(active, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout row1 = new LinearLayout(activity);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.addView(tile(activity, YamonePastelArtView.MODE_ACTIVITY,
+                        "활동 기록", "걷기 · 러닝 · 자전거\n스키 등",
+                        v -> activity.startActivity(new Intent(activity, ExerciseActivity.class))),
+                new LinearLayout.LayoutParams(0, dp(activity, 154), 1f));
+        LinearLayout.LayoutParams locP = new LinearLayout.LayoutParams(0, dp(activity, 154), 1f);
+        locP.leftMargin = dp(activity, 10);
+        row1.addView(tile(activity, YamonePastelArtView.MODE_LOCATION,
+                        "위치 공유", "지금, 친구와\n함께 있어요",
+                        v -> activity.startActivity(new Intent(activity, LocationSharingActivityV2.class))), locP);
+        panel.addView(row1);
+
+        LinearLayout row2 = new LinearLayout(activity);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams row2P = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        row2P.topMargin = dp(activity, 10);
+        panel.addView(row2, row2P);
+
+        row2.addView(tile(activity, YamonePastelArtView.MODE_LIFT,
+                        "리프트 정보", "스키장 리프트\n대기 정보를 봐요",
+                        v -> activity.startActivity(new Intent(activity, SkiWaitTimesActivity.class))),
+                new LinearLayout.LayoutParams(0, dp(activity, 154), 1f));
+        LinearLayout.LayoutParams statP = new LinearLayout.LayoutParams(0, dp(activity, 154), 1f);
+        statP.leftMargin = dp(activity, 10);
+        row2.addView(tile(activity, YamonePastelArtView.MODE_STATS,
+                        "통계", "나의 활동과\n기록을 한눈에",
+                        v -> activity.startActivity(new Intent(activity, ExerciseActivity.class))), statP);
+
+        LinearLayout banner = new LinearLayout(activity);
+        banner.setOrientation(LinearLayout.HORIZONTAL);
+        banner.setGravity(Gravity.CENTER_VERTICAL);
+        banner.setPadding(dp(activity, 16), dp(activity, 12), dp(activity, 14), dp(activity, 12));
+        banner.setBackground(round(activity, pink(activity) ? 0xFFFFEFF4 : 0xFFE9FBF5, 20, 0, 0));
+        LinearLayout copy = new LinearLayout(activity);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(text(activity, "함께하는", 12, primary2(activity), true));
+        copy.addView(text(activity, "더 즐거운 야외활동", 15, textColor(activity), true));
+        copy.addView(text(activity, "Yamone ♥", 14, primary(activity), true));
+        banner.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        YamonePastelArtView art = new YamonePastelArtView(activity, YamonePastelArtView.MODE_LOCATION_SCENE);
+        banner.addView(art, new LinearLayout.LayoutParams(dp(activity, 126), dp(activity, 82)));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 106));
+        bp.topMargin = dp(activity, 12);
+        panel.addView(banner, bp);
+        return panel;
+    }
+
+    private static LinearLayout tile(MainActivity activity, int mode, String title, String desc, View.OnClickListener click) {
+        LinearLayout tile = new LinearLayout(activity);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER_HORIZONTAL);
+        tile.setPadding(dp(activity, 13), dp(activity, 12), dp(activity, 13), dp(activity, 11));
+        tile.setBackground(round(activity, 0xFFFFFFFF, 22, 1, border(activity)));
+        tile.setOnClickListener(click);
+        if (android.os.Build.VERSION.SDK_INT >= 21) tile.setElevation(dp(activity, 1));
+
+        YamonePastelArtView icon = new YamonePastelArtView(activity, mode);
+        tile.addView(icon, new LinearLayout.LayoutParams(dp(activity, 62), dp(activity, 62)));
+        TextView t = text(activity, title, 14, textColor(activity), true);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, dp(activity, 4), 0, dp(activity, 2));
+        tile.addView(t);
+        TextView d = text(activity, desc, 10, muted(activity), false);
+        d.setGravity(Gravity.CENTER);
+        tile.addView(d);
+        return tile;
+    }
+
+    private static LinearLayout buildActiveCard(MainActivity activity) {
         LinearLayout card = new LinearLayout(activity);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(activity, 16), dp(activity, 15), dp(activity, 16), dp(activity, 15));
-        card.setBackground(round(activity, cardColor(activity), 22, 1, border(activity)));
+        card.setPadding(dp(activity, 16), dp(activity, 14), dp(activity, 16), dp(activity, 14));
+        card.setBackground(round(activity, 0xFFFFFFFF, 22, 1, primary(activity)));
         card.setOnClickListener(v -> activity.startActivity(new Intent(activity, LocationSharingActivityV2.class)));
 
-        LinearLayout top = new LinearLayout(activity);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout head = new LinearLayout(activity);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        YamonePastelArtView pin = new YamonePastelArtView(activity, YamonePastelArtView.MODE_LOCATION);
+        head.addView(pin, new LinearLayout.LayoutParams(dp(activity, 38), dp(activity, 38)));
+        TextView title = text(activity, "위치 공유 중", 15, textColor(activity), true);
+        title.setTag("active_title");
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tp.leftMargin = dp(activity, 9);
+        head.addView(title, tp);
+        TextView arrow = text(activity, "›", 27, primary2(activity), false);
+        head.addView(arrow);
+        card.addView(head);
 
-        TextView icon = text(activity, "📍", 26, textColor(activity), false);
-        icon.setGravity(Gravity.CENTER);
-        icon.setBackground(round(activity, card2(activity), 18, 0, 0));
-        top.addView(icon, new LinearLayout.LayoutParams(dp(activity, 52), dp(activity, 52)));
-
-        LinearLayout words = new LinearLayout(activity);
-        words.setOrientation(LinearLayout.VERTICAL);
-        words.setPadding(dp(activity, 12), 0, 0, 0);
-        TextView title = text(activity, "위치 공유", 16, textColor(activity), true);
-        title.setTag(TITLE_TAG);
-        words.addView(title);
-        TextView desc = text(activity, "지금, 친구와 함께 있어요", 11, muted(activity), false);
-        desc.setTag(DESC_TAG);
-        desc.setPadding(0, dp(activity, 3), 0, 0);
-        words.addView(desc);
-        top.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView arrow = text(activity, "›", 28, primary2(activity), false);
-        arrow.setGravity(Gravity.CENTER);
-        top.addView(arrow, new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 44)));
-        card.addView(top);
-
-        TextView info = text(activity, "", 12, muted(activity), true);
-        info.setTag(INFO_TAG);
-        info.setPadding(0, dp(activity, 10), 0, 0);
+        TextView room = text(activity, "", 13, textColor(activity), true);
+        room.setTag("active_room");
+        room.setPadding(0, dp(activity, 7), 0, 0);
+        card.addView(room);
+        TextView info = text(activity, "", 11, muted(activity), false);
+        info.setTag("active_info");
+        info.setPadding(0, dp(activity, 5), 0, 0);
         card.addView(info);
 
-        TextView action = text(activity, "방 만들기 / 참여하기", 13, Color.WHITE, true);
-        action.setTag(ACTION_TAG);
+        TextView action = text(activity, "공유 중인 방 보기", 12, primary2(activity), true);
         action.setGravity(Gravity.CENTER);
-        action.setBackground(round(activity, primary(activity), 16, 0, 0));
-        action.setOnClickListener(v -> activity.startActivity(new Intent(activity, LocationSharingActivityV2.class)));
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 48));
-        ap.topMargin = dp(activity, 12);
+        action.setBackground(round(activity, pink(activity) ? 0xFFFFE5ED : 0xFFE0F8F1, 15, 0, 0));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 42));
+        ap.topMargin = dp(activity, 10);
         card.addView(action, ap);
         return card;
     }
 
-    private static void updateCard(MainActivity activity, View card) {
-        boolean active = LocationSharingStateStore.isActive(activity);
-        TextView title = card.findViewWithTag(TITLE_TAG);
-        TextView desc = card.findViewWithTag(DESC_TAG);
-        TextView info = card.findViewWithTag(INFO_TAG);
-        TextView action = card.findViewWithTag(ACTION_TAG);
-        if (title == null || desc == null || info == null || action == null) return;
-
-        if (active) {
-            title.setText("● 위치 공유 중");
-            title.setTextColor(primary2(activity));
-            desc.setText(LocationSharingStateStore.roomName(activity));
-            String remaining = LocationSharingStateStore.remainingText(activity);
+    private static void refreshActive(MainActivity activity, View panel) {
+        View active = panel.findViewWithTag(ACTIVE_TAG);
+        if (!(active instanceof LinearLayout)) return;
+        boolean sharing = LocationSharingStateStore.isActive(activity);
+        active.setVisibility(sharing ? View.VISIBLE : View.GONE);
+        ViewGroup.LayoutParams lp = active.getLayoutParams();
+        if (lp instanceof LinearLayout.LayoutParams) {
+            LinearLayout.LayoutParams p = (LinearLayout.LayoutParams) lp;
+            p.bottomMargin = sharing ? dp(activity, 12) : 0;
+            active.setLayoutParams(p);
+        }
+        if (!sharing) return;
+        TextView room = active.findViewWithTag("active_room");
+        TextView info = active.findViewWithTag("active_info");
+        if (room != null) room.setText(LocationSharingStateStore.roomName(activity));
+        if (info != null) {
             int count = LocationSharingStateStore.memberCount(activity);
             int interval = Math.max(1, LocationSharingStateStore.intervalSeconds(activity) / 60);
-            info.setVisibility(View.VISIBLE);
-            info.setText("👥 참여 " + count + "명   ⏱ " + remaining + "   · " + interval + "분 간격");
-            action.setText("공유 중인 방 보기");
-        } else {
-            title.setText("위치 공유");
-            title.setTextColor(textColor(activity));
-            desc.setText("지금, 친구와 함께 있어요");
-            info.setVisibility(View.GONE);
-            action.setText("방 만들기 / 참여하기");
+            String remaining = LocationSharingStateStore.remainingText(activity);
+            info.setText("참여 " + count + "명 · " + remaining + " · " + interval + "분 간격");
         }
-        card.setBackground(round(activity, cardColor(activity), 22, 1, active ? primary(activity) : border(activity)));
-        action.setBackground(round(activity, primary(activity), 16, 0, 0));
     }
 
     private static TextView findExactText(View view, String value) {
@@ -170,8 +232,6 @@ public final class LocationSharingHomeUiEnhancer {
                 .getString("yamone_theme", "mint"));
     }
 
-    private static int cardColor(MainActivity a) { return 0xFFFFFFFF; }
-    private static int card2(MainActivity a) { return pink(a) ? 0xFFFFEEF3 : 0xFFF0FAF6; }
     private static int textColor(MainActivity a) { return pink(a) ? 0xFF4B2633 : 0xFF153633; }
     private static int muted(MainActivity a) { return pink(a) ? 0xFF9A7180 : 0xFF718984; }
     private static int primary(MainActivity a) { return pink(a) ? 0xFFFF769F : 0xFF56D1B3; }
