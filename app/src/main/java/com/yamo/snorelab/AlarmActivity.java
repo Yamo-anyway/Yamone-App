@@ -87,15 +87,6 @@ public class AlarmActivity extends Activity {
         super.onDestroy();
     }
 
-    @Override public void onBackPressed() {
-        if (editorOpen) {
-            editorOpen = false;
-            showList();
-            return;
-        }
-        super.onBackPressed();
-    }
-
     private boolean pinkTheme() {
         return "pink".equals(prefs == null ? "mint" : prefs.getString(KEY_THEME, "mint"));
     }
