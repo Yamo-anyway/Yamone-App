@@ -11,6 +11,10 @@ import java.util.concurrent.Executors;
 /** Supabase RPC client for ephemeral location sharing using the shared anonymous session. */
 public final class LocationSharingApi {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final long SNAPSHOT_CACHE_MS = 60_000L;
+    private static final Object SNAPSHOT_LOCK = new Object();
+    private static JSONObject cachedSnapshot;
+    private static long cachedSnapshotAt;
 
     private LocationSharingApi() {}
 
@@ -46,7 +50,7 @@ public final class LocationSharingApi {
             callback.onFailure("입력값을 준비하지 못했습니다.");
             return;
         }
-        rpcAsync(context, "location_create_room", args, callback);
+        rpcMutationAsync(context, "location_create_room", args, callback);
     }
 
     public static void joinRoom(Context context, String roomName, String password, String nickname,
@@ -62,36 +66,55 @@ public final class LocationSharingApi {
             callback.onFailure("입력값을 준비하지 못했습니다.");
             return;
         }
-        rpcAsync(context, "location_join_room", args, callback);
+        rpcMutationAsync(context, "location_join_room", args, callback);
     }
 
+    /** Automatic participant/location reads are shared across UI and service for at least one minute. */
     public static void snapshot(Context context, JsonCallback callback) {
-        rpcAsync(context, "location_room_snapshot", new JSONObject(), callback);
+        synchronized (SNAPSHOT_LOCK) {
+            if (cachedSnapshot != null && System.currentTimeMillis() - cachedSnapshotAt < SNAPSHOT_CACHE_MS) {
+                try {
+                    callback.onSuccess(new JSONObject(cachedSnapshot.toString()));
+                } catch (Exception e) {
+                    callback.onSuccess(cachedSnapshot);
+                }
+                return;
+            }
+        }
+        run(() -> {
+            String body = SupabaseAnonymousRpcClient.rpc(context, "location_room_snapshot", new JSONObject());
+            JSONObject data = body.isEmpty() ? new JSONObject() : new JSONObject(body);
+            synchronized (SNAPSHOT_LOCK) {
+                cachedSnapshot = new JSONObject(data.toString());
+                cachedSnapshotAt = System.currentTimeMillis();
+            }
+            callback.onSuccess(data);
+        }, callback::onFailure);
     }
 
     public static void leave(Context context, JsonCallback callback) {
-        rpcAsync(context, "location_leave", new JSONObject(), callback);
+        rpcMutationAsync(context, "location_leave", new JSONObject(), callback);
     }
 
     public static void updateNickname(Context context, String nickname, JsonCallback callback) {
         JSONObject args = new JSONObject();
         try { args.put("p_nickname", nickname); }
         catch (Exception e) { callback.onFailure("닉네임을 준비하지 못했습니다."); return; }
-        rpcAsync(context, "location_update_nickname", args, callback);
+        rpcMutationAsync(context, "location_update_nickname", args, callback);
     }
 
     public static void setInterval(Context context, int seconds, JsonCallback callback) {
         JSONObject args = new JSONObject();
         try { args.put("p_update_interval_seconds", seconds); }
-        catch (Exception e) { callback.onFailure("갱신 주기를 준비하지 못했습니다."); return; }
-        rpcAsync(context, "location_set_interval", args, callback);
+        catch (Exception e) { callback.onFailure("공유 간격을 준비하지 못했습니다."); return; }
+        rpcMutationAsync(context, "location_set_interval", args, callback);
     }
 
     public static void extend(Context context, int minutes, JsonCallback callback) {
         JSONObject args = new JSONObject();
         try { args.put("p_add_minutes", minutes); }
         catch (Exception e) { callback.onFailure("연장 시간을 준비하지 못했습니다."); return; }
-        rpcAsync(context, "location_extend", args, callback);
+        rpcMutationAsync(context, "location_extend", args, callback);
     }
 
     public static void report(Context context, double lat, double lon, Float accuracy, JsonCallback callback) {
@@ -104,11 +127,30 @@ public final class LocationSharingApi {
             callback.onFailure("위치값을 준비하지 못했습니다.");
             return;
         }
+        // Do not invalidate the participant snapshot here. Other people's locations are intentionally
+        // refreshed no faster than once a minute, even while my own latest location is uploaded.
         rpcAsync(context, "location_report", args, callback);
     }
 
     public static void heartbeat(Context context, JsonCallback callback) {
         rpcAsync(context, "location_heartbeat", new JSONObject(), callback);
+    }
+
+    public static void invalidateSnapshot() {
+        synchronized (SNAPSHOT_LOCK) {
+            cachedSnapshot = null;
+            cachedSnapshotAt = 0L;
+        }
+    }
+
+    private static void rpcMutationAsync(Context context, String name, JSONObject args, JsonCallback callback) {
+        invalidateSnapshot();
+        run(() -> {
+            String body = SupabaseAnonymousRpcClient.rpc(context, name, args);
+            invalidateSnapshot();
+            JSONObject data = body.isEmpty() ? new JSONObject() : new JSONObject(body);
+            callback.onSuccess(data);
+        }, callback::onFailure);
     }
 
     private static void rpcAsync(Context context, String name, JSONObject args, JsonCallback callback) {
@@ -150,7 +192,9 @@ public final class LocationSharingApi {
         if (lower.contains("already_in_location_room")) return "이미 다른 위치 공유 방에 참여 중입니다.";
         if (lower.contains("room_or_password_invalid")) return "방 이름 또는 비밀번호가 맞지 않습니다.";
         if (lower.contains("join_temporarily_blocked")) return "비밀번호 오류가 여러 번 발생해 잠시 후 다시 참여할 수 있습니다.";
-        if (lower.contains("password_must_be_4_digits")) return "비밀번호는 숫자 4자리로 입력해 주세요.";
+        if (lower.contains("password_must_be_4_to_6_digits") || lower.contains("password_must_be_4_digits"))
+            return "비밀번호는 숫자 4~6자리로 입력해 주세요.";
+        if (lower.contains("invalid_update_interval")) return "공유 간격은 1분, 3분, 5분 중에서 선택해 주세요.";
         if (lower.contains("invalid_room_name")) return "방 이름을 2~40자로 입력해 주세요.";
         if (lower.contains("invalid_nickname")) return "닉네임을 1~24자로 입력해 주세요.";
         if (lower.contains("not_in_location_room")) return "현재 참여 중인 위치 공유 방이 없습니다.";
