@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./admin-delete.css" />
   <link rel="stylesheet" href="./admin-readiness.css" />
+  <link rel="stylesheet" href="./admin-ski.css" />
 </head>
 <body>
   <main class="page-shell">
@@ -16,7 +17,7 @@
         <div class="brand-badge">Y</div>
         <p class="eyebrow">YAMONE ADMIN</p>
         <h1>관리자 로그인</h1>
-        <p class="muted">활동·수면 업로드 현황과 분석 데이터를 확인합니다.</p>
+        <p class="muted">활동·수면·스키 리프트 데이터를 확인하고 검토합니다.</p>
 
         <form id="loginForm" class="login-form">
           <label>
@@ -55,6 +56,7 @@
         <button class="tab active" data-tab="dashboard" type="button">대시보드</button>
         <button class="tab" data-tab="activity" type="button">활동</button>
         <button class="tab" data-tab="sleep" type="button">수면 분석</button>
+        <button class="tab" data-tab="ski" type="button">스키 리프트</button>
       </nav>
 
       <div id="globalMessage" class="global-message hidden" aria-live="polite"></div>
@@ -125,6 +127,45 @@
         <div id="sleepRecords" class="sleep-records"></div>
         <div id="sleepEmpty" class="empty-state hidden">아직 업로드된 수면 분석 기록이 없습니다.</div>
       </section>
+
+      <section id="skiPanel" class="panel">
+        <div class="section-head">
+          <div><p class="eyebrow">SKI LIFT REVIEW</p><h2>스키 리프트 관리</h2></div>
+          <div class="topbar-actions"><span id="skiUpdated" class="muted tiny"></span><button id="skiReload" class="soft-button" type="button">불러오기</button></div>
+        </div>
+
+        <div id="skiSummary" class="summary-grid small"></div>
+
+        <div class="ski-admin-stack">
+          <article class="ski-admin-card">
+            <div class="section-head compact">
+              <div><h3>스키장 등록</h3><p class="muted tiny ski-admin-note">리프트를 처음 등록하기 전에 스키장 기준정보를 만듭니다.</p></div>
+            </div>
+            <form id="skiResortForm" class="ski-resort-form">
+              <label class="ski-field"><span>스키장 이름</span><input id="skiResortName" maxlength="80" required placeholder="예: 하이원 리조트" /></label>
+              <label class="ski-field"><span>스키장 키</span><input id="skiResortKey" maxlength="60" required autocapitalize="none" spellcheck="false" placeholder="예: high1" /></label>
+              <label class="ski-field"><span>국가</span><input id="skiResortCountry" maxlength="2" value="KR" /></label>
+              <label class="ski-field"><span>중심 위도</span><input id="skiResortLat" inputmode="decimal" placeholder="선택" /></label>
+              <label class="ski-field"><span>중심 경도</span><input id="skiResortLon" inputmode="decimal" placeholder="선택" /></label>
+              <label class="ski-field"><span>시간대</span><input id="skiResortTimezone" value="Asia/Seoul" /></label>
+              <div class="ski-form-actions"><button id="skiResortCreateButton" class="primary-button" type="submit">스키장 등록</button></div>
+            </form>
+            <p class="muted tiny">스키장 키는 영문 소문자·숫자·점·밑줄·하이픈만 사용합니다.</p>
+            <div id="skiResortList" class="ski-resort-list"></div>
+          </article>
+
+          <article class="ski-admin-card">
+            <div class="section-head compact"><div><h3>리프트 이름 제안 검토</h3><p class="muted tiny ski-admin-note">사용자 제안은 승인 전까지 공용 리프트 정보에 반영되지 않습니다.</p></div></div>
+            <div id="skiSuggestions" class="ski-review-list"></div>
+          </article>
+
+          <article class="ski-admin-card">
+            <div class="section-head compact"><div><h3>미등록 리프트 관측</h3><p class="muted tiny ski-admin-note">이름 제안 없이 제공된 리프트 기록도 여기서 검토할 수 있습니다.</p></div></div>
+            <div class="ski-danger-note">리프트를 등록하면 하단·상단 위치가 가까운 기존 미확인 기록을 자동으로 같은 리프트 통계에 편입합니다. 전체 스키 GPS 경로는 서버에 저장되지 않습니다.</div>
+            <div id="skiUnmatched" class="ski-review-list"></div>
+          </article>
+        </div>
+      </section>
     </section>
   </main>
 
@@ -132,5 +173,6 @@
   <script src="./app.js" defer></script>
   <script src="./admin-delete.js" defer></script>
   <script src="./admin-readiness.js" defer></script>
+  <script src="./admin-ski.js" defer></script>
 </body>
 </html>
