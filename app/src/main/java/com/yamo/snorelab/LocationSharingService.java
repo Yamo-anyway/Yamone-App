@@ -25,10 +25,7 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
-/**
- * Foreground service that keeps ephemeral location sharing alive while the screen is off.
- * Only the latest newly received location is sent. No route history is accumulated.
- */
+/** Foreground service for ephemeral latest-only location sharing. */
 public final class LocationSharingService extends Service {
     public static final String ACTION_START = "com.yamo.snorelab.LOCATION_SHARE_START";
     public static final String ACTION_EXTEND_30 = "com.yamo.snorelab.LOCATION_SHARE_EXTEND_30";
@@ -42,6 +39,7 @@ public final class LocationSharingService extends Service {
     private static final int ENDED_NOTIFY_ID = 6203;
     private static final long WARNING_BEFORE_MS = 5L * 60L * 1000L;
     private static final long EXPIRY_CHECK_MS = 15_000L;
+    private static final long MIN_NETWORK_INTERVAL_MS = 60_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private LocationManager locationManager;
@@ -66,7 +64,7 @@ public final class LocationSharingService extends Service {
                 return;
             }
             reportLatestIfNew();
-            handler.postDelayed(this, Math.max(10_000L, intervalSeconds * 1000L));
+            handler.postDelayed(this, Math.max(MIN_NETWORK_INTERVAL_MS, intervalSeconds * 1000L));
         }
     };
 
@@ -138,7 +136,7 @@ public final class LocationSharingService extends Service {
 
             @Override public void onFailure(String message) {
                 handler.post(() -> updateNotification("서버 연결을 다시 시도합니다."));
-                handler.postDelayed(LocationSharingService.this::loadRoomConfiguration, 30_000L);
+                handler.postDelayed(LocationSharingService.this::loadRoomConfiguration, MIN_NETWORK_INTERVAL_MS);
             }
         });
     }
@@ -188,10 +186,10 @@ public final class LocationSharingService extends Service {
             cancelWarning();
         }
 
-        updateNotification("위치 공유 중 · " + intervalLabel(intervalSeconds) + "마다 갱신");
+        updateNotification("위치 공유 중 · " + intervalLabel(intervalSeconds) + " 간격");
         startLocationUpdates();
         handler.removeCallbacks(reporter);
-        handler.postDelayed(reporter, Math.max(10_000L, intervalSeconds * 1000L));
+        handler.postDelayed(reporter, Math.max(MIN_NETWORK_INTERVAL_MS, intervalSeconds * 1000L));
         handler.removeCallbacks(expiryChecker);
         handler.post(expiryChecker);
     }
@@ -202,7 +200,7 @@ public final class LocationSharingService extends Service {
         if (locationManager == null || !hasLocationPermission()) return;
 
         locationListener = this::onLocationChanged;
-        long minTimeMs = Math.max(10_000L, intervalSeconds * 1000L);
+        long minTimeMs = Math.max(MIN_NETWORK_INTERVAL_MS, intervalSeconds * 1000L);
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(
@@ -232,6 +230,7 @@ public final class LocationSharingService extends Service {
         }
         latestLocation = new Location(location);
         latestLocationReceivedAt = System.currentTimeMillis();
+        // First position can be sent immediately; every later report is minute-gated by app and server.
         if (lastReportedLocationReceivedAt == 0) reportLatestIfNew();
     }
 
@@ -261,7 +260,7 @@ public final class LocationSharingService extends Service {
                             if (serverUntil > 0) shareUntilMs = serverUntil;
                             String shareUntil = shareUntilMs > 0 ? Instant.ofEpochMilli(shareUntilMs).toString() : "";
                             LocationSharingStateStore.update(LocationSharingService.this, roomName, shareUntil, intervalSeconds, memberCount);
-                            updateNotification("위치 공유 중 · " + intervalLabel(intervalSeconds) + "마다 갱신");
+                            updateNotification("위치 공유 중 · " + intervalLabel(intervalSeconds) + " 간격");
                         });
                     }
 
@@ -326,17 +325,12 @@ public final class LocationSharingService extends Service {
                     }
                     leaveInFlight = false;
                     updateNotification("종료 요청 대기 중 · 네트워크 연결 후 다시 시도합니다.");
-                    handler.postDelayed(this::retryStopSharing, 30_000L);
+                    handler.postDelayed(this::retryStopSharing, MIN_NETWORK_INTERVAL_MS);
                 });
             }
 
-            private void retryStopSharing() {
-                requestStopSharing();
-            }
-
-            private LocationSharingService thisService() {
-                return LocationSharingService.this;
-            }
+            private void retryStopSharing() { requestStopSharing(); }
+            private LocationSharingService thisService() { return LocationSharingService.this; }
         });
     }
 
@@ -413,9 +407,7 @@ public final class LocationSharingService extends Service {
         Intent open = new Intent(this, LocationSharingActivityV2.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pending = PendingIntent.getActivity(
-                this,
-                6201,
-                open,
+                this, 6201, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26
@@ -437,9 +429,7 @@ public final class LocationSharingService extends Service {
         Intent choose = new Intent(this, LocationSharingTimeActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent choosePending = PendingIntent.getActivity(
-                this,
-                6205,
-                choose,
+                this, 6205, choose,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26
@@ -500,9 +490,7 @@ public final class LocationSharingService extends Service {
             Intent open = new Intent(this, LocationSharingActivityV2.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             PendingIntent pending = PendingIntent.getActivity(
-                    this,
-                    6203,
-                    open,
+                    this, 6203, open,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             Notification.Builder builder = Build.VERSION.SDK_INT >= 26
                     ? new Notification.Builder(this, WARNING_CHANNEL_ID)
@@ -536,15 +524,13 @@ public final class LocationSharingService extends Service {
     }
 
     private int clampInterval(int seconds) {
-        if (seconds <= 10) return 10;
-        if (seconds <= 30) return 30;
         if (seconds <= 60) return 60;
-        return 180;
+        if (seconds <= 180) return 180;
+        return 300;
     }
 
     private String intervalLabel(int seconds) {
-        if (seconds < 60) return seconds + "초";
-        return (seconds / 60) + "분";
+        return Math.max(1, seconds / 60) + "분";
     }
 
     private long parseInstant(String iso) {
