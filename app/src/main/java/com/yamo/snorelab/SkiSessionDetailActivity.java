@@ -1,16 +1,21 @@
 package com.yamo.snorelab;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,7 +26,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/** Local-only ski session summary. */
+/** Local-only ski session summary. Lift-name suggestions send only lift metadata, never the ski route. */
 public class SkiSessionDetailActivity extends Activity {
     public static final String EXTRA_SESSION_PATH = "session_path";
     public static final String EXTRA_JUST_FINISHED = "just_finished";
@@ -177,8 +182,10 @@ public class SkiSessionDetailActivity extends Activity {
             for (int i = 0; i < lifts.length(); i++) {
                 JSONObject lift = lifts.optJSONObject(i);
                 if (lift == null) continue;
-                String liftName = lift.optString("liftName", "").trim();
-                if (liftName.isEmpty()) liftName = "이름 없는 리프트";
+                JSONObject cachedLift = SkiResortStore.resolveCachedLift(this, lift);
+                String officialName = cachedLift == null ? "" : cachedLift.optString("lift_name", "").trim();
+                String localName = lift.optString("liftName", "").trim();
+                String liftName = !officialName.isEmpty() ? officialName : (!localName.isEmpty() ? localName : "이름 없는 리프트");
                 long rideStart = lift.optLong("rideStartEpochMs", 0);
                 String time = rideStart > 0 ? new SimpleDateFormat("HH:mm", Locale.KOREAN).format(new Date(rideStart)) : "--:--";
                 LinearLayout item = innerCard();
@@ -189,13 +196,107 @@ public class SkiSessionDetailActivity extends Activity {
                 int confidence = (int) Math.round(lift.optDouble("confidence", 0) * 100);
                 String confidenceText = confidence >= 85 ? "높음" : confidence >= 65 ? "보통" : "검토 필요";
                 item.addView(text("자동 감지 신뢰도 " + confidenceText + " · " + confidence + "%", 10, PRIMARY2, false));
+
+                final JSONObject liftForClick = lift;
+                final JSONObject cachedForClick = cachedLift;
+                final JSONObject metaForClick = meta;
+                String actionLabel = cachedLift != null && !officialName.isEmpty()
+                        ? "이름 수정 요청"
+                        : "리프트 이름 알려주기";
+                Button suggest = ghostButton(actionLabel, v -> showLiftNameSuggestion(liftForClick, cachedForClick, metaForClick));
+                LinearLayout.LayoutParams bp = match(dp(42));
+                bp.topMargin = dp(8);
+                item.addView(suggest, bp);
                 liftCard.addView(item, compactParams());
             }
-            TextView note = text("이름 없는 리프트의 이름 제안/수정 요청은 리프트 서버 연결 단계에서 붙입니다.", 10, MUTED, false);
+            TextView note = text("제안한 이름은 바로 적용되지 않고 검토 후 승인되면 다음 리프트 정보 업데이트에 반영됩니다.", 10, MUTED, false);
             note.setPadding(0, dp(8), 0, 0);
             liftCard.addView(note);
         }
         page.addView(liftCard, cardParams());
+    }
+
+    private void showLiftNameSuggestion(JSONObject lift, JSONObject cachedLift, JSONObject meta) {
+        if (lift == null) return;
+        String officialName = cachedLift == null ? "" : cachedLift.optString("lift_name", "").trim();
+        String cachedLiftId = cachedLift == null ? "" : cachedLift.optString("lift_id", "").trim();
+        String type = cachedLift == null ? "new_lift" : (officialName.isEmpty() ? "name" : "correction");
+        String title = "correction".equals(type) ? "리프트 이름 수정 요청" : "리프트 이름 알려주기";
+
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setTextColor(TEXT);
+        input.setHintTextColor(MUTED);
+        input.setTextSize(15);
+        input.setHint("리프트 이름 입력");
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        input.setPadding(dp(14), 0, dp(14), 0);
+        input.setBackground(round(CARD2, 12, 1, 0xFF35445F));
+        if (!officialName.isEmpty()) input.setText(officialName);
+
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setPadding(dp(20), dp(4), dp(20), 0);
+        if (!officialName.isEmpty()) {
+            TextView current = text("현재 이름: " + officialName, 12, MUTED, false);
+            current.setPadding(0, 0, 0, dp(8));
+            wrap.addView(current);
+        }
+        wrap.addView(input, match(dp(52)));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage("제안은 검토 후 반영됩니다. 전체 스키 경로는 전송하지 않습니다.")
+                .setView(wrap)
+                .setNegativeButton("취소", null)
+                .setPositiveButton("요청 보내기", null)
+                .create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String proposed = input.getText() == null ? "" : input.getText().toString().trim();
+            if (proposed.isEmpty() || proposed.length() > 80) {
+                input.setError("리프트 이름을 1~80자로 입력해 주세요.");
+                return;
+            }
+            String resortKey = lift.optString("resortKey", "").trim();
+            if (resortKey.isEmpty() && meta != null) resortKey = meta.optString("resortKey", "").trim();
+            if (resortKey.isEmpty()) resortKey = SkiResortStore.currentKey(this);
+
+            Double lowerLat = numberOrNull(lift, "lowerLat");
+            Double lowerLon = numberOrNull(lift, "lowerLon");
+            Double upperLat = numberOrNull(lift, "upperLat");
+            Double upperLon = numberOrNull(lift, "upperLon");
+            String finalResortKey = resortKey;
+            input.setEnabled(false);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            SkiLiftApi.submitNameSuggestion(this, finalResortKey,
+                    cachedLiftId.isEmpty() ? null : cachedLiftId,
+                    type, proposed, officialName,
+                    lowerLat, lowerLon, upperLat, upperLon,
+                    new SkiLiftApi.JsonCallback() {
+                        @Override public void onSuccess(JSONObject data) {
+                            runOnUiThread(() -> {
+                                dialog.dismiss();
+                                Toast.makeText(SkiSessionDetailActivity.this,
+                                        "검토 요청을 보냈어요. 승인 후 정보 업데이트에 반영됩니다.", Toast.LENGTH_LONG).show();
+                            });
+                        }
+
+                        @Override public void onFailure(String message) {
+                            runOnUiThread(() -> {
+                                input.setEnabled(true);
+                                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                                Toast.makeText(SkiSessionDetailActivity.this, message, Toast.LENGTH_LONG).show();
+                            });
+                        }
+                    });
+        }));
+        dialog.show();
+    }
+
+    private static Double numberOrNull(JSONObject object, String key) {
+        if (object == null || object.isNull(key)) return null;
+        double value = object.optDouble(key, Double.NaN);
+        return Double.isFinite(value) ? value : null;
     }
 
     private LinearLayout metricRow() {
@@ -241,6 +342,17 @@ public class SkiSessionDetailActivity extends Activity {
         c.setPadding(dp(12), dp(11), dp(12), dp(11));
         c.setBackground(round(CARD2, 14, 1, 0xFF2F405C));
         return c;
+    }
+
+    private Button ghostButton(String label, View.OnClickListener click) {
+        Button b = new Button(this);
+        b.setAllCaps(false);
+        b.setText(label);
+        b.setTextColor(TEXT);
+        b.setTextSize(12);
+        b.setBackground(round(CARD2, 12, 1, 0xFF35445F));
+        b.setOnClickListener(click);
+        return b;
     }
 
     private LinearLayout.LayoutParams cardParams() {
