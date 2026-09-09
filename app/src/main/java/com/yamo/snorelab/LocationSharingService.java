@@ -26,15 +26,22 @@ import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 /**
- * Foreground service that keeps location sharing alive while the screen is off.
- * Only a newly received latest location is sent; no local/server route history
- * is accumulated by this service.
+ * Foreground service that keeps ephemeral location sharing alive while the screen is off.
+ * Only the latest newly received location is sent. No route history is accumulated.
  */
 public final class LocationSharingService extends Service {
     public static final String ACTION_START = "com.yamo.snorelab.LOCATION_SHARE_START";
+    public static final String ACTION_EXTEND_30 = "com.yamo.snorelab.LOCATION_SHARE_EXTEND_30";
+    public static final String ACTION_EXTEND_60 = "com.yamo.snorelab.LOCATION_SHARE_EXTEND_60";
+    public static final String ACTION_STOP_SHARE = "com.yamo.snorelab.LOCATION_SHARE_STOP";
 
     private static final String CHANNEL_ID = "location_sharing_v1";
+    private static final String WARNING_CHANNEL_ID = "location_sharing_expiry_v1";
     private static final int NOTIFY_ID = 6201;
+    private static final int WARNING_NOTIFY_ID = 6202;
+    private static final int ENDED_NOTIFY_ID = 6203;
+    private static final long WARNING_BEFORE_MS = 5L * 60L * 1000L;
+    private static final long EXPIRY_CHECK_MS = 15_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private LocationManager locationManager;
@@ -46,6 +53,8 @@ public final class LocationSharingService extends Service {
     private long shareUntilMs;
     private boolean configured;
     private boolean reportInFlight;
+    private boolean warningShown;
+    private boolean leaveInFlight;
 
     private final Runnable reporter = new Runnable() {
         @Override public void run() {
@@ -56,6 +65,25 @@ public final class LocationSharingService extends Service {
             }
             reportLatestIfNew();
             handler.postDelayed(this, Math.max(10_000L, intervalSeconds * 1000L));
+        }
+    };
+
+    private final Runnable expiryChecker = new Runnable() {
+        @Override public void run() {
+            if (!configured) return;
+            long remaining = shareUntilMs <= 0 ? Long.MAX_VALUE : shareUntilMs - System.currentTimeMillis();
+            if (remaining <= 0) {
+                expireAndStop();
+                return;
+            }
+            if (remaining <= WARNING_BEFORE_MS && !warningShown) {
+                warningShown = true;
+                showExpiryWarning(remaining);
+            } else if (remaining > WARNING_BEFORE_MS + 30_000L && warningShown) {
+                warningShown = false;
+                cancelWarning();
+            }
+            handler.postDelayed(this, EXPIRY_CHECK_MS);
         }
     };
 
@@ -71,11 +99,26 @@ public final class LocationSharingService extends Service {
 
     @Override public void onCreate() {
         super.onCreate();
-        createChannel();
+        createChannels();
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        startForegroundCompat(buildNotification("위치 공유 상태를 확인하는 중…"));
+        startForegroundCompat(buildServiceNotification("위치 공유 상태를 확인하는 중…"));
+
+        String action = intent == null ? ACTION_START : intent.getAction();
+        if (ACTION_EXTEND_30.equals(action)) {
+            extendSharing(30);
+            return START_STICKY;
+        }
+        if (ACTION_EXTEND_60.equals(action)) {
+            extendSharing(60);
+            return START_STICKY;
+        }
+        if (ACTION_STOP_SHARE.equals(action)) {
+            requestStopSharing();
+            return START_NOT_STICKY;
+        }
+
         if (!hasLocationPermission()) {
             updateNotification("위치 권한이 필요합니다.");
             stopSelf();
@@ -100,6 +143,7 @@ public final class LocationSharingService extends Service {
 
     private void applyConfiguration(JSONObject data) {
         if (!data.optBoolean("active", false)) {
+            cancelWarning();
             stopSelf();
             return;
         }
@@ -116,6 +160,7 @@ public final class LocationSharingService extends Service {
             }
         }
         if (self == null) {
+            cancelWarning();
             stopSelf();
             return;
         }
@@ -123,10 +168,24 @@ public final class LocationSharingService extends Service {
         intervalSeconds = clampInterval(self.optInt("update_interval_seconds", 60));
         shareUntilMs = parseInstant(self.optString("share_until", ""));
         configured = true;
+        leaveInFlight = false;
+
+        long remaining = shareUntilMs <= 0 ? Long.MAX_VALUE : shareUntilMs - System.currentTimeMillis();
+        if (remaining <= 0) {
+            expireAndStop();
+            return;
+        }
+        if (remaining > WARNING_BEFORE_MS + 30_000L) {
+            warningShown = false;
+            cancelWarning();
+        }
+
         updateNotification("위치 공유 중 · " + intervalLabel(intervalSeconds) + "마다 갱신");
         startLocationUpdates();
         handler.removeCallbacks(reporter);
         handler.postDelayed(reporter, Math.max(10_000L, intervalSeconds * 1000L));
+        handler.removeCallbacks(expiryChecker);
+        handler.post(expiryChecker);
     }
 
     private void startLocationUpdates() {
@@ -201,6 +260,7 @@ public final class LocationSharingService extends Service {
                             reportInFlight = false;
                             String lower = message == null ? "" : message.toLowerCase(Locale.KOREAN);
                             if (lower.contains("참여 중인 위치 공유 방이 없습니다")) {
+                                cancelWarning();
                                 stopSelf();
                             } else {
                                 updateNotification("네트워크 연결 대기 중 · 위치 공유 유지");
@@ -210,13 +270,91 @@ public final class LocationSharingService extends Service {
                 });
     }
 
-    private void expireAndStop() {
-        configured = false;
-        handler.removeCallbacks(reporter);
-        LocationSharingApi.leave(this, new LocationSharingApi.JsonCallback() {
-            @Override public void onSuccess(JSONObject data) { stopSelf(); }
-            @Override public void onFailure(String message) { stopSelf(); }
+    private void extendSharing(int minutes) {
+        updateNotification("위치 공유 시간을 연장하는 중…");
+        LocationSharingApi.extend(this, minutes, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                handler.post(() -> {
+                    warningShown = false;
+                    cancelWarning();
+                    loadRoomConfiguration();
+                    showBriefMessage("위치 공유 시간을 " + minutes + "분 연장했습니다.");
+                });
+            }
+
+            @Override public void onFailure(String message) {
+                handler.post(() -> {
+                    updateNotification("시간 연장 실패 · 앱을 열어 다시 시도해 주세요.");
+                    showExpiryWarning(Math.max(0L, shareUntilMs - System.currentTimeMillis()));
+                });
+            }
         });
+    }
+
+    private void requestStopSharing() {
+        if (leaveInFlight) return;
+        configured = false;
+        leaveInFlight = true;
+        handler.removeCallbacks(reporter);
+        handler.removeCallbacks(expiryChecker);
+        stopLocationUpdates();
+        cancelWarning();
+        updateNotification("위치 공유 종료 요청 중…");
+
+        LocationSharingApi.leave(this, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                handler.post(() -> finishUserRequestedStop());
+            }
+
+            @Override public void onFailure(String message) {
+                handler.post(() -> {
+                    String lower = message == null ? "" : message.toLowerCase(Locale.KOREAN);
+                    if (lower.contains("참여 중인 위치 공유 방이 없습니다")) {
+                        finishUserRequestedStop();
+                        return;
+                    }
+                    leaveInFlight = false;
+                    updateNotification("종료 요청 대기 중 · 네트워크 연결 후 다시 시도합니다.");
+                    handler.postDelayed(this::retryStopSharing, 30_000L);
+                });
+            }
+
+            private void retryStopSharing() {
+                requestStopSharing();
+            }
+        });
+    }
+
+    private void finishUserRequestedStop() {
+        leaveInFlight = false;
+        postEndedNotification("위치 공유를 종료했습니다.");
+        stopSelf();
+    }
+
+    private void expireAndStop() {
+        if (!configured && leaveInFlight) return;
+        configured = false;
+        leaveInFlight = true;
+        handler.removeCallbacks(reporter);
+        handler.removeCallbacks(expiryChecker);
+        stopLocationUpdates();
+        cancelWarning();
+
+        LocationSharingApi.leave(this, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                handler.post(LocationSharingService.this::finishExpiredStop);
+            }
+            @Override public void onFailure(String message) {
+                // The server also removes expired members every minute, so local sharing can safely stop.
+                handler.post(LocationSharingService.this::finishExpiredStop);
+            }
+        });
+    }
+
+    private void finishExpiredStop() {
+        leaveInFlight = false;
+        postEndedNotification("설정한 공유 시간이 끝나 위치 공유가 자동 종료되었습니다.");
+        stopSelf();
     }
 
     private void stopLocationUpdates() {
@@ -234,19 +372,29 @@ public final class LocationSharingService extends Service {
                 || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void createChannel() {
+    private void createChannels() {
         if (Build.VERSION.SDK_INT < 26) return;
-        NotificationChannel channel = new NotificationChannel(
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager == null) return;
+
+        NotificationChannel service = new NotificationChannel(
                 CHANNEL_ID,
                 "위치 공유",
                 NotificationManager.IMPORTANCE_LOW);
-        channel.setDescription("위치 공유가 켜져 있을 때 표시됩니다.");
-        NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager != null) manager.createNotificationChannel(channel);
+        service.setDescription("위치 공유가 켜져 있을 때 표시됩니다.");
+        manager.createNotificationChannel(service);
+
+        NotificationChannel warning = new NotificationChannel(
+                WARNING_CHANNEL_ID,
+                "위치 공유 종료 알림",
+                NotificationManager.IMPORTANCE_HIGH);
+        warning.setDescription("위치 공유 종료 전과 종료 시 알려줍니다.");
+        warning.enableVibration(true);
+        manager.createNotificationChannel(warning);
     }
 
-    private Notification buildNotification(String message) {
-        Intent open = new Intent(this, LocationSharingActivity.class)
+    private Notification buildServiceNotification(String message) {
+        Intent open = new Intent(this, LocationSharingActivityV2.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pending = PendingIntent.getActivity(
                 this,
@@ -268,6 +416,94 @@ public final class LocationSharingService extends Service {
                 .build();
     }
 
+    private void showExpiryWarning(long remainingMs) {
+        long minutes = Math.max(1L, (remainingMs + 59_999L) / 60_000L);
+        Intent choose = new Intent(this, LocationSharingTimeActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent choosePending = PendingIntent.getActivity(
+                this,
+                6205,
+                choose,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Notification.Builder builder = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(this, WARNING_CHANNEL_ID)
+                : new Notification.Builder(this);
+        Notification notification = builder
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle("위치 공유가 곧 종료됩니다")
+                .setContentText(minutes + "분 후 자동 종료 · 연장하거나 종료할 수 있어요.")
+                .setContentIntent(choosePending)
+                .setCategory(Notification.CATEGORY_REMINDER)
+                .setAutoCancel(false)
+                .setOnlyAlertOnce(true)
+                .addAction(R.drawable.ic_notification, "+30분", serviceAction(ACTION_EXTEND_30, 6230))
+                .addAction(R.drawable.ic_notification, "+1시간", serviceAction(ACTION_EXTEND_60, 6260))
+                .addAction(R.drawable.ic_notification, "종료", serviceAction(ACTION_STOP_SHARE, 6290))
+                .build();
+
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.notify(WARNING_NOTIFY_ID, notification);
+        } catch (SecurityException ignored) {}
+    }
+
+    private PendingIntent serviceAction(String action, int requestCode) {
+        Intent intent = new Intent(this, LocationSharingService.class).setAction(action);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+        if (Build.VERSION.SDK_INT >= 26) return PendingIntent.getForegroundService(this, requestCode, intent, flags);
+        return PendingIntent.getService(this, requestCode, intent, flags);
+    }
+
+    private void cancelWarning() {
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.cancel(WARNING_NOTIFY_ID);
+        } catch (Exception ignored) {}
+    }
+
+    private void showBriefMessage(String message) {
+        try {
+            Notification.Builder builder = Build.VERSION.SDK_INT >= 26
+                    ? new Notification.Builder(this, WARNING_CHANNEL_ID)
+                    : new Notification.Builder(this);
+            Notification n = builder
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle("야모네 위치 공유")
+                    .setContentText(message)
+                    .setAutoCancel(true)
+                    .setTimeoutAfter(5_000L)
+                    .build();
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.notify(WARNING_NOTIFY_ID, n);
+        } catch (Exception ignored) {}
+    }
+
+    private void postEndedNotification(String message) {
+        try {
+            Intent open = new Intent(this, LocationSharingActivityV2.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pending = PendingIntent.getActivity(
+                    this,
+                    6203,
+                    open,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            Notification.Builder builder = Build.VERSION.SDK_INT >= 26
+                    ? new Notification.Builder(this, WARNING_CHANNEL_ID)
+                    : new Notification.Builder(this);
+            Notification n = builder
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle("야모네 위치 공유")
+                    .setContentText(message)
+                    .setContentIntent(pending)
+                    .setAutoCancel(true)
+                    .setCategory(Notification.CATEGORY_REMINDER)
+                    .build();
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.notify(ENDED_NOTIFY_ID, n);
+        } catch (Exception ignored) {}
+    }
+
     private void startForegroundCompat(Notification notification) {
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIFY_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
@@ -277,8 +513,10 @@ public final class LocationSharingService extends Service {
     }
 
     private void updateNotification(String message) {
-        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager != null) manager.notify(NOTIFY_ID, buildNotification(message));
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.notify(NOTIFY_ID, buildServiceNotification(message));
+        } catch (SecurityException ignored) {}
     }
 
     private int clampInterval(int seconds) {
@@ -303,8 +541,10 @@ public final class LocationSharingService extends Service {
     @Override public void onDestroy() {
         configured = false;
         reportInFlight = false;
+        leaveInFlight = false;
         handler.removeCallbacksAndMessages(null);
         stopLocationUpdates();
+        cancelWarning();
         stopForeground(true);
         super.onDestroy();
     }
