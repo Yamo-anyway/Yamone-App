@@ -56,7 +56,6 @@ insert = '''    private void returnFromSettings() {
 '''
 replace(main, marker, insert + marker, 1)
 
-# Main-entry navigation always opens the enhanced activity screen.
 for f in [
     'app/src/main/java/com/yamo/snorelab/AlarmActivity.java',
     'app/src/main/java/com/yamo/snorelab/MiniGameActivity.java',
@@ -68,7 +67,6 @@ for f in [
         p.write_text(s.replace('ExerciseActivity.class', 'LocationExerciseActivity.class'))
         print('activity route patched', f)
 
-# Alarm sub-editor: hardware back returns to alarm list.
 alarm = 'app/src/main/java/com/yamo/snorelab/AlarmActivity.java'
 p = Path(alarm)
 s = p.read_text()
@@ -92,7 +90,6 @@ s = s.replace(anchor, anchor + '''
 ''', 1)
 p.write_text(s)
 
-# Activity bottom navigation visual consistency.
 exercise = 'app/src/main/java/com/yamo/snorelab/ExerciseActivity.java'
 replace(exercise,
 '        nav.setPadding(dp(8), dp(7), dp(8), dp(9));\n        nav.setBackgroundColor(0xFF0E182A);',
@@ -102,7 +99,6 @@ replace(exercise,
 '    private TextView navItem(String label, int color, View.OnClickListener click) { TextView v = text(label, 12, color, true); v.setGravity(Gravity.CENTER); v.setOnClickListener(click); return v; }',
 '    private TextView navItem(String label, int color, View.OnClickListener click) { TextView v = text(label, 12, color, true); v.setGravity(Gravity.CENTER); if (color == PRIMARY2) v.setBackground(round(CARD2, 19, 0, 0)); v.setOnClickListener(click); return v; }', 1)
 
-# Give all main-tab nav bars a clear top edge/elevation.
 for f in [main, alarm, 'app/src/main/java/com/yamo/snorelab/MiniGameActivity.java']:
     p = Path(f)
     s = p.read_text()
@@ -193,16 +189,8 @@ replace(v2,
         addBottomMargin(findExact(root, "⏱  공유 시간 연장하기"), 12);
         addBottomMargin(findExact(root, "▣  위치 공유 중단하기"), 22);''', 1)
 
-# Bump test build so installation can be verified at a glance.
 gradle = 'app/build.gradle'
 replace(gradle,
 "        versionCode 15\n        versionName '0.3.12-route-gps'",
 "        versionCode 16\n        versionName '0.3.13-nav-spacing'", 1)
-wf = '.github/workflows/build-android.yml'
-p = Path(wf)
-s = p.read_text()
-old = 'name: yamone-app-v0.3.12-route-gps-dev-apk'
-if old not in s:
-    raise SystemExit('artifact name anchor missing')
-p.write_text(s.replace(old, 'name: yamone-app-v0.3.13-nav-spacing-dev-apk', 1))
 print('patch script completed')
