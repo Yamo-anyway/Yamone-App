@@ -2,13 +2,14 @@ package com.yamo.snorelab;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -23,13 +24,18 @@ import java.time.format.DateTimeParseException;
 
 /** Share-time extension picker opened from the active screen or expiry notification. */
 public class LocationSharingTimeActivity extends Activity {
-    private static final int BG = 0xFF0B1324;
-    private static final int CARD = 0xFF16243B;
-    private static final int TEXT = 0xFFF5F7FF;
-    private static final int MUTED = 0xFF9DA9BF;
-    private static final int PRIMARY = 0xFF6D72FF;
-    private static final int PRIMARY2 = 0xFF8B8FFF;
-    private static final int WARNING = 0xFFFFC56D;
+    private int BG;
+    private int CARD;
+    private int CARD2;
+    private int TEXT;
+    private int MUTED;
+    private int PRIMARY;
+    private int PRIMARY2;
+    private int WARNING;
+    private int BORDER;
+    private int DANGER_BG;
+    private int DANGER_TEXT;
+    private int DANGER_BORDER;
 
     private LinearLayout page;
     private TextView remaining;
@@ -37,10 +43,36 @@ public class LocationSharingTimeActivity extends Activity {
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(BG);
+        applyTheme();
+        configureSystemBars();
         build();
         refresh();
+    }
+
+    private void applyTheme() {
+        boolean pink = "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "mint"));
+        BG = pink ? 0xFFFFF7FA : 0xFFF7FFFB;
+        CARD = 0xFFFFFFFF;
+        CARD2 = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
+        TEXT = pink ? 0xFF4B2633 : 0xFF153633;
+        MUTED = pink ? 0xFF9A7180 : 0xFF718984;
+        PRIMARY = pink ? 0xFFFF769F : 0xFF56D1B3;
+        PRIMARY2 = pink ? 0xFFE94778 : 0xFF159A7A;
+        WARNING = 0xFFE9A642;
+        BORDER = pink ? 0xFFFFD7E3 : 0xFFD7EFE7;
+        DANGER_BG = 0xFFFFF0F3;
+        DANGER_TEXT = 0xFFE75B6D;
+        DANGER_BORDER = 0xFFFFCBD3;
+    }
+
+    private void configureSystemBars() {
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
+        int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        getWindow().getDecorView().setSystemUiVisibility(flags);
     }
 
     private void build() {
@@ -48,8 +80,19 @@ public class LocationSharingTimeActivity extends Activity {
         scroll.setBackgroundColor(BG);
         page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
+        page.setBackgroundColor(BG);
         page.setPadding(dp(18), dp(20), dp(18), dp(36));
         scroll.addView(page, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        if (Build.VERSION.SDK_INT >= 30) {
+            scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+                int top = insets.getInsets(WindowInsets.Type.statusBars()).top;
+                int bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                page.setPadding(dp(18), top + dp(14), dp(18), bottom + dp(30));
+                return insets;
+            });
+            scroll.requestApplyInsets();
+        }
 
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
@@ -105,6 +148,7 @@ public class LocationSharingTimeActivity extends Activity {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> {
                     if (!data.optBoolean("active", false)) {
+                        LocationSharingStateStore.clear(LocationSharingTimeActivity.this);
                         remaining.setText("현재 참여 중인 위치 공유 방이 없습니다.");
                         remaining.setTextColor(WARNING);
                         return;
@@ -112,6 +156,10 @@ public class LocationSharingTimeActivity extends Activity {
                     JSONArray members = data.optJSONArray("members");
                     JSONObject self = findSelf(members);
                     String until = self == null ? "" : self.optString("share_until", "");
+                    String room = data.optString("room_name", "위치 공유 방");
+                    int interval = self == null ? 60 : self.optInt("update_interval_seconds", 60);
+                    int count = members == null ? 0 : members.length();
+                    LocationSharingStateStore.update(LocationSharingTimeActivity.this, room, until, interval, count);
                     remaining.setText("현재 남은 시간 · " + remainingText(until));
                     remaining.setTextColor(PRIMARY2);
                 });
@@ -166,6 +214,7 @@ public class LocationSharingTimeActivity extends Activity {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> {
                     busy = false;
+                    LocationSharingStateStore.clear(LocationSharingTimeActivity.this);
                     LocationSharingService.stop(LocationSharingTimeActivity.this);
                     Toast.makeText(LocationSharingTimeActivity.this, "위치 공유를 종료했습니다.", Toast.LENGTH_SHORT).show();
                     finish();
@@ -207,7 +256,7 @@ public class LocationSharingTimeActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(15), dp(16), dp(15));
-        card.setBackground(round(CARD, 18, 0, 0));
+        card.setBackground(round(CARD, 20, 1, BORDER));
         return card;
     }
 
@@ -219,21 +268,23 @@ public class LocationSharingTimeActivity extends Activity {
 
     private Button softButton(String value) {
         Button b = new Button(this);
+        b.setAllCaps(false);
         b.setText(value);
         b.setTextColor(PRIMARY2);
         b.setTextSize(14);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(round(CARD, 14, 1, 0xFF33435F));
+        b.setBackground(round(CARD2, 14, 1, BORDER));
         return b;
     }
 
     private Button dangerButton(String value) {
         Button b = new Button(this);
+        b.setAllCaps(false);
         b.setText(value);
-        b.setTextColor(0xFFFFB1BE);
+        b.setTextColor(DANGER_TEXT);
         b.setTextSize(14);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(round(0xFF351B2A, 15, 1, 0xFF6A3047));
+        b.setBackground(round(DANGER_BG, 15, 1, DANGER_BORDER));
         return b;
     }
 
