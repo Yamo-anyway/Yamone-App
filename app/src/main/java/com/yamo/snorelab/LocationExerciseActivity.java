@@ -45,7 +45,7 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         bg.setColor(PRIMARY);
         bg.setCornerRadius(dp(18));
         button.setBackground(bg);
-        button.setOnClickListener(v -> startActivity(new Intent(this, LocationSharingActivity.class)));
+        button.setOnClickListener(v -> startActivity(new Intent(this, LocationSharingActivityV2.class)));
 
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(42));
         p.gravity = Gravity.END | Gravity.BOTTOM;
