@@ -102,7 +102,7 @@ public final class LocationSharingHomeUiEnhancer {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.addView(tile(activity, YamonePastelArtView.MODE_ACTIVITY,
                         "활동", "걷기 · 러닝 · 자전거\n등산 · 스키",
-                        v -> activity.startActivity(new Intent(activity, ExerciseActivity.class))),
+                        v -> activity.startActivity(new Intent(activity, LocationExerciseActivity.class))),
                 new LinearLayout.LayoutParams(0, dp(activity, 160), 1f));
         LinearLayout.LayoutParams locP = new LinearLayout.LayoutParams(0, dp(activity, 160), 1f);
         locP.leftMargin = dp(activity, 10);

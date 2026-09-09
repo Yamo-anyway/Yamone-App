@@ -64,7 +64,8 @@ public class MainActivity extends Activity {
     private TextView activityNav;
     private TextView miniGameNav;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private String screen = "sleep";
+    private String screen = "home";
+    private String settingsReturnScreen = "home";
     private File detailSession;
     private boolean pendingStartAfterPermission;
     private File pendingExportSession;
@@ -122,10 +123,10 @@ public class MainActivity extends Activity {
         String startScreen = getIntent().getStringExtra("start_screen");
         if ("settings".equals(startScreen)) showSettings();
         else if ("home".equals(startScreen)) showHome();
-        else if ("activity".equals(startScreen)) startActivity(new Intent(this, ExerciseActivity.class));
+        else if ("activity".equals(startScreen)) startActivity(new Intent(this, LocationExerciseActivity.class));
         else if ("minigame".equals(startScreen)) startActivity(new Intent(this, MiniGameActivity.class));
         else if ("alarm".equals(startScreen)) startActivity(new Intent(this, AlarmActivity.class));
-        else showSleep();
+        else showHome();
         requestNotificationPermissionIfHelpful();
     }
 
@@ -141,7 +142,8 @@ public class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (detailSession != null) { detailSession = null; showSleep(); return; }
-        if (!"sleep".equals(screen)) { screen = "sleep"; showSleep(); return; }
+        if ("settings".equals(screen)) { returnFromSettings(); return; }
+        if (!"home".equals(screen)) { showHome(); return; }
         super.onBackPressed();
     }
 
@@ -187,9 +189,10 @@ public class MainActivity extends Activity {
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
         nav.setBackgroundColor(CARD);
+        if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(6));
 
         homeNav = navItem("⌂\n홈", false, v -> { detailSession = null; showHome(); });
-        activityNav = navItem("🏃\n활동", false, v -> startActivity(new Intent(this, ExerciseActivity.class)));
+        activityNav = navItem("🏃\n활동", false, v -> startActivity(new Intent(this, LocationExerciseActivity.class)));
         alarmNav = navItem("⏰\n알람", false, v -> startActivity(new Intent(this, AlarmActivity.class)));
         sleepNav = navItem("☾\n수면", true, v -> { detailSession = null; showSleep(); });
         miniGameNav = navItem("🎮\n미니게임", false, v -> startActivity(new Intent(this, MiniGameActivity.class)));
@@ -259,7 +262,7 @@ public class MainActivity extends Activity {
         TextView gear = text("⚙", 24, TEXT, false);
         gear.setGravity(Gravity.CENTER);
         gear.setBackground(round(CARD2, 18, 0, 0));
-        gear.setOnClickListener(v -> showSettings());
+        gear.setOnClickListener(v -> { settingsReturnScreen = screen; showSettings(); });
         header.addView(gear, new LinearLayout.LayoutParams(dp(48), dp(48)));
         return header;
     }
@@ -579,7 +582,7 @@ public class MainActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedBackHeader("수면 설정", "테마와 마이크 측정을 편하게 조절해요.", v -> showSleep()),
+        shell.addView(fixedBackHeader("수면 설정", "테마와 마이크 측정을 편하게 조절해요.", v -> returnFromSettings()),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);
@@ -667,6 +670,13 @@ public class MainActivity extends Activity {
         page.addView(privacy, cardParams());
 
         LinearLayout dev = card(); dev.addView(text("개발자 검증", 15, TEXT, true)); dev.addView(kv("판정 엔진", SnoreDetector.VERSION)); dev.addView(kv("분석", "16 kHz / mono")); dev.addView(kv("전체 녹음", "AAC-LC 32 kbps")); dev.addView(kv("후보 음원", "PCM16 WAV")); page.addView(dev, cardParams());
+    }
+
+    private void returnFromSettings() {
+        String target = settingsReturnScreen;
+        settingsReturnScreen = "home";
+        if ("sleep".equals(target)) showSleep();
+        else showHome();
     }
 
     private String sensitivityGuide(int value) {

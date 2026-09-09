@@ -146,6 +146,8 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
             parent.setPadding(parent.getPaddingLeft(), Math.max(parent.getPaddingTop(), dp(10)),
                     parent.getPaddingRight(), Math.max(parent.getPaddingBottom(), dp(18)));
         }
+        addBottomMargin(findExact(root, "중복 확인"), 8);
+        addBottomMargin(findExact(root, "내 닉네임 변경"), 10);
         addBottomMargin(findExact(root, "⏱  공유 시간 연장하기"), 12);
         addBottomMargin(findExact(root, "▣  위치 공유 중단하기"), 22);
     }

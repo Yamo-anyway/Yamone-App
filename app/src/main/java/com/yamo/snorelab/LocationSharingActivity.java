@@ -76,6 +76,7 @@ public class LocationSharingActivity extends Activity {
     private boolean askedActivePermission;
 
     private boolean activeScreen;
+    private String currentPage = "loading";
     private TextView activeRoomTitle;
     private TextView activeInfo;
     private TextView activeRemaining;
@@ -122,6 +123,14 @@ public class LocationSharingActivity extends Activity {
         if (sharingMap != null) sharingMap.onLowMemory();
     }
 
+    @Override public void onBackPressed() {
+        if ("room_form".equals(currentPage)) {
+            showLanding();
+            return;
+        }
+        finish();
+    }
+
     private void applyTheme() {
         boolean pink = pink();
         BG = pink ? 0xFFFFF7FA : 0xFFF7FFFB;
@@ -155,6 +164,7 @@ public class LocationSharingActivity extends Activity {
     }
 
     private void showLoading() {
+        currentPage = "loading";
         activeScreen = false;
         LinearLayout root = rootShell();
         LinearLayout body = bodyPage();
@@ -196,6 +206,7 @@ public class LocationSharingActivity extends Activity {
 
     /** 2/9: standalone location sharing menu. */
     private void showLanding() {
+        currentPage = "landing";
         activeScreen = false;
         handler.removeCallbacks(activePoller);
         sharingMap = null;
@@ -254,6 +265,7 @@ public class LocationSharingActivity extends Activity {
 
     /** 3/9 and 4/9: fixed bottom action, scrollable settings. */
     private void showRoomForm(boolean create) {
+        currentPage = "room_form";
         createMode = create;
         availabilityOk = false;
         checkedRoomName = "";
@@ -280,10 +292,12 @@ public class LocationSharingActivity extends Activity {
         LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(96), dp(52));
         checkParams.leftMargin = dp(8);
         if (create) roomRow.addView(availabilityButton, checkParams);
-        page.addView(roomRow);
+        LinearLayout.LayoutParams roomRowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        roomRowParams.bottomMargin = dp(8);
+        page.addView(roomRow, roomRowParams);
 
         availabilityText = text("", 11, MUTED, false);
-        availabilityText.setPadding(0, dp(5), 0, dp(12));
+        availabilityText.setPadding(0, dp(2), 0, dp(14));
         if (create) page.addView(availabilityText);
         else spacer(page, 12);
 
@@ -447,6 +461,7 @@ public class LocationSharingActivity extends Activity {
 
     /** 6/9 + 7/9: map, participants, extension and stop controls. */
     private void showActive(JSONObject initial) {
+        currentPage = "active";
         activeScreen = true;
         LinearLayout root = rootShell();
         root.addView(header(initial.optString("room_name", "위치 공유"), ""));
@@ -482,7 +497,9 @@ public class LocationSharingActivity extends Activity {
         pHead.addView(text("참여자", 15, TEXT, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         Button nick = tinyButton("내 닉네임 변경");
         nick.setOnClickListener(v -> showNicknameDialog());
-        pHead.addView(nick, new LinearLayout.LayoutParams(dp(122), dp(38)));
+        LinearLayout.LayoutParams nickParams = new LinearLayout.LayoutParams(dp(122), dp(38));
+        nickParams.bottomMargin = dp(10);
+        pHead.addView(nick, nickParams);
         participants.addView(pHead);
         participantList = new LinearLayout(this);
         participantList.setOrientation(LinearLayout.VERTICAL);
@@ -742,8 +759,8 @@ public class LocationSharingActivity extends Activity {
         TextView back = text("‹", 34, TEXT, false);
         back.setGravity(Gravity.CENTER);
         back.setOnClickListener(v -> {
-            if (activeScreen) finish();
-            else showLanding();
+            if ("room_form".equals(currentPage)) showLanding();
+            else finish();
         });
         top.addView(back, new LinearLayout.LayoutParams(dp(48), dp(54)));
         LinearLayout titles = new LinearLayout(this);
@@ -827,6 +844,11 @@ public class LocationSharingActivity extends Activity {
 
     private Button smallButton(String value) {
         Button b = new Button(this);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);
         b.setText(value);
         b.setTextColor(pink() ? PRIMARY2 : 0xFF0C7F65);
         b.setTextSize(11);
@@ -838,6 +860,9 @@ public class LocationSharingActivity extends Activity {
 
     private Button tinyButton(String value) {
         Button b = softButton(value);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);
         b.setTextSize(10);
         b.setPadding(dp(5), 0, dp(5), 0);
         return b;
