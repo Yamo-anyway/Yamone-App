@@ -31,6 +31,6 @@ jobs:
         run: |
           git config user.name 'Yamo'
           git config user.email 'diahnet@naver.com'
-          git add app .github/workflows/build-android.yml
+          git add app
           git commit -m 'Fix bottom navigation back flow and location spacing'
           git push
