@@ -1,0 +1,103 @@
+name: Patch walking GPS filtering
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-walking-gps.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Harden walking speed filtering
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java')
+          s = p.read_text()
+
+          s = s.replace(
+              '    private float currentSpeedKmh;\n    private float maxSpeedKmh;\n',
+              '    private float currentSpeedKmh;\n    private float maxSpeedKmh;\n    private float maxSpeedCandidateKmh;\n    private int maxSpeedCandidateSamples;\n    private long maxSpeedCandidateStartedAt;\n'
+          )
+
+          s = s.replace(
+              '        maxSpeedKmh = 0f;\n        currentSpeedKmh = 0f;\n',
+              '        maxSpeedKmh = 0f;\n        currentSpeedKmh = 0f;\n        maxSpeedCandidateKmh = 0f;\n        maxSpeedCandidateSamples = 0;\n        maxSpeedCandidateStartedAt = 0L;\n'
+          )
+
+          s = s.replace(
+              '        if (loc.hasAccuracy() && loc.getAccuracy() > MAX_ACCEPTABLE_ACCURACY_M) {\n            rejectedGpsPoints++;\n            return;\n        }\n',
+              '        float activityAccuracyLimit = isCycling() ? MAX_ACCEPTABLE_ACCURACY_M\n                : (isRunning() || isWalkRun() ? 35f : 30f);\n        if (loc.hasAccuracy() && loc.getAccuracy() > activityAccuracyLimit) {\n            rejectedGpsPoints++;\n            resetMaxSpeedCandidate();\n            return;\n        }\n'
+          )
+
+          s = s.replace(
+              '        if (derivedMps > hardMaxSpeedMps && d > teleportDistanceM) {\n            rejectedGpsPoints++;\n            return;\n        }\n',
+              '        // A physically implausible activity speed is invalid even when the GPS jump is short.\n        // The previous distance condition allowed 1-second 3~4m jumps to appear as 13+ km/h walking.\n        if (derivedMps > hardMaxSpeedMps\n                || (!Float.isNaN(reportedMps) && reportedMps > hardMaxSpeedMps * 1.15f)) {\n            rejectedGpsPoints++;\n            currentSpeedKmh = 0f;\n            resetMaxSpeedCandidate();\n            return;\n        }\n'
+          )
+
+          s = s.replace(
+              '        if (isWalkRun()) updateAutoMode(filteredMps, now);\n\n        distanceM += d;\n        currentSpeedKmh = Math.max(0f, filteredMps * 3.6f);\n        if (currentSpeedKmh > maxSpeedKmh && currentSpeedKmh <= hardMaxSpeedMps * 3.6f) maxSpeedKmh = currentSpeedKmh;\n\n        boolean movingPoint = filteredMps >= minMovingSpeedMps && filteredMps <= maxMovingSpeedMps;\n        if (movingPoint) {\n',
+              '        if (filteredMps > maxMovingSpeedMps) {\n            rejectedGpsPoints++;\n            currentSpeedKmh = 0f;\n            resetMaxSpeedCandidate();\n            return;\n        }\n\n        if (isWalkRun()) updateAutoMode(filteredMps, now);\n\n        boolean movingPoint = filteredMps >= minMovingSpeedMps && filteredMps <= maxMovingSpeedMps;\n        currentSpeedKmh = movingPoint ? Math.max(0f, filteredMps * 3.6f) : 0f;\n        if (movingPoint) {\n            distanceM += d;\n            updateConfirmedMaxSpeed(filteredMps, combinedAccuracy, recentStep, now);\n'
+          )
+
+          s = s.replace(
+              '    private void resetAutoPending() {\n        pendingAutoMotionMode = autoMotionMode;\n        pendingAutoMotionSince = 0;\n    }\n\n    private boolean isRunning()',
+              '''    private void resetAutoPending() {\n        pendingAutoMotionMode = autoMotionMode;\n        pendingAutoMotionSince = 0;\n    }\n\n    private void updateConfirmedMaxSpeed(float speedMps, float combinedAccuracy, boolean recentStep, long now) {\n        float speedKmh = Math.max(0f, speedMps * 3.6f);\n        if (speedKmh <= maxSpeedKmh + 0.1f) {\n            resetMaxSpeedCandidate();\n            return;\n        }\n        float accuracyLimit = isCycling() ? 35f : (isRunning() || isWalkRun() ? 25f : 20f);\n        if (combinedAccuracy > accuracyLimit) {\n            resetMaxSpeedCandidate();\n            return;\n        }\n        if (!isCycling() && stepAvailable && !recentStep) {\n            resetMaxSpeedCandidate();\n            return;\n        }\n        float allowedKmh = maxMovingSpeedMps() * 3.6f;\n        if (speedKmh > allowedKmh) {\n            resetMaxSpeedCandidate();\n            return;\n        }\n\n        float tolerance = isCycling() ? 5.0f : (isRunning() || isWalkRun() ? 2.5f : 1.5f);\n        if (maxSpeedCandidateSamples == 0\n                || now - maxSpeedCandidateStartedAt > 5_000L\n                || Math.abs(speedKmh - maxSpeedCandidateKmh) > tolerance) {\n            maxSpeedCandidateKmh = speedKmh;\n            maxSpeedCandidateSamples = 1;\n            maxSpeedCandidateStartedAt = now;\n            return;\n        }\n\n        maxSpeedCandidateKmh = (maxSpeedCandidateKmh * maxSpeedCandidateSamples + speedKmh)\n                / (maxSpeedCandidateSamples + 1);\n        maxSpeedCandidateSamples++;\n        int requiredSamples = isWalkingOnly() ? 3 : 2;\n        if (maxSpeedCandidateSamples >= requiredSamples) {\n            maxSpeedKmh = Math.max(maxSpeedKmh, maxSpeedCandidateKmh);\n            resetMaxSpeedCandidate();\n        }\n    }\n\n    private void resetMaxSpeedCandidate() {\n        maxSpeedCandidateKmh = 0f;\n        maxSpeedCandidateSamples = 0;\n        maxSpeedCandidateStartedAt = 0L;\n    }\n\n    private boolean isWalkingOnly() { return "walking".equals(activityType); }\n\n    private boolean isRunning()'''
+          )
+
+          s = s.replace(
+              '    private float hardMaxSpeedMps() {\n        if (isCycling()) return 25.0f;\n        if (isRunning() || isWalkRun()) return 8.5f;\n        return 5.5f;\n    }\n',
+              '    private float hardMaxSpeedMps() {\n        if (isCycling()) return 25.0f;\n        if (isRunning() || isWalkRun()) return 7.0f;\n        return 3.4f; // walking: about 12.2 km/h; anything faster is treated as a GPS/mode mismatch\n    }\n'
+          )
+
+          s = s.replace(
+              '    private float maxMovingSpeedMps() {\n        if (isCycling()) return 22.2f;\n        if (isRunning() || isWalkRun()) return 7.5f;\n        return 4.5f;\n    }\n',
+              '    private float maxMovingSpeedMps() {\n        if (isCycling()) return 22.2f;\n        if (isRunning() || isWalkRun()) return 6.5f;\n        return 3.2f; // walking: about 11.5 km/h\n    }\n'
+          )
+
+          s = s.replace(
+              '    private float maxAccelerationMps2() {\n        if (isCycling()) return 7.0f;\n        if (isRunning() || isWalkRun()) return 5.0f;\n        return 3.5f;\n    }\n',
+              '    private float maxAccelerationMps2() {\n        if (isCycling()) return 7.0f;\n        if (isRunning() || isWalkRun()) return 4.5f;\n        return 2.8f;\n    }\n'
+          )
+
+          # Make sure candidate state is cleared whenever tracking is rebased or paused.
+          s = s.replace(
+              '            currentSpeedKmh = 0f;\n            resetAutoPending();\n            rebaseStationaryAnchor(loc, now, true);',
+              '            currentSpeedKmh = 0f;\n            resetAutoPending();\n            resetMaxSpeedCandidate();\n            rebaseStationaryAnchor(loc, now, true);'
+          )
+          s = s.replace(
+              '        currentSpeedKmh = 0;\n        resetAutoPending();\n        persistRuntime();',
+              '        currentSpeedKmh = 0;\n        resetAutoPending();\n        resetMaxSpeedCandidate();\n        persistRuntime();'
+          )
+          s = s.replace(
+              '        currentSpeedKmh = 0;\n        resetAutoPending();\n        persistRuntime();\n        updateForegroundNotification();',
+              '        currentSpeedKmh = 0;\n        resetAutoPending();\n        resetMaxSpeedCandidate();\n        persistRuntime();\n        updateForegroundNotification();'
+          )
+
+          p.write_text(s)
+
+      - name: Verify patch markers
+        shell: bash
+        run: |
+          grep -q 'updateConfirmedMaxSpeed' app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q 'return 3.4f' app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q 'distanceM += d' app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          git diff --cached --quiet && exit 0
+          git commit -m 'Harden walking GPS speed spike filtering'
+          git push
