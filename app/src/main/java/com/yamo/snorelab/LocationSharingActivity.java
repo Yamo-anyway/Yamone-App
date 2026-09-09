@@ -3,6 +3,7 @@ package com.yamo.snorelab;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -19,12 +20,10 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -37,10 +36,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Room creation/joining and live MapLibre location-sharing UI. */
+/** Yamone mint/pink location sharing flow. Only the latest position is kept on the server. */
 public class LocationSharingActivity extends Activity {
     private static final int REQ_SHARE_PERMISSIONS = 7111;
-    private static final long ACTIVE_POLL_MS = 15_000L;
+    private static final long ACTIVE_POLL_MS = 60_000L;
+    private static final int DEFAULT_SHARE_MINUTES = 240;
 
     private int BG;
     private int CARD;
@@ -57,27 +57,21 @@ public class LocationSharingActivity extends Activity {
     private int DANGER_TEXT;
     private int DANGER_BORDER;
 
-    private static final String[] INTERVAL_LABELS = {"10초", "30초", "1분", "3분"};
-    private static final int[] INTERVAL_SECONDS = {10, 30, 60, 180};
-    private static final String[] DURATION_LABELS = {"30분", "1시간", "2시간", "4시간", "8시간", "12시간"};
-    private static final int[] DURATION_MINUTES = {30, 60, 120, 240, 480, 720};
-
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private LinearLayout rootPage;
     private EditText roomNameInput;
     private EditText passwordInput;
     private EditText nicknameInput;
-    private Spinner intervalSpinner;
-    private Spinner durationSpinner;
-    private TextView modeCreate;
-    private TextView modeJoin;
     private TextView availabilityText;
     private Button availabilityButton;
     private Button actionButton;
+    private TextView interval1;
+    private TextView interval3;
+    private TextView interval5;
     private boolean createMode = true;
     private boolean availabilityOk;
     private String checkedRoomName = "";
+    private int selectedIntervalSeconds = 60;
     private boolean pendingSubmitAfterPermission;
     private boolean askedActivePermission;
 
@@ -129,8 +123,7 @@ public class LocationSharingActivity extends Activity {
     }
 
     private void applyTheme() {
-        boolean pink = "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+        boolean pink = pink();
         BG = pink ? 0xFFFFF7FA : 0xFFF7FFFB;
         CARD = 0xFFFFFFFF;
         CARD2 = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
@@ -147,12 +140,15 @@ public class LocationSharingActivity extends Activity {
         DANGER_BORDER = 0xFFFFCBD3;
     }
 
+    private boolean pink() {
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "mint"));
+    }
+
     private void configureSystemBars() {
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        if (Build.VERSION.SDK_INT >= 30) {
-            getWindow().setDecorFitsSystemWindows(false);
-        }
+        if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
         int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         getWindow().getDecorView().setSystemUiVisibility(flags);
@@ -160,155 +156,216 @@ public class LocationSharingActivity extends Activity {
 
     private void showLoading() {
         activeScreen = false;
-        handler.removeCallbacks(activePoller);
-        ScrollView scroll = shell();
-        rootPage.addView(text("📍 위치 공유", 25, TEXT, true));
-        TextView sub = text("현재 위치만 공유하며 이동 경로는 서버에 저장하지 않습니다.", 12, MUTED, false);
-        sub.setPadding(0, dp(6), 0, dp(18));
-        rootPage.addView(sub);
-        LinearLayout card = card();
-        TextView loading = text("위치 공유 상태 확인 중…", 14, MUTED, true);
+        LinearLayout root = rootShell();
+        LinearLayout body = bodyPage();
+        body.setGravity(Gravity.CENTER);
+        TextView pin = text("📍", 48, PRIMARY2, false);
+        pin.setGravity(Gravity.CENTER);
+        body.addView(pin, matchWrap());
+        TextView title = text("위치 공유", 25, TEXT, true);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, dp(10), 0, dp(5));
+        body.addView(title);
+        TextView loading = text("공유 상태를 확인하고 있어요…", 13, MUTED, false);
         loading.setGravity(Gravity.CENTER);
-        card.addView(loading, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(90)));
-        rootPage.addView(card, cardParams());
-        setContentView(scroll);
+        body.addView(loading);
+        root.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(root);
     }
 
     private void loadCurrentRoom() {
         LocationSharingApi.snapshot(this, new LocationSharingApi.JsonCallback() {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> {
-                    if (data.optBoolean("active", false)) {
-                        showActive(data);
-                    } else {
+                    if (data.optBoolean("active", false)) showActive(data);
+                    else {
                         LocationSharingStateStore.clear(LocationSharingActivity.this);
-                        showEntry();
+                        showLanding();
                     }
                 });
             }
 
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> {
-                    showEntry();
+                    showLanding();
                     toast(message);
                 });
             }
         });
     }
 
-    private void showEntry() {
+    /** 2/9: standalone location sharing menu. */
+    private void showLanding() {
         activeScreen = false;
         handler.removeCallbacks(activePoller);
         sharingMap = null;
-        ScrollView scroll = shell();
-        addHeader("📍 위치 공유", "방을 만들거나 기존 방에 참여해 서로의 마지막 위치를 확인합니다.");
 
-        LinearLayout modeRow = new LinearLayout(this);
-        modeRow.setOrientation(LinearLayout.HORIZONTAL);
-        modeCreate = modeChip("방 만들기", true);
-        modeJoin = modeChip("방 참여", false);
-        modeCreate.setOnClickListener(v -> switchMode(true));
-        modeJoin.setOnClickListener(v -> switchMode(false));
-        modeRow.addView(modeCreate, new LinearLayout.LayoutParams(0, dp(44), 1f));
-        LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(0, dp(44), 1f);
-        jp.leftMargin = dp(8);
-        modeRow.addView(modeJoin, jp);
-        rootPage.addView(modeRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout root = rootShell();
+        root.addView(header("위치 공유", ""));
 
-        LinearLayout form = card();
-        form.setPadding(dp(16), dp(17), dp(16), dp(18));
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout page = bodyPage();
 
-        form.addView(label("방 이름"));
+        TextView headline = text("지금, 소중한 사람들과\n함께 있는지 확인해보세요 💕", 20, TEXT, true);
+        headline.setPadding(0, dp(8), 0, dp(18));
+        page.addView(headline);
+
+        LinearLayout illustration = card();
+        illustration.setGravity(Gravity.CENTER);
+        TextView art = text("🏔️   👩🏻‍🦰  📍  👦🏻   🗺️", 34, TEXT, false);
+        art.setGravity(Gravity.CENTER);
+        illustration.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(112)));
+        page.addView(illustration);
+
+        TextView create = bigMenuButton("👥  방 만들기", "새로운 방을 만들어 친구를 초대해요", true);
+        create.setOnClickListener(v -> showRoomForm(true));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(70));
+        cp.topMargin = dp(16);
+        page.addView(create, cp);
+
+        TextView join = bigMenuButton("👥  방 참여하기", "친구가 만든 방에 참여해요", false);
+        join.setOnClickListener(v -> showRoomForm(false));
+        LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(70));
+        jp.topMargin = dp(10);
+        page.addView(join, jp);
+
+        LinearLayout info = card();
+        LinearLayout infoRow = new LinearLayout(this);
+        infoRow.setOrientation(LinearLayout.HORIZONTAL);
+        infoRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView infoIcon = text("ⓘ", 22, PRIMARY2, true);
+        infoIcon.setGravity(Gravity.CENTER);
+        infoRow.addView(infoIcon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout infoText = new LinearLayout(this);
+        infoText.setOrientation(LinearLayout.VERTICAL);
+        infoText.addView(text("위치 공유란?", 13, TEXT, true));
+        infoText.addView(text("방에 참여한 사람끼리 마지막 위치만 확인해요.", 11, MUTED, false));
+        infoRow.addView(infoText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        info.addView(infoRow);
+        LinearLayout.LayoutParams ip = cardParams();
+        ip.topMargin = dp(16);
+        page.addView(info, ip);
+
+        scroll.addView(page);
+        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(root);
+    }
+
+    /** 3/9 and 4/9: fixed bottom action, scrollable settings. */
+    private void showRoomForm(boolean create) {
+        createMode = create;
+        availabilityOk = false;
+        checkedRoomName = "";
+        selectedIntervalSeconds = 60;
+
+        LinearLayout root = rootShell();
+        root.addView(header(create ? "방 만들기" : "방 참여하기", ""));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout page = bodyPage();
+        page.setPadding(dp(18), dp(8), dp(18), dp(22));
+
+        page.addView(label("방 이름"));
         LinearLayout roomRow = new LinearLayout(this);
         roomRow.setOrientation(LinearLayout.HORIZONTAL);
-        roomNameInput = input("2~40자", InputType.TYPE_CLASS_TEXT);
+        roomNameInput = input(create ? "예) 야모네 스키 여행" : "참여할 방 이름을 입력하세요",
+                InputType.TYPE_CLASS_TEXT);
         roomNameInput.setSingleLine(true);
         roomNameInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(40)});
-        roomRow.addView(roomNameInput, new LinearLayout.LayoutParams(0, dp(50), 1f));
+        roomRow.addView(roomNameInput, new LinearLayout.LayoutParams(0, dp(52), 1f));
+
         availabilityButton = smallButton("중복 확인");
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(94), dp(50));
-        ap.leftMargin = dp(8);
-        roomRow.addView(availabilityButton, ap);
-        form.addView(roomRow);
+        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(96), dp(52));
+        checkParams.leftMargin = dp(8);
+        if (create) roomRow.addView(availabilityButton, checkParams);
+        page.addView(roomRow);
+
         availabilityText = text("", 11, MUTED, false);
-        availabilityText.setPadding(0, dp(6), 0, dp(10));
-        form.addView(availabilityText);
+        availabilityText.setPadding(0, dp(5), 0, dp(12));
+        if (create) page.addView(availabilityText);
+        else spacer(page, 12);
 
         roomNameInput.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 availabilityOk = false;
                 checkedRoomName = "";
-                if (createMode) {
-                    availabilityText.setText("");
-                    availabilityText.setTextColor(MUTED);
-                }
+                if (availabilityText != null) availabilityText.setText("");
             }
             @Override public void afterTextChanged(Editable s) {}
         });
-        availabilityButton.setOnClickListener(v -> checkAvailability());
+        if (create) availabilityButton.setOnClickListener(v -> checkAvailability());
 
-        form.addView(label("비밀번호"));
-        passwordInput = input("숫자 4자리", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-        passwordInput.setSingleLine(true);
-        passwordInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
-        form.addView(passwordInput, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
-        spacer(form, 11);
-
-        form.addView(label("닉네임"));
-        nicknameInput = input("닉네임", InputType.TYPE_CLASS_TEXT);
+        page.addView(label("내 닉네임"));
+        nicknameInput = input("예) 지민", InputType.TYPE_CLASS_TEXT);
         nicknameInput.setSingleLine(true);
         nicknameInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(24)});
         nicknameInput.setText(LocationProfileStore.getNickname(this));
-        form.addView(nicknameInput, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
-        TextView nickNote = text("설정의 닉네임을 우선 사용합니다. 이 방에서만 다른 이름으로 바꿔도 됩니다.", 11, MUTED, false);
-        nickNote.setPadding(0, dp(6), 0, dp(11));
-        form.addView(nickNote);
+        page.addView(nicknameInput, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
+        spacer(page, 14);
 
-        form.addView(label("위치 갱신 주기"));
-        intervalSpinner = spinner(INTERVAL_LABELS);
-        intervalSpinner.setSelection(2);
-        form.addView(intervalSpinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
-        TextView battery = text("10초는 위치가 빠르게 갱신되지만 배터리와 데이터 사용량이 더 늘어날 수 있어요.", 11, WARNING, false);
-        battery.setPadding(0, dp(6), 0, dp(11));
-        form.addView(battery);
+        page.addView(label("방 비밀번호 (숫자만)"));
+        passwordInput = input("4~6자리 숫자를 입력하세요",
+                InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        passwordInput.setSingleLine(true);
+        passwordInput.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
+        page.addView(passwordInput, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
+        spacer(page, 18);
 
-        form.addView(label("공유 가능 시간"));
-        durationSpinner = spinner(DURATION_LABELS);
-        durationSpinner.setSelection(3);
-        form.addView(durationSpinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
-        TextView expiry = text("공유 시간이 끝나면 자동으로 방에서 나갑니다. 종료 5분 전에 알림으로 알려주고 시간을 연장할 수 있어요.", 11, MUTED, false);
-        expiry.setPadding(0, dp(6), 0, dp(14));
-        form.addView(expiry);
+        page.addView(label("공유 간격"));
+        LinearLayout intervals = new LinearLayout(this);
+        intervals.setOrientation(LinearLayout.HORIZONTAL);
+        interval1 = intervalChip("1분", 60);
+        interval3 = intervalChip("3분", 180);
+        interval5 = intervalChip("5분", 300);
+        intervals.addView(interval1, new LinearLayout.LayoutParams(0, dp(46), 1f));
+        LinearLayout.LayoutParams i3 = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        i3.leftMargin = dp(9);
+        intervals.addView(interval3, i3);
+        LinearLayout.LayoutParams i5 = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        i5.leftMargin = dp(9);
+        intervals.addView(interval5, i5);
+        page.addView(intervals);
+        styleIntervalChips();
 
-        actionButton = primaryButton("방 만들기");
+        scroll.addView(page);
+        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setPadding(dp(18), dp(10), dp(18), dp(10));
+        bottom.setBackgroundColor(BG);
+        actionButton = primaryButton(create ? "방 만들기" : "방 참여하기", create);
         actionButton.setOnClickListener(v -> ensurePermissionsThenSubmit());
-        form.addView(actionButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
-        rootPage.addView(form, cardParams());
+        bottom.addView(actionButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
+        root.addView(bottom);
 
-        LinearLayout principle = card();
-        principle.addView(text("🔒 위치 공유 원칙", 14, TEXT, true));
-        TextView rule = text("서버에는 참여 중인 사람의 마지막 위치만 유지합니다. 과거 경로는 저장하지 않으며, 마지막 사람이 나가거나 공유시간이 만료되면 빈 방은 자동 삭제됩니다.", 12, MUTED, false);
-        rule.setPadding(0, dp(8), 0, 0);
-        principle.addView(rule);
-        rootPage.addView(principle, cardParams());
-
-        setContentView(scroll);
-        switchMode(createMode);
+        setContentView(root);
     }
 
-    private void switchMode(boolean create) {
-        createMode = create;
-        if (modeCreate == null) return;
-        styleMode(modeCreate, create);
-        styleMode(modeJoin, !create);
-        availabilityButton.setVisibility(create ? View.VISIBLE : View.GONE);
-        availabilityText.setVisibility(create ? View.VISIBLE : View.GONE);
-        actionButton.setText(create ? "방 만들기" : "방 참여하기");
-        if (!create) {
-            availabilityOk = false;
-            checkedRoomName = "";
-        }
+    private TextView intervalChip(String label, int seconds) {
+        TextView chip = text(label, 14, TEXT, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setOnClickListener(v -> {
+            selectedIntervalSeconds = seconds;
+            styleIntervalChips();
+        });
+        return chip;
+    }
+
+    private void styleIntervalChips() {
+        styleInterval(interval1, selectedIntervalSeconds == 60);
+        styleInterval(interval3, selectedIntervalSeconds == 180);
+        styleInterval(interval5, selectedIntervalSeconds == 300);
+    }
+
+    private void styleInterval(TextView chip, boolean selected) {
+        if (chip == null) return;
+        chip.setTextColor(selected ? (pink() ? PRIMARY2 : 0xFF0C7F65) : TEXT);
+        int fill = selected ? (pink() ? 0xFFFFE2EB : 0xFFDDF8EF) : CARD2;
+        int stroke = selected ? PRIMARY : BORDER;
+        chip.setBackground(round(fill, 18, 1, stroke));
     }
 
     private void checkAvailability() {
@@ -331,7 +388,6 @@ public class LocationSharingActivity extends Activity {
                     availabilityText.setTextColor(available ? SUCCESS : WARNING);
                 });
             }
-
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> {
                     availabilityButton.setEnabled(true);
@@ -345,12 +401,11 @@ public class LocationSharingActivity extends Activity {
     }
 
     private void ensurePermissionsThenSubmit() {
-        if (hasLocationPermission()) {
-            submit();
-            return;
+        if (hasLocationPermission()) submit();
+        else {
+            pendingSubmitAfterPermission = true;
+            requestSharePermissions();
         }
-        pendingSubmitAfterPermission = true;
-        requestSharePermissions();
     }
 
     private void submit() {
@@ -358,15 +413,13 @@ public class LocationSharingActivity extends Activity {
         String password = value(passwordInput);
         String nickname = value(nicknameInput);
         if (room.length() < 2) { toast("방 이름을 입력해 주세요."); return; }
-        if (!password.matches("[0-9]{4}")) { toast("비밀번호는 숫자 4자리로 입력해 주세요."); return; }
+        if (!password.matches("[0-9]{4,6}")) { toast("비밀번호는 숫자 4~6자리로 입력해 주세요."); return; }
         if (nickname.isEmpty()) { toast("닉네임을 입력해 주세요."); return; }
         if (createMode && (!availabilityOk || !room.trim().equals(checkedRoomName))) {
             toast("방 이름 중복 확인을 먼저 해 주세요.");
             return;
         }
 
-        int interval = INTERVAL_SECONDS[Math.max(0, intervalSpinner.getSelectedItemPosition())];
-        int duration = DURATION_MINUTES[Math.max(0, durationSpinner.getSelectedItemPosition())];
         actionButton.setEnabled(false);
         actionButton.setText(createMode ? "방 만드는 중…" : "참여하는 중…");
 
@@ -374,7 +427,6 @@ public class LocationSharingActivity extends Activity {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> showActive(data));
             }
-
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> {
                     actionButton.setEnabled(true);
@@ -384,69 +436,88 @@ public class LocationSharingActivity extends Activity {
             }
         };
 
-        if (createMode) LocationSharingApi.createRoom(this, room, password, nickname, interval, duration, callback);
-        else LocationSharingApi.joinRoom(this, room, password, nickname, interval, duration, callback);
+        if (createMode) {
+            LocationSharingApi.createRoom(this, room, password, nickname,
+                    selectedIntervalSeconds, DEFAULT_SHARE_MINUTES, callback);
+        } else {
+            LocationSharingApi.joinRoom(this, room, password, nickname,
+                    selectedIntervalSeconds, DEFAULT_SHARE_MINUTES, callback);
+        }
     }
 
+    /** 6/9 + 7/9: map, participants, extension and stop controls. */
     private void showActive(JSONObject initial) {
         activeScreen = true;
-        ScrollView scroll = shell();
-        addHeader("📍 위치 공유 중", "활동과 별개로 화면이 꺼져도 위치 공유가 계속됩니다.");
+        LinearLayout root = rootShell();
+        root.addView(header(initial.optString("room_name", "위치 공유"), ""));
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout page = bodyPage();
+        page.setPadding(dp(14), dp(6), dp(14), dp(28));
 
         LinearLayout status = card();
-        activeRoomTitle = text("위치 공유 방", 22, TEXT, true);
+        activeRoomTitle = text("위치 공유 중", 17, TEXT, true);
         status.addView(activeRoomTitle);
-        activeInfo = text("참여 상태 확인 중…", 12, MUTED, false);
-        activeInfo.setPadding(0, dp(7), 0, dp(4));
-        status.addView(activeInfo);
-        activeRemaining = text("공유 종료까지 -", 12, PRIMARY2, true);
+        activeRemaining = text("● 공유 중 · 남은 시간 확인 중…", 12, PRIMARY2, true);
+        activeRemaining.setPadding(0, dp(5), 0, 0);
         status.addView(activeRemaining);
-        activeNetworkHint = text("상대 위치가 갱신 주기를 넘겨 들어오지 않으면 마지막 위치를 유지하고 ‘연결 끊김’으로 표시합니다.", 11, MUTED, false);
-        activeNetworkHint.setPadding(0, dp(7), 0, 0);
+        activeInfo = text("참여 상태 확인 중…", 11, MUTED, false);
+        activeInfo.setPadding(0, dp(5), 0, 0);
+        status.addView(activeInfo);
+        activeNetworkHint = text("다른 참여자 위치는 1분 간격으로 확인합니다.", 11, MUTED, false);
+        activeNetworkHint.setPadding(0, dp(5), 0, 0);
         status.addView(activeNetworkHint);
-        rootPage.addView(status, cardParams());
+        page.addView(status, cardParams());
 
         sharingMap = new LocationSharingMapView(this);
-        LinearLayout.LayoutParams mapParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(360));
+        sharingMap.setBackground(round(CARD2, 22, 1, BORDER));
+        LinearLayout.LayoutParams mapParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(390));
         mapParams.topMargin = dp(12);
-        rootPage.addView(sharingMap, mapParams);
+        page.addView(sharingMap, mapParams);
 
         LinearLayout participants = card();
-        LinearLayout participantHead = new LinearLayout(this);
-        participantHead.setOrientation(LinearLayout.HORIZONTAL);
-        participantHead.setGravity(Gravity.CENTER_VERTICAL);
-        participantHead.addView(text("참여자", 14, TEXT, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout pHead = new LinearLayout(this);
+        pHead.setOrientation(LinearLayout.HORIZONTAL);
+        pHead.setGravity(Gravity.CENTER_VERTICAL);
+        pHead.addView(text("참여자", 15, TEXT, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         Button nick = tinyButton("내 닉네임 변경");
         nick.setOnClickListener(v -> showNicknameDialog());
-        participantHead.addView(nick, new LinearLayout.LayoutParams(dp(122), dp(38)));
-        participants.addView(participantHead);
+        pHead.addView(nick, new LinearLayout.LayoutParams(dp(122), dp(38)));
+        participants.addView(pHead);
         participantList = new LinearLayout(this);
         participantList.setOrientation(LinearLayout.VERTICAL);
-        participantList.setPadding(0, dp(8), 0, 0);
+        participantList.setPadding(0, dp(10), 0, 0);
         participants.addView(participantList);
-        rootPage.addView(participants, cardParams());
+        page.addView(participants, cardParams());
 
-        Button refresh = softButton("방 상태 새로고침");
-        refresh.setOnClickListener(v -> refreshActiveSnapshot());
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        rp.topMargin = dp(12);
-        rootPage.addView(refresh, rp);
+        Button extend = softButton("⏱  공유 시간 연장하기");
+        extend.setOnClickListener(v -> startActivity(new Intent(this, LocationSharingTimeActivity.class)));
+        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        ep.topMargin = dp(12);
+        page.addView(extend, ep);
 
-        Button leave = dangerButton("위치 공유 종료 · 방 나가기");
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        Button leave = dangerButton("▣  위치 공유 중단하기");
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
         lp.topMargin = dp(10);
-        rootPage.addView(leave, lp);
-        leave.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setTitle("위치 공유를 종료할까요?")
-                .setMessage("내 위치 정보는 서버에서 삭제되고 방에서 나갑니다. 다른 사람이 남아 있으면 방은 계속 유지됩니다.")
-                .setNegativeButton("취소", null)
-                .setPositiveButton("종료", (d, w) -> leaveRoom())
-                .show());
+        page.addView(leave, lp);
+        leave.setOnClickListener(v -> confirmLeave());
 
-        setContentView(scroll);
+        scroll.addView(page);
+        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(root);
+
         applySnapshot(initial);
         ensureSharingService();
         scheduleActivePolling();
+    }
+
+    private void confirmLeave() {
+        new AlertDialog.Builder(this)
+                .setTitle("위치 공유를 중단할까요?")
+                .setMessage("중단하면 내 위치가 더 이상 다른 참여자에게 표시되지 않아요.")
+                .setNegativeButton("취소", null)
+                .setPositiveButton("공유 중단하기", (d, w) -> leaveRoom())
+                .show();
     }
 
     private void applySnapshot(JSONObject data) {
@@ -455,7 +526,7 @@ public class LocationSharingActivity extends Activity {
             LocationSharingStateStore.clear(this);
             LocationSharingService.stop(this);
             toast("위치 공유가 종료되었습니다.");
-            showEntry();
+            showLanding();
             return;
         }
 
@@ -463,22 +534,22 @@ public class LocationSharingActivity extends Activity {
         JSONArray members = data.optJSONArray("members");
         if (members == null) members = new JSONArray();
         JSONObject self = findSelf(members);
-        String nickname = self == null ? "-" : self.optString("nickname", "-");
-        String shareUntil = self == null ? "" : self.optString("share_until", "");
-        int interval = self == null ? 60 : self.optInt("update_interval_seconds", 60);
+        String shareUntil = self == null ? data.optString("share_until", "") : self.optString("share_until", "");
+        int interval = self == null ? data.optInt("update_interval_seconds", 60) : self.optInt("update_interval_seconds", 60);
 
         LocationSharingStateStore.update(this, roomName, shareUntil, interval, members.length());
         activeRoomTitle.setText(roomName);
-        activeInfo.setText(String.format(Locale.KOREAN, "참여 %d명 · 내 닉네임 %s · %s 갱신", members.length(), nickname, intervalLabel(interval)));
-        activeRemaining.setText("공유 종료까지 " + remainingText(shareUntil));
-        sharingMap.setMembers(members);
+        activeRemaining.setText("● 공유 중 · 남은 시간 " + remainingText(shareUntil));
+        activeInfo.setText(String.format(Locale.KOREAN, "참여 %d명 · 내 위치 %s 간격 공유", members.length(), intervalLabel(interval)));
+        if (sharingMap != null) sharingMap.setMembers(members);
         renderParticipants(members);
     }
 
     private void renderParticipants(JSONArray members) {
+        if (participantList == null) return;
         participantList.removeAllViews();
         if (members.length() == 0) {
-            participantList.addView(text("참여자가 없습니다.", 12, MUTED, false));
+            participantList.addView(text("참여자 정보를 불러오는 중이에요.", 12, MUTED, false));
             return;
         }
         for (int i = 0; i < members.length(); i++) {
@@ -490,42 +561,50 @@ public class LocationSharingActivity extends Activity {
             String lastLocationAt = member.optString("last_location_at", "");
 
             LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.VERTICAL);
-            row.setPadding(dp(10), dp(9), dp(10), dp(9));
-            row.setBackground(round(CARD2, 13, 0, 0));
-            String title = self ? "● " + nickname + "  (나)" : "● " + nickname;
-            if ("disconnected".equals(state) || "location_stale".equals(state)) title = "⚠ " + nickname + (self ? "  (나)" : "");
-            else if ("waiting".equals(state)) title = "… " + nickname + (self ? "  (나)" : "");
-            row.addView(text(title, 12, TEXT, true));
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            row.setBackground(round(CARD2, 16, 0, 0));
+
+            TextView avatar = text(self ? "🌸" : "🙂", 22, TEXT, false);
+            avatar.setGravity(Gravity.CENTER);
+            row.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+            LinearLayout words = new LinearLayout(this);
+            words.setOrientation(LinearLayout.VERTICAL);
+            TextView name = text(nickname + (self ? "  (나)" : ""), 13, TEXT, true);
+            words.addView(name);
             TextView detail = text(connectionText(state, lastLocationAt), 11,
                     "connected".equals(state) ? SUCCESS : ("waiting".equals(state) ? MUTED : WARNING), false);
-            detail.setPadding(0, dp(3), 0, 0);
-            row.addView(detail);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            if (i > 0) p.topMargin = dp(7);
-            participantList.addView(row, p);
+            detail.setPadding(0, dp(2), 0, 0);
+            words.addView(detail);
+            row.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView dot = text("●", 14, "connected".equals(state) ? SUCCESS : MUTED, true);
+            row.addView(dot);
+
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (i > 0) rp.topMargin = dp(7);
+            participantList.addView(row, rp);
         }
     }
 
     private String connectionText(String state, String lastLocationAt) {
         String age = ageText(lastLocationAt);
-        if ("connected".equals(state)) return "연결됨" + (age.isEmpty() ? "" : " · 위치 " + age);
-        if ("disconnected".equals(state)) return "연결 끊김 · 마지막 위치" + (age.isEmpty() ? "" : " " + age);
-        if ("location_stale".equals(state)) return "위치 갱신 끊김 · 마지막 위치" + (age.isEmpty() ? "" : " " + age);
+        if ("connected".equals(state)) return "지금" + (age.isEmpty() ? "" : " · " + age);
+        if ("disconnected".equals(state)) return "연결 끊김" + (age.isEmpty() ? "" : " · 마지막 위치 " + age);
+        if ("location_stale".equals(state)) return "위치 갱신 대기" + (age.isEmpty() ? "" : " · " + age);
         return "첫 위치를 기다리는 중";
     }
 
     private void refreshActiveSnapshot() {
         if (!activeScreen) return;
         LocationSharingApi.snapshot(this, new LocationSharingApi.JsonCallback() {
-            @Override public void onSuccess(JSONObject data) {
-                runOnUiThread(() -> applySnapshot(data));
-            }
-
+            @Override public void onSuccess(JSONObject data) { runOnUiThread(() -> applySnapshot(data)); }
             @Override public void onFailure(String message) {
                 runOnUiThread(() -> {
                     if (activeNetworkHint != null) {
-                        activeNetworkHint.setText("네트워크 연결을 확인하는 중입니다. 지도에는 마지막으로 받은 위치를 유지합니다.");
+                        activeNetworkHint.setText("네트워크 연결 대기 중 · 마지막으로 받은 위치를 유지합니다.");
                         activeNetworkHint.setTextColor(WARNING);
                     }
                 });
@@ -540,11 +619,8 @@ public class LocationSharingActivity extends Activity {
 
     private void ensureSharingService() {
         if (!activeScreen) return;
-        if (hasLocationPermission()) {
-            LocationSharingService.start(this);
-            return;
-        }
-        if (!askedActivePermission) {
+        if (hasLocationPermission()) LocationSharingService.start(this);
+        else if (!askedActivePermission) {
             askedActivePermission = true;
             requestSharePermissions();
         }
@@ -555,8 +631,7 @@ public class LocationSharingActivity extends Activity {
         input.setSingleLine(true);
         input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(24)});
         new AlertDialog.Builder(this)
-                .setTitle("위치 공유 닉네임")
-                .setMessage("이 방에서 표시할 닉네임만 변경합니다.")
+                .setTitle("내 닉네임 변경")
                 .setView(input)
                 .setNegativeButton("취소", null)
                 .setPositiveButton("변경", (d, w) -> {
@@ -566,13 +641,12 @@ public class LocationSharingActivity extends Activity {
                         @Override public void onSuccess(JSONObject data) {
                             runOnUiThread(() -> {
                                 toast("닉네임을 변경했습니다.");
-                                applySnapshot(data);
+                                refreshActiveSnapshot();
                             });
                         }
                         @Override public void onFailure(String message) { runOnUiThread(() -> toast(message)); }
                     });
-                })
-                .show();
+                }).show();
     }
 
     private void leaveRoom() {
@@ -582,34 +656,27 @@ public class LocationSharingActivity extends Activity {
                     LocationSharingStateStore.clear(LocationSharingActivity.this);
                     LocationSharingService.stop(LocationSharingActivity.this);
                     toast("위치 공유를 종료했습니다.");
-                    showEntry();
+                    showLanding();
                 });
             }
-
-            @Override public void onFailure(String message) {
-                runOnUiThread(() -> toast(message));
-            }
+            @Override public void onFailure(String message) { runOnUiThread(() -> toast(message)); }
         });
     }
 
     private void requestSharePermissions() {
         List<String> permissions = new ArrayList<>();
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
             permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
-        }
-        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
             permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        }
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             permissions.add(Manifest.permission.POST_NOTIFICATIONS);
-        }
+
         if (permissions.isEmpty()) {
             if (pendingSubmitAfterPermission) {
                 pendingSubmitAfterPermission = false;
                 submit();
-            } else if (activeScreen) {
-                LocationSharingService.start(this);
-            }
+            } else if (activeScreen) LocationSharingService.start(this);
             return;
         }
         requestPermissions(permissions.toArray(new String[0]), REQ_SHARE_PERMISSIONS);
@@ -620,15 +687,13 @@ public class LocationSharingActivity extends Activity {
         if (requestCode != REQ_SHARE_PERMISSIONS) return;
         if (!hasLocationPermission()) {
             pendingSubmitAfterPermission = false;
-            toast("화면이 꺼져도 위치를 공유하려면 위치 권한이 필요합니다.");
+            toast("위치 공유를 사용하려면 위치 권한이 필요합니다.");
             return;
         }
         if (pendingSubmitAfterPermission) {
             pendingSubmitAfterPermission = false;
             submit();
-        } else if (activeScreen) {
-            LocationSharingService.start(this);
-        }
+        } else if (activeScreen) LocationSharingService.start(this);
     }
 
     private boolean hasLocationPermission() {
@@ -644,47 +709,74 @@ public class LocationSharingActivity extends Activity {
         return null;
     }
 
-    private ScrollView shell() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(BG);
-        rootPage = new LinearLayout(this);
-        rootPage.setOrientation(LinearLayout.VERTICAL);
-        rootPage.setBackgroundColor(BG);
-        rootPage.setPadding(dp(18), dp(20), dp(18), dp(38));
-        scroll.addView(rootPage, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        if (Build.VERSION.SDK_INT >= 30) {
-            scroll.setOnApplyWindowInsetsListener((v, insets) -> {
-                int top = insets.getInsets(WindowInsets.Type.statusBars()).top;
-                int bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
-                rootPage.setPadding(dp(18), top + dp(14), dp(18), bottom + dp(30));
+    private LinearLayout rootShell() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(BG);
+        root.setPadding(0, dp(8), 0, dp(8));
+        if (Build.VERSION.SDK_INT >= 21) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                int top;
+                int bottom;
+                if (Build.VERSION.SDK_INT >= 30) {
+                    top = insets.getInsets(WindowInsets.Type.statusBars()).top;
+                    bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                } else {
+                    top = insets.getSystemWindowInsetTop();
+                    bottom = insets.getSystemWindowInsetBottom();
+                }
+                v.setPadding(0, top + dp(4), 0, bottom + dp(4));
                 return insets;
             });
-            scroll.requestApplyInsets();
+            root.requestApplyInsets();
         }
-        return scroll;
+        return root;
     }
 
-    private void addHeader(String title, String subtitle) {
+    private LinearLayout header(String title, String subtitle) {
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView back = text("‹", 34, PRIMARY2, true);
+        top.setPadding(dp(10), dp(5), dp(18), dp(5));
+        top.setBackgroundColor(BG);
+        TextView back = text("‹", 34, TEXT, false);
         back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> finish());
-        top.addView(back, new LinearLayout.LayoutParams(dp(42), dp(48)));
+        back.setOnClickListener(v -> {
+            if (activeScreen) finish();
+            else showLanding();
+        });
+        top.addView(back, new LinearLayout.LayoutParams(dp(48), dp(54)));
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
-        titles.addView(text(title, 24, TEXT, true));
-        titles.addView(text(subtitle, 11, MUTED, false));
-        top.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        rootPage.addView(top);
-        spacer(rootPage, 18);
+        titles.setGravity(Gravity.CENTER_VERTICAL);
+        titles.addView(text(title, 22, TEXT, true));
+        if (subtitle != null && !subtitle.isEmpty()) titles.addView(text(subtitle, 11, MUTED, false));
+        top.addView(titles, new LinearLayout.LayoutParams(0, dp(54), 1f));
+        return top;
+    }
+
+    private LinearLayout bodyPage() {
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(18), dp(8), dp(18), dp(32));
+        page.setBackgroundColor(BG);
+        return page;
+    }
+
+    private TextView bigMenuButton(String title, String subtitle, boolean pinkButton) {
+        LinearLayout wrapper = new LinearLayout(this);
+        // Kept as TextView for a single, reliable rounded click target.
+        TextView v = text(title + "\n" + subtitle, 15, Color.WHITE, true);
+        v.setGravity(Gravity.CENTER_VERTICAL);
+        v.setPadding(dp(20), 0, dp(18), 0);
+        int fill = pinkButton ? 0xFFFF6F98 : 0xFF45CDAE;
+        v.setBackground(round(fill, 22, 0, 0));
+        return v;
     }
 
     private TextView label(String value) {
-        TextView v = text(value, 12, MUTED, true);
-        v.setPadding(0, dp(4), 0, dp(6));
+        TextView v = text(value, 13, TEXT, true);
+        v.setPadding(0, dp(3), 0, dp(7));
         return v;
     }
 
@@ -696,81 +788,51 @@ public class LocationSharingActivity extends Activity {
         e.setTextSize(14);
         e.setInputType(inputType);
         e.setPadding(dp(14), 0, dp(14), 0);
-        e.setBackground(round(CARD2, 14, 1, BORDER));
+        e.setBackground(round(CARD, 15, 1, BORDER));
         return e;
     }
 
-    private Spinner spinner(String[] values) {
-        Spinner spinner = new Spinner(this, Spinner.MODE_DROPDOWN);
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, values) {
-            @Override public View getView(int position, View convertView, ViewGroup parent) {
-                TextView row = spinnerRow(getItem(position), false);
-                row.setBackgroundColor(Color.TRANSPARENT);
-                return row;
-            }
-
-            @Override public View getDropDownView(int position, View convertView, ViewGroup parent) {
-                TextView row = spinnerRow(getItem(position), true);
-                row.setBackground(round(CARD, 12, 0, 0));
-                return row;
-            }
-        };
-        spinner.setAdapter(adapter);
-        spinner.setBackground(round(CARD2, 14, 1, BORDER));
-        spinner.setPopupBackgroundDrawable(round(CARD, 16, 1, BORDER));
-        spinner.setPadding(dp(4), 0, dp(4), 0);
-        if (Build.VERSION.SDK_INT >= 21) spinner.setElevation(dp(3));
-        return spinner;
-    }
-
-    private TextView spinnerRow(String value, boolean dropdown) {
-        TextView row = text((value == null ? "" : value) + (dropdown ? "" : "   ⌄"), 14, TEXT, true);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(14), dropdown ? dp(12) : 0, dp(14), dropdown ? dp(12) : 0);
-        row.setMinHeight(dp(dropdown ? 48 : 46));
-        return row;
-    }
-
-    private TextView modeChip(String value, boolean selected) {
-        TextView v = text(value, 13, selected ? Color.WHITE : MUTED, true);
-        v.setGravity(Gravity.CENTER);
-        styleMode(v, selected);
-        return v;
-    }
-
-    private void styleMode(TextView v, boolean selected) {
-        v.setTextColor(selected ? Color.WHITE : MUTED);
-        v.setBackground(round(selected ? PRIMARY : CARD2, 14, 1, selected ? PRIMARY : BORDER));
-    }
-
-    private Button primaryButton(String value) {
+    private Button primaryButton(String value, boolean pinkButton) {
         Button b = new Button(this);
         b.setText(value);
         b.setTextColor(Color.WHITE);
-        b.setTextSize(14);
+        b.setTextSize(15);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setAllCaps(false);
-        b.setBackground(round(PRIMARY, 15, 0, 0));
+        b.setBackground(round(pinkButton ? 0xFFFF6F98 : 0xFF45CDAE, 18, 0, 0));
         return b;
     }
 
     private Button softButton(String value) {
-        Button b = primaryButton(value);
+        Button b = new Button(this);
+        b.setText(value);
         b.setTextColor(PRIMARY2);
-        b.setBackground(round(CARD2, 15, 1, BORDER));
+        b.setTextSize(14);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setAllCaps(false);
+        b.setBackground(round(CARD2, 16, 1, BORDER));
         return b;
     }
 
     private Button dangerButton(String value) {
-        Button b = primaryButton(value);
+        Button b = new Button(this);
+        b.setText(value);
         b.setTextColor(DANGER_TEXT);
-        b.setBackground(round(DANGER_BG, 15, 1, DANGER_BORDER));
+        b.setTextSize(14);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setAllCaps(false);
+        b.setBackground(round(DANGER_BG, 16, 1, DANGER_BORDER));
         return b;
     }
 
     private Button smallButton(String value) {
-        Button b = primaryButton(value);
+        Button b = new Button(this);
+        b.setText(value);
+        b.setTextColor(pink() ? PRIMARY2 : 0xFF0C7F65);
         b.setTextSize(11);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setAllCaps(false);
+        b.setBackground(round(pink() ? 0xFFFFE2EB : 0xFFDDF8EF, 15, 1, PRIMARY));
         return b;
     }
 
@@ -793,6 +855,10 @@ public class LocationSharingActivity extends Activity {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         p.topMargin = dp(12);
         return p;
+    }
+
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
     private TextView text(String value, int sp, int color, boolean bold) {
@@ -825,33 +891,27 @@ public class LocationSharingActivity extends Activity {
     private String remainingText(String iso) {
         if (iso == null || iso.isEmpty()) return "-";
         try {
-            long seconds = Math.max(0, (Instant.parse(iso).toEpochMilli() - System.currentTimeMillis()) / 1000L);
-            long hours = seconds / 3600;
-            long minutes = (seconds % 3600) / 60;
+            long seconds = Math.max(0L, (Instant.parse(iso).toEpochMilli() - System.currentTimeMillis()) / 1000L);
+            long hours = seconds / 3600L;
+            long minutes = (seconds % 3600L) / 60L;
             if (hours > 0) return hours + "시간 " + minutes + "분";
-            return minutes + "분";
-        } catch (DateTimeParseException e) {
-            return "-";
-        }
+            return Math.max(0L, minutes) + "분";
+        } catch (DateTimeParseException e) { return "-"; }
     }
 
     private String ageText(String iso) {
         if (iso == null || iso.isEmpty()) return "";
         try {
-            long seconds = Math.max(0, (System.currentTimeMillis() - Instant.parse(iso).toEpochMilli()) / 1000L);
+            long seconds = Math.max(0L, (System.currentTimeMillis() - Instant.parse(iso).toEpochMilli()) / 1000L);
             if (seconds < 60) return "방금";
-            long minutes = seconds / 60;
+            long minutes = seconds / 60L;
             if (minutes < 60) return minutes + "분 전";
-            long hours = minutes / 60;
-            return hours + "시간 전";
-        } catch (DateTimeParseException e) {
-            return "";
-        }
+            return (minutes / 60L) + "시간 전";
+        } catch (DateTimeParseException e) { return ""; }
     }
 
     private String intervalLabel(int seconds) {
-        if (seconds < 60) return seconds + "초";
-        return (seconds / 60) + "분";
+        return Math.max(1, seconds / 60) + "분";
     }
 
     private void toast(String message) {
