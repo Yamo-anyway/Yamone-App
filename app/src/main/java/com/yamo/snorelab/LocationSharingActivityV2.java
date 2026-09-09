@@ -11,14 +11,9 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/**
- * Adds share-time controls without altering the established LocationSharingActivity layout.
- */
+/** Adds share-time controls while keeping the Yamone mint/pink theme. */
 public class LocationSharingActivityV2 extends LocationSharingActivity {
     private static final String EXTEND_TAG = "yamone_location_time_extend";
-    private static final int CARD = 0xFF16243B;
-    private static final int TEXT = 0xFFF5F7FF;
-    private static final int PRIMARY2 = 0xFF8B8FFF;
     private final Handler enhancer = new Handler(Looper.getMainLooper());
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -43,11 +38,6 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
         if (!(root instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) root;
 
-        TextView oldNote = findContaining(group, "종료 5분 전 알림과 시간 연장은 다음 단계");
-        if (oldNote != null) {
-            oldNote.setText("공유 시간이 끝나면 자동으로 방에서 나갑니다. 종료 5분 전에 알림으로 알려주며 알림 또는 위치 공유 화면에서 시간을 연장할 수 있습니다.");
-        }
-
         TextView leave = findExact(group, "위치 공유 종료 · 방 나가기");
         if (leave == null || !(leave.getParent() instanceof ViewGroup)) return;
         ViewGroup parent = (ViewGroup) leave.getParent();
@@ -56,14 +46,14 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
         TextView extend = new TextView(this);
         extend.setTag(EXTEND_TAG);
         extend.setText("⏱  공유 시간 연장 / 변경");
-        extend.setTextColor(PRIMARY2);
+        extend.setTextColor(primary2());
         extend.setTextSize(14);
         extend.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         extend.setGravity(android.view.Gravity.CENTER);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(CARD);
+        bg.setColor(card2());
         bg.setCornerRadius(dp(15));
-        bg.setStroke(dp(1), 0xFF33435F);
+        bg.setStroke(dp(1), border());
         extend.setBackground(bg);
         extend.setOnClickListener(v -> startActivity(new Intent(this, LocationSharingTimeActivity.class)));
 
@@ -86,17 +76,14 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
         return null;
     }
 
-    private TextView findContaining(View view, String text) {
-        if (view instanceof TextView && ((TextView) view).getText().toString().contains(text)) return (TextView) view;
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                TextView found = findContaining(group.getChildAt(i), text);
-                if (found != null) return found;
-            }
-        }
-        return null;
+    private boolean pink() {
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "mint"));
     }
+
+    private int card2() { return pink() ? 0xFFFFEEF3 : 0xFFF0FAF6; }
+    private int primary2() { return pink() ? 0xFFE94778 : 0xFF159A7A; }
+    private int border() { return pink() ? 0xFFFFD7E3 : 0xFFD7EFE7; }
 
     private int dp(float value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
