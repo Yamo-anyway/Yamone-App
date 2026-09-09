@@ -11,10 +11,9 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
-/** Adds location sharing and ski entry without changing the established activity layout. */
+/** Adds ski entry and an active-only location-sharing status without changing the established activity layout. */
 public class LocationExerciseActivity extends EnhancedExerciseActivity {
-    private static final String TAG = "yamone_location_share_entry";
-    private static final int PRIMARY = 0xFF6D72FF;
+    private static final String TAG = "yamone_location_share_active_entry";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -27,29 +26,37 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
     }
 
     private void attachEnhancements() {
-        attachLocationEntry();
+        attachLocationActiveEntry();
         attachSkiEntry();
     }
 
-    private void attachLocationEntry() {
+    private void attachLocationActiveEntry() {
         View host = findViewById(android.R.id.content);
         if (!(host instanceof FrameLayout)) return;
         FrameLayout frame = (FrameLayout) host;
-        if (frame.findViewWithTag(TAG) != null) return;
+        View old = frame.findViewWithTag(TAG);
+
+        if (!LocationSharingStateStore.isActive(this)) {
+            if (old != null) frame.removeView(old);
+            return;
+        }
+
+        if (old instanceof TextView) {
+            ((TextView) old).setText(activeLabel());
+            old.setBackground(round(primary(), 18));
+            return;
+        }
 
         TextView button = new TextView(this);
         button.setTag(TAG);
-        button.setText("📍 위치 공유");
+        button.setText(activeLabel());
         button.setTextColor(Color.WHITE);
-        button.setTextSize(12);
+        button.setTextSize(11);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setGravity(Gravity.CENTER);
-        button.setElevation(dp(8));
+        button.setElevation(dp(6));
         button.setPadding(dp(14), 0, dp(14), 0);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(PRIMARY);
-        bg.setCornerRadius(dp(18));
-        button.setBackground(bg);
+        button.setBackground(round(primary(), 18));
         button.setOnClickListener(v -> startActivity(new Intent(this, LocationSharingActivityV2.class)));
 
         FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(42));
@@ -57,6 +64,12 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         p.rightMargin = dp(16);
         p.bottomMargin = dp(78);
         frame.addView(button, p);
+    }
+
+    private String activeLabel() {
+        String room = LocationSharingStateStore.roomName(this);
+        String remaining = LocationSharingStateStore.remainingText(this);
+        return "📍 공유 중 · " + room + (remaining.isEmpty() ? "" : " · " + remaining);
     }
 
     private void attachSkiEntry() {
@@ -88,6 +101,20 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
             }
         }
         return null;
+    }
+
+    private boolean pink() {
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "mint"));
+    }
+
+    private int primary() { return pink() ? 0xFFFF769F : 0xFF56D1B3; }
+
+    private GradientDrawable round(int color, int radiusDp) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(radiusDp));
+        return d;
     }
 
     private int dp(float value) {
