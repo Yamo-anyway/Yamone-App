@@ -25,10 +25,8 @@ import java.util.UUID;
 /**
  * Local-first ski/lift store.
  *
- * Ski routes and lift observations are owned by the phone. Historical lift
- * statistics are marked as provided only after a future server upload succeeds.
- * Realtime sharing is a separate preference and never changes the historical
- * provided marker.
+ * Full ski routes stay on the phone. Lift observations can later be provided
+ * separately, and historical provided state is independent from realtime mode.
  */
 public final class SkiLiftStore {
     public static final int SCHEMA_VERSION = 1;
@@ -36,6 +34,7 @@ public final class SkiLiftStore {
     private static final String KEY_REALTIME = "realtime_exchange_enabled";
     private static final String FILE_SESSION = "session.json";
     private static final String FILE_LIFTS = "lift_observations.json";
+    private static final String FILE_ROUTE = "route.csv";
     private static final String FILE_RESORT_STATS = "lift_stats.json";
 
     private SkiLiftStore() {}
@@ -85,9 +84,18 @@ public final class SkiLiftStore {
             meta.put("endEpochMs", 0);
             meta.put("resortKey", "");
             meta.put("resortName", "");
+            meta.put("durationMs", 0);
+            meta.put("descentCount", 0);
+            meta.put("liftCount", 0);
+            meta.put("descentDistanceM", 0);
+            meta.put("descentVerticalM", 0);
+            meta.put("liftTimeMs", 0);
+            meta.put("waitTimeMs", 0);
+            meta.put("maxSpeedKmh", 0);
             meta.put("createdAtEpochMs", System.currentTimeMillis());
             writeJson(new File(dir, FILE_SESSION), meta);
             writeJsonArray(new File(dir, FILE_LIFTS), new JSONArray());
+            ensureRouteFile(dir);
         } catch (Exception ignored) {}
         return dir;
     }
@@ -96,10 +104,34 @@ public final class SkiLiftStore {
         JSONObject meta = readSessionMeta(sessionDir);
         if (meta.length() == 0) return false;
         try {
+            long start = meta.optLong("startEpochMs", endMs);
             meta.put("status", "complete");
-            meta.put("endEpochMs", Math.max(endMs, meta.optLong("startEpochMs", endMs)));
+            meta.put("endEpochMs", Math.max(endMs, start));
+            meta.put("durationMs", Math.max(0, endMs - start));
             meta.put("resortKey", clean(resortKey));
             meta.put("resortName", clean(resortName));
+            meta.put("updatedAtEpochMs", System.currentTimeMillis());
+            return writeJson(new File(sessionDir, FILE_SESSION), meta);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Merge detector/runtime metrics into this local session without changing ownership or status. */
+    public static synchronized boolean updateSessionMetrics(File sessionDir, JSONObject values) {
+        if (sessionDir == null || values == null) return false;
+        JSONObject meta = readSessionMeta(sessionDir);
+        if (meta.length() == 0) return false;
+        String[] allowed = new String[]{
+                "durationMs", "currentState", "currentSpeedKmh", "maxSpeedKmh",
+                "lastAltitudeM", "gpsAccuracyM", "descentCount", "liftCount",
+                "descentDistanceM", "descentVerticalM", "liftTimeMs", "waitTimeMs",
+                "rejectedGpsPoints", "detectorVersion"
+        };
+        try {
+            for (String key : allowed) {
+                if (values.has(key)) meta.put(key, values.opt(key));
+            }
             meta.put("updatedAtEpochMs", System.currentTimeMillis());
             return writeJson(new File(sessionDir, FILE_SESSION), meta);
         } catch (Exception e) {
@@ -119,6 +151,28 @@ public final class SkiLiftStore {
         Collections.addAll(out, files);
         out.sort(Comparator.comparing(File::getName).reversed());
         return out;
+    }
+
+    public static synchronized void appendRoute(File sessionDir, long timeMs, double lat, double lon,
+                                                float accuracyM, double altitudeM, float speedMps,
+                                                String detectorState) {
+        if (sessionDir == null) return;
+        ensureRouteFile(sessionDir);
+        File route = new File(sessionDir, FILE_ROUTE);
+        String state = clean(detectorState).replace(',', '_');
+        try (BufferedWriter w = new BufferedWriter(new FileWriter(route, true))) {
+            w.write(String.format(Locale.US, "%d,%.7f,%.7f,%.1f,%.1f,%.3f,%s\n",
+                    timeMs, lat, lon, accuracyM, altitudeM, Math.max(0, speedMps), state));
+        } catch (Exception ignored) {}
+    }
+
+    private static void ensureRouteFile(File sessionDir) {
+        if (sessionDir == null) return;
+        File route = new File(sessionDir, FILE_ROUTE);
+        if (route.exists()) return;
+        try (BufferedWriter w = new BufferedWriter(new FileWriter(route, false))) {
+            w.write("time_ms,lat,lon,accuracy_m,altitude_m,speed_mps,state\n");
+        } catch (Exception ignored) {}
     }
 
     /**
@@ -153,8 +207,11 @@ public final class SkiLiftStore {
             putFinite(item, "lowerAltitudeM", values.optDouble("lowerAltitudeM", Double.NaN));
             putFinite(item, "upperAltitudeM", values.optDouble("upperAltitudeM", Double.NaN));
             putFinite(item, "ascentM", Math.max(0, values.optDouble("ascentM", 0)));
+            putFinite(item, "pathDistanceM", Math.max(0, values.optDouble("pathDistanceM", 0)));
+            putFinite(item, "straightness", Math.max(0, Math.min(1, values.optDouble("straightness", 0))));
             double confidence = values.optDouble("confidence", 0);
             item.put("confidence", Math.max(0, Math.min(1, Double.isFinite(confidence) ? confidence : 0)));
+            item.put("detectorVersion", clean(values.optString("detectorVersion", "")));
             item.put("historicalProvidedAtEpochMs", 0);
             item.put("historicalProvideBatchId", "");
             item.put("createdAtEpochMs", System.currentTimeMillis());
