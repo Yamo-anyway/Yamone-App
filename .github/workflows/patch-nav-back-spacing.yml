@@ -17,20 +17,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run patch script
-        run: python3 .github/scripts/patch_nav_spacing.py
+      - name: Remove duplicate alarm back handler
+        run: python3 .github/scripts/fix_alarm_duplicate.py
 
-      - name: Verify expected changes
-        run: |
-          grep -q 'versionCode 16' app/build.gradle
-          grep -q 'LocationExerciseActivity.class' app/src/main/java/com/yamo/snorelab/MainActivity.java
-          grep -q 'currentPage = "room_form"' app/src/main/java/com/yamo/snorelab/LocationSharingActivity.java
-          grep -q 'returnFromSettings' app/src/main/java/com/yamo/snorelab/MainActivity.java
-
-      - name: Commit patch
+      - name: Commit fix
         run: |
           git config user.name 'Yamo'
           git config user.email 'diahnet@naver.com'
-          git add app
-          git commit -m 'Fix bottom navigation back flow and location spacing'
+          git add app/src/main/java/com/yamo/snorelab/AlarmActivity.java
+          git commit -m 'Fix duplicate alarm back handler'
           git push
