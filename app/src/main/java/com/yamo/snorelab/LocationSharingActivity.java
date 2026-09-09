@@ -18,6 +18,7 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -41,18 +42,23 @@ public class LocationSharingActivity extends Activity {
     private static final int REQ_SHARE_PERMISSIONS = 7111;
     private static final long ACTIVE_POLL_MS = 15_000L;
 
-    private static final int BG = 0xFF0B1324;
-    private static final int CARD = 0xFF16243B;
-    private static final int CARD2 = 0xFF111C31;
-    private static final int TEXT = 0xFFF5F7FF;
-    private static final int MUTED = 0xFF9DA9BF;
-    private static final int PRIMARY = 0xFF6D72FF;
-    private static final int PRIMARY2 = 0xFF8B8FFF;
-    private static final int SUCCESS = 0xFF61D6A8;
-    private static final int WARNING = 0xFFFFC56D;
+    private int BG;
+    private int CARD;
+    private int CARD2;
+    private int TEXT;
+    private int MUTED;
+    private int PRIMARY;
+    private int PRIMARY2;
+    private int SUCCESS;
+    private int WARNING;
+    private int BORDER;
+    private int HINT;
+    private int DANGER_BG;
+    private int DANGER_TEXT;
+    private int DANGER_BORDER;
 
-    private static final String[] INTERVAL_LABELS = {"30초", "1분", "3분", "5분", "10분"};
-    private static final int[] INTERVAL_SECONDS = {30, 60, 180, 300, 600};
+    private static final String[] INTERVAL_LABELS = {"10초", "30초", "1분", "3분"};
+    private static final int[] INTERVAL_SECONDS = {10, 30, 60, 180};
     private static final String[] DURATION_LABELS = {"30분", "1시간", "2시간", "4시간", "8시간", "12시간"};
     private static final int[] DURATION_MINUTES = {30, 60, 120, 240, 480, 720};
 
@@ -93,8 +99,8 @@ public class LocationSharingActivity extends Activity {
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(BG);
+        applyTheme();
+        configureSystemBars();
         showLoading();
         loadCurrentRoom();
     }
@@ -122,6 +128,36 @@ public class LocationSharingActivity extends Activity {
         if (sharingMap != null) sharingMap.onLowMemory();
     }
 
+    private void applyTheme() {
+        boolean pink = "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "mint"));
+        BG = pink ? 0xFFFFF7FA : 0xFFF7FFFB;
+        CARD = 0xFFFFFFFF;
+        CARD2 = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
+        TEXT = pink ? 0xFF4B2633 : 0xFF153633;
+        MUTED = pink ? 0xFF9A7180 : 0xFF718984;
+        PRIMARY = pink ? 0xFFFF769F : 0xFF56D1B3;
+        PRIMARY2 = pink ? 0xFFE94778 : 0xFF159A7A;
+        SUCCESS = pink ? 0xFFE94778 : 0xFF159A7A;
+        WARNING = 0xFFE9A642;
+        BORDER = pink ? 0xFFFFD7E3 : 0xFFD7EFE7;
+        HINT = pink ? 0xFFB7929E : 0xFF8EA7A0;
+        DANGER_BG = 0xFFFFF0F3;
+        DANGER_TEXT = 0xFFE75B6D;
+        DANGER_BORDER = 0xFFFFCBD3;
+    }
+
+    private void configureSystemBars() {
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+        }
+        int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        getWindow().getDecorView().setSystemUiVisibility(flags);
+    }
+
     private void showLoading() {
         activeScreen = false;
         handler.removeCallbacks(activePoller);
@@ -142,8 +178,12 @@ public class LocationSharingActivity extends Activity {
         LocationSharingApi.snapshot(this, new LocationSharingApi.JsonCallback() {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> {
-                    if (data.optBoolean("active", false)) showActive(data);
-                    else showEntry();
+                    if (data.optBoolean("active", false)) {
+                        showActive(data);
+                    } else {
+                        LocationSharingStateStore.clear(LocationSharingActivity.this);
+                        showEntry();
+                    }
                 });
             }
 
@@ -227,9 +267,9 @@ public class LocationSharingActivity extends Activity {
 
         form.addView(label("위치 갱신 주기"));
         intervalSpinner = spinner(INTERVAL_LABELS);
-        intervalSpinner.setSelection(1);
+        intervalSpinner.setSelection(2);
         form.addView(intervalSpinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
-        TextView battery = text("갱신 주기가 짧을수록 위치는 더 자주 갱신되지만 배터리와 데이터 사용량이 증가할 수 있습니다.", 11, WARNING, false);
+        TextView battery = text("10초는 위치가 빠르게 갱신되지만 배터리와 데이터 사용량이 더 늘어날 수 있어요.", 11, WARNING, false);
         battery.setPadding(0, dp(6), 0, dp(11));
         form.addView(battery);
 
@@ -237,7 +277,7 @@ public class LocationSharingActivity extends Activity {
         durationSpinner = spinner(DURATION_LABELS);
         durationSpinner.setSelection(3);
         form.addView(durationSpinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
-        TextView expiry = text("공유 시간이 끝나면 자동으로 방에서 나갑니다. 종료 5분 전 알림과 시간 연장은 다음 단계에서 연결합니다.", 11, MUTED, false);
+        TextView expiry = text("공유 시간이 끝나면 자동으로 방에서 나갑니다. 종료 5분 전에 알림으로 알려주고 시간을 연장할 수 있어요.", 11, MUTED, false);
         expiry.setPadding(0, dp(6), 0, dp(14));
         form.addView(expiry);
 
@@ -412,6 +452,7 @@ public class LocationSharingActivity extends Activity {
     private void applySnapshot(JSONObject data) {
         if (!activeScreen) return;
         if (!data.optBoolean("active", false)) {
+            LocationSharingStateStore.clear(this);
             LocationSharingService.stop(this);
             toast("위치 공유가 종료되었습니다.");
             showEntry();
@@ -426,6 +467,7 @@ public class LocationSharingActivity extends Activity {
         String shareUntil = self == null ? "" : self.optString("share_until", "");
         int interval = self == null ? 60 : self.optInt("update_interval_seconds", 60);
 
+        LocationSharingStateStore.update(this, roomName, shareUntil, interval, members.length());
         activeRoomTitle.setText(roomName);
         activeInfo.setText(String.format(Locale.KOREAN, "참여 %d명 · 내 닉네임 %s · %s 갱신", members.length(), nickname, intervalLabel(interval)));
         activeRemaining.setText("공유 종료까지 " + remainingText(shareUntil));
@@ -509,7 +551,6 @@ public class LocationSharingActivity extends Activity {
     }
 
     private void showNicknameDialog() {
-        JSONObject dummy = new JSONObject();
         final EditText input = input("새 닉네임", InputType.TYPE_CLASS_TEXT);
         input.setSingleLine(true);
         input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(24)});
@@ -538,6 +579,7 @@ public class LocationSharingActivity extends Activity {
         LocationSharingApi.leave(this, new LocationSharingApi.JsonCallback() {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> {
+                    LocationSharingStateStore.clear(LocationSharingActivity.this);
                     LocationSharingService.stop(LocationSharingActivity.this);
                     toast("위치 공유를 종료했습니다.");
                     showEntry();
@@ -607,8 +649,19 @@ public class LocationSharingActivity extends Activity {
         scroll.setBackgroundColor(BG);
         rootPage = new LinearLayout(this);
         rootPage.setOrientation(LinearLayout.VERTICAL);
+        rootPage.setBackgroundColor(BG);
         rootPage.setPadding(dp(18), dp(20), dp(18), dp(38));
         scroll.addView(rootPage, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        if (Build.VERSION.SDK_INT >= 30) {
+            scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+                int top = insets.getInsets(WindowInsets.Type.statusBars()).top;
+                int bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                rootPage.setPadding(dp(18), top + dp(14), dp(18), bottom + dp(30));
+                return insets;
+            });
+            scroll.requestApplyInsets();
+        }
         return scroll;
     }
 
@@ -638,22 +691,44 @@ public class LocationSharingActivity extends Activity {
     private EditText input(String hint, int inputType) {
         EditText e = new EditText(this);
         e.setHint(hint);
-        e.setHintTextColor(0xFF68758D);
+        e.setHintTextColor(HINT);
         e.setTextColor(TEXT);
         e.setTextSize(14);
         e.setInputType(inputType);
         e.setPadding(dp(14), 0, dp(14), 0);
-        e.setBackground(round(CARD2, 14, 1, 0xFF33435F));
+        e.setBackground(round(CARD2, 14, 1, BORDER));
         return e;
     }
 
     private Spinner spinner(String[] values) {
-        Spinner spinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, values);
+        Spinner spinner = new Spinner(this, Spinner.MODE_DROPDOWN);
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, values) {
+            @Override public View getView(int position, View convertView, ViewGroup parent) {
+                TextView row = spinnerRow(getItem(position), false);
+                row.setBackgroundColor(Color.TRANSPARENT);
+                return row;
+            }
+
+            @Override public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                TextView row = spinnerRow(getItem(position), true);
+                row.setBackground(round(CARD, 12, 0, 0));
+                return row;
+            }
+        };
         spinner.setAdapter(adapter);
-        spinner.setBackground(round(CARD2, 14, 1, 0xFF33435F));
-        spinner.setPadding(dp(12), 0, dp(8), 0);
+        spinner.setBackground(round(CARD2, 14, 1, BORDER));
+        spinner.setPopupBackgroundDrawable(round(CARD, 16, 1, BORDER));
+        spinner.setPadding(dp(4), 0, dp(4), 0);
+        if (Build.VERSION.SDK_INT >= 21) spinner.setElevation(dp(3));
         return spinner;
+    }
+
+    private TextView spinnerRow(String value, boolean dropdown) {
+        TextView row = text((value == null ? "" : value) + (dropdown ? "" : "   ⌄"), 14, TEXT, true);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dropdown ? dp(12) : 0, dp(14), dropdown ? dp(12) : 0);
+        row.setMinHeight(dp(dropdown ? 48 : 46));
+        return row;
     }
 
     private TextView modeChip(String value, boolean selected) {
@@ -665,7 +740,7 @@ public class LocationSharingActivity extends Activity {
 
     private void styleMode(TextView v, boolean selected) {
         v.setTextColor(selected ? Color.WHITE : MUTED);
-        v.setBackground(round(selected ? PRIMARY : CARD2, 14, 1, selected ? PRIMARY : 0xFF33435F));
+        v.setBackground(round(selected ? PRIMARY : CARD2, 14, 1, selected ? PRIMARY : BORDER));
     }
 
     private Button primaryButton(String value) {
@@ -682,14 +757,14 @@ public class LocationSharingActivity extends Activity {
     private Button softButton(String value) {
         Button b = primaryButton(value);
         b.setTextColor(PRIMARY2);
-        b.setBackground(round(CARD, 15, 1, 0xFF33435F));
+        b.setBackground(round(CARD2, 15, 1, BORDER));
         return b;
     }
 
     private Button dangerButton(String value) {
         Button b = primaryButton(value);
-        b.setTextColor(0xFFFFB1BE);
-        b.setBackground(round(0xFF351B2A, 15, 1, 0xFF6A3047));
+        b.setTextColor(DANGER_TEXT);
+        b.setBackground(round(DANGER_BG, 15, 1, DANGER_BORDER));
         return b;
     }
 
@@ -710,7 +785,7 @@ public class LocationSharingActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(15), dp(16), dp(15));
-        card.setBackground(round(CARD, 18, 0, 0));
+        card.setBackground(round(CARD, 20, 1, BORDER));
         return card;
     }
 
