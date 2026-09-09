@@ -110,6 +110,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private boolean paused;
     private float currentSpeedKmh;
     private float maxSpeedKmh;
+    private float maxSpeedCandidateKmh;
+    private int maxSpeedCandidateSamples;
+    private long maxSpeedCandidateStartedAt;
     private double altitudeM = Double.NaN;
     private float accuracyM = Float.NaN;
     private Location lastAccepted;
@@ -185,6 +188,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         stepAvailable = false;
         maxSpeedKmh = 0f;
         currentSpeedKmh = 0f;
+        maxSpeedCandidateKmh = 0f;
+        maxSpeedCandidateSamples = 0;
+        maxSpeedCandidateStartedAt = 0L;
         altitudeM = Double.NaN;
         accuracyM = Float.NaN;
         nextSplitM = 1000;
@@ -246,8 +252,11 @@ public class WalkingRecorderService extends Service implements SensorEventListen
 
     private void onLocationChanged(Location loc) {
         if (!recording || paused || loc == null) return;
-        if (loc.hasAccuracy() && loc.getAccuracy() > MAX_ACCEPTABLE_ACCURACY_M) {
+        float activityAccuracyLimit = isCycling() ? MAX_ACCEPTABLE_ACCURACY_M
+                : (isRunning() || isWalkRun() ? 35f : 30f);
+        if (loc.hasAccuracy() && loc.getAccuracy() > activityAccuracyLimit) {
             rejectedGpsPoints++;
+            resetMaxSpeedCandidate();
             return;
         }
 
@@ -273,6 +282,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             gpsGapResets++;
             currentSpeedKmh = 0f;
             resetAutoPending();
+            resetMaxSpeedCandidate();
             rebaseStationaryAnchor(loc, now, true);
             persistRuntime();
             return;
@@ -290,8 +300,13 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         float minMovingSpeedMps = minMovingSpeedMps();
         float maxMovingSpeedMps = maxMovingSpeedMps();
 
-        if (derivedMps > hardMaxSpeedMps && d > teleportDistanceM) {
+        // A physically implausible activity speed is invalid even when the GPS jump is short.
+        // The previous distance condition allowed 1-second 3~4m jumps to appear as 13+ km/h walking.
+        if (derivedMps > hardMaxSpeedMps
+                || (!Float.isNaN(reportedMps) && reportedMps > hardMaxSpeedMps * 1.15f)) {
             rejectedGpsPoints++;
+            currentSpeedKmh = 0f;
+            resetMaxSpeedCandidate();
             return;
         }
 
@@ -354,14 +369,20 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         if (!Float.isNaN(reportedMps)) filteredMps = derivedMps * 0.65f + reportedMps * 0.35f;
         if (lastAcceptedSpeedMps > 0f) filteredMps = lastAcceptedSpeedMps * 0.25f + filteredMps * 0.75f;
 
+        if (filteredMps > maxMovingSpeedMps) {
+            rejectedGpsPoints++;
+            currentSpeedKmh = 0f;
+            resetMaxSpeedCandidate();
+            return;
+        }
+
         if (isWalkRun()) updateAutoMode(filteredMps, now);
 
-        distanceM += d;
-        currentSpeedKmh = Math.max(0f, filteredMps * 3.6f);
-        if (currentSpeedKmh > maxSpeedKmh && currentSpeedKmh <= hardMaxSpeedMps * 3.6f) maxSpeedKmh = currentSpeedKmh;
-
         boolean movingPoint = filteredMps >= minMovingSpeedMps && filteredMps <= maxMovingSpeedMps;
+        currentSpeedKmh = movingPoint ? Math.max(0f, filteredMps * 3.6f) : 0f;
         if (movingPoint) {
+            distanceM += d;
+            updateConfirmedMaxSpeed(filteredMps, combinedAccuracy, recentStep, now);
             movingMs += dtMs;
             if (isWalkRun()) {
                 if ("running".equals(autoMotionMode)) {
@@ -414,6 +435,55 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         pendingAutoMotionSince = 0;
     }
 
+    private void updateConfirmedMaxSpeed(float speedMps, float combinedAccuracy, boolean recentStep, long now) {
+        float speedKmh = Math.max(0f, speedMps * 3.6f);
+        if (speedKmh <= maxSpeedKmh + 0.1f) {
+            resetMaxSpeedCandidate();
+            return;
+        }
+        float accuracyLimit = isCycling() ? 35f : (isRunning() || isWalkRun() ? 25f : 20f);
+        if (combinedAccuracy > accuracyLimit) {
+            resetMaxSpeedCandidate();
+            return;
+        }
+        if (!isCycling() && stepAvailable && !recentStep) {
+            resetMaxSpeedCandidate();
+            return;
+        }
+        float allowedKmh = maxMovingSpeedMps() * 3.6f;
+        if (speedKmh > allowedKmh) {
+            resetMaxSpeedCandidate();
+            return;
+        }
+
+        float tolerance = isCycling() ? 5.0f : (isRunning() || isWalkRun() ? 2.5f : 1.5f);
+        if (maxSpeedCandidateSamples == 0
+                || now - maxSpeedCandidateStartedAt > 5_000L
+                || Math.abs(speedKmh - maxSpeedCandidateKmh) > tolerance) {
+            maxSpeedCandidateKmh = speedKmh;
+            maxSpeedCandidateSamples = 1;
+            maxSpeedCandidateStartedAt = now;
+            return;
+        }
+
+        maxSpeedCandidateKmh = (maxSpeedCandidateKmh * maxSpeedCandidateSamples + speedKmh)
+                / (maxSpeedCandidateSamples + 1);
+        maxSpeedCandidateSamples++;
+        int requiredSamples = isWalkingOnly() ? 3 : 2;
+        if (maxSpeedCandidateSamples >= requiredSamples) {
+            maxSpeedKmh = Math.max(maxSpeedKmh, maxSpeedCandidateKmh);
+            resetMaxSpeedCandidate();
+        }
+    }
+
+    private void resetMaxSpeedCandidate() {
+        maxSpeedCandidateKmh = 0f;
+        maxSpeedCandidateSamples = 0;
+        maxSpeedCandidateStartedAt = 0L;
+    }
+
+    private boolean isWalkingOnly() { return "walking".equals(activityType); }
+
     private boolean isRunning() { return "running".equals(activityType); }
     private boolean isCycling() { return "cycling".equals(activityType); }
     private boolean isWalkRun() { return "walkrun".equals(activityType); }
@@ -426,8 +496,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
 
     private float hardMaxSpeedMps() {
         if (isCycling()) return 25.0f;
-        if (isRunning() || isWalkRun()) return 8.5f;
-        return 5.5f;
+        if (isRunning() || isWalkRun()) return 7.0f;
+        return 3.4f; // walking: about 12.2 km/h; anything faster is treated as a GPS/mode mismatch
     }
 
     private float minMovingSpeedMps() {
@@ -438,14 +508,14 @@ public class WalkingRecorderService extends Service implements SensorEventListen
 
     private float maxMovingSpeedMps() {
         if (isCycling()) return 22.2f;
-        if (isRunning() || isWalkRun()) return 7.5f;
-        return 4.5f;
+        if (isRunning() || isWalkRun()) return 6.5f;
+        return 3.2f; // walking: about 11.5 km/h
     }
 
     private float maxAccelerationMps2() {
         if (isCycling()) return 7.0f;
-        if (isRunning() || isWalkRun()) return 5.0f;
-        return 3.5f;
+        if (isRunning() || isWalkRun()) return 4.5f;
+        return 2.8f;
     }
 
     private void acceptAnchor(Location loc, long now, float speedMps, boolean writeMovingPoint) {
@@ -488,6 +558,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         pauseStartedMs = System.currentTimeMillis();
         currentSpeedKmh = 0;
         resetAutoPending();
+        resetMaxSpeedCandidate();
         persistRuntime();
         updateForegroundNotification();
     }
@@ -504,6 +575,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         lastStepDetectedMs = 0;
         currentSpeedKmh = 0;
         resetAutoPending();
+        resetMaxSpeedCandidate();
         persistRuntime();
         updateForegroundNotification();
     }
