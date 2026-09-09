@@ -44,9 +44,19 @@
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <activity
+            android:name=".LocationExerciseActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".LocationSharingActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
         <activity-alias
             android:name=".ExerciseActivity"
-            android:targetActivity=".EnhancedExerciseActivity"
+            android:targetActivity=".LocationExerciseActivity"
             android:exported="false" />
 
         <activity
