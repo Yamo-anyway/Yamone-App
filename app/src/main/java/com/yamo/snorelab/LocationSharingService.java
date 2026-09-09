@@ -51,6 +51,8 @@ public final class LocationSharingService extends Service {
     private long lastReportedLocationReceivedAt;
     private int intervalSeconds = 60;
     private long shareUntilMs;
+    private String roomName = "위치 공유 방";
+    private int memberCount;
     private boolean configured;
     private boolean reportInFlight;
     private boolean warningShown;
@@ -143,6 +145,7 @@ public final class LocationSharingService extends Service {
 
     private void applyConfiguration(JSONObject data) {
         if (!data.optBoolean("active", false)) {
+            LocationSharingStateStore.clear(this);
             cancelWarning();
             stopSelf();
             return;
@@ -160,15 +163,20 @@ public final class LocationSharingService extends Service {
             }
         }
         if (self == null) {
+            LocationSharingStateStore.clear(this);
             cancelWarning();
             stopSelf();
             return;
         }
 
+        roomName = data.optString("room_name", "위치 공유 방");
+        memberCount = members == null ? 0 : members.length();
         intervalSeconds = clampInterval(self.optInt("update_interval_seconds", 60));
-        shareUntilMs = parseInstant(self.optString("share_until", ""));
+        String shareUntil = self.optString("share_until", "");
+        shareUntilMs = parseInstant(shareUntil);
         configured = true;
         leaveInFlight = false;
+        LocationSharingStateStore.update(this, roomName, shareUntil, intervalSeconds, memberCount);
 
         long remaining = shareUntilMs <= 0 ? Long.MAX_VALUE : shareUntilMs - System.currentTimeMillis();
         if (remaining <= 0) {
@@ -194,7 +202,7 @@ public final class LocationSharingService extends Service {
         if (locationManager == null || !hasLocationPermission()) return;
 
         locationListener = this::onLocationChanged;
-        long minTimeMs = Math.max(30_000L, intervalSeconds * 1000L);
+        long minTimeMs = Math.max(10_000L, intervalSeconds * 1000L);
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(
@@ -251,6 +259,8 @@ public final class LocationSharingService extends Service {
                             lastReportedLocationReceivedAt = Math.max(lastReportedLocationReceivedAt, candidateReceipt);
                             long serverUntil = parseInstant(data.optString("share_until", ""));
                             if (serverUntil > 0) shareUntilMs = serverUntil;
+                            String shareUntil = shareUntilMs > 0 ? Instant.ofEpochMilli(shareUntilMs).toString() : "";
+                            LocationSharingStateStore.update(LocationSharingService.this, roomName, shareUntil, intervalSeconds, memberCount);
                             updateNotification("위치 공유 중 · " + intervalLabel(intervalSeconds) + "마다 갱신");
                         });
                     }
@@ -260,6 +270,7 @@ public final class LocationSharingService extends Service {
                             reportInFlight = false;
                             String lower = message == null ? "" : message.toLowerCase(Locale.KOREAN);
                             if (lower.contains("참여 중인 위치 공유 방이 없습니다")) {
+                                LocationSharingStateStore.clear(LocationSharingService.this);
                                 cancelWarning();
                                 stopSelf();
                             } else {
@@ -303,7 +314,7 @@ public final class LocationSharingService extends Service {
 
         LocationSharingApi.leave(this, new LocationSharingApi.JsonCallback() {
             @Override public void onSuccess(JSONObject data) {
-                handler.post(() -> finishUserRequestedStop());
+                handler.post(thisService()::finishUserRequestedStop);
             }
 
             @Override public void onFailure(String message) {
@@ -322,11 +333,16 @@ public final class LocationSharingService extends Service {
             private void retryStopSharing() {
                 requestStopSharing();
             }
+
+            private LocationSharingService thisService() {
+                return LocationSharingService.this;
+            }
         });
     }
 
     private void finishUserRequestedStop() {
         leaveInFlight = false;
+        LocationSharingStateStore.clear(this);
         postEndedNotification("위치 공유를 종료했습니다.");
         stopSelf();
     }
@@ -345,7 +361,6 @@ public final class LocationSharingService extends Service {
                 handler.post(LocationSharingService.this::finishExpiredStop);
             }
             @Override public void onFailure(String message) {
-                // The server also removes expired members every minute, so local sharing can safely stop.
                 handler.post(LocationSharingService.this::finishExpiredStop);
             }
         });
@@ -353,6 +368,7 @@ public final class LocationSharingService extends Service {
 
     private void finishExpiredStop() {
         leaveInFlight = false;
+        LocationSharingStateStore.clear(this);
         postEndedNotification("설정한 공유 시간이 끝나 위치 공유가 자동 종료되었습니다.");
         stopSelf();
     }
@@ -520,11 +536,10 @@ public final class LocationSharingService extends Service {
     }
 
     private int clampInterval(int seconds) {
+        if (seconds <= 10) return 10;
         if (seconds <= 30) return 30;
         if (seconds <= 60) return 60;
-        if (seconds <= 180) return 180;
-        if (seconds <= 300) return 300;
-        return 600;
+        return 180;
     }
 
     private String intervalLabel(int seconds) {
