@@ -13,13 +13,17 @@ public class YamoneApplication extends Application implements Application.Activi
 
     @Override public void onActivityResumed(Activity activity) {
         if (activity instanceof MainActivity) {
-            SleepUploadUiEnhancer.attach((MainActivity) activity);
+            MainActivity main = (MainActivity) activity;
+            SleepUploadUiEnhancer.attach(main);
+            ProfileSettingsUiEnhancer.attach(main);
         }
     }
 
     @Override public void onActivityDestroyed(Activity activity) {
         if (activity instanceof MainActivity) {
-            SleepUploadUiEnhancer.detach((MainActivity) activity);
+            MainActivity main = (MainActivity) activity;
+            SleepUploadUiEnhancer.detach(main);
+            ProfileSettingsUiEnhancer.detach(main);
         }
     }
 
