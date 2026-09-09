@@ -10,8 +10,8 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 14
-        versionName '0.3.11-activity'
+        versionCode 15
+        versionName '0.3.12-route-gps'
         manifestPlaceholders = [appLabel: '야모네']
     }
 
