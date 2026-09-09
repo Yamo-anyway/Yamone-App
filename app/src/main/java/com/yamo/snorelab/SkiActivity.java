@@ -25,7 +25,12 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 /** Local-first ski/snowboard activity screen. */
@@ -112,6 +117,7 @@ public class SkiActivity extends Activity {
 
         if (!isRecording()) buildSportCard();
         buildRecordingCard();
+        if (!isRecording()) buildRecentRecordsCard();
         buildLiftCard();
         buildPrivacyCard();
     }
@@ -193,6 +199,42 @@ public class SkiActivity extends Activity {
         detector.setPadding(0, dp(7), 0, dp(11));
         c.addView(detector);
         c.addView(actionButton("■ 기록 종료", false, v -> confirmStop()), match(dp(54)));
+        page.addView(c, cardParams());
+    }
+
+    private void buildRecentRecordsCard() {
+        List<File> sessions = SkiLiftStore.listSessions(this);
+        LinearLayout c = card();
+        c.addView(text("최근 스키 기록", 15, TEXT, true));
+        int shown = 0;
+        for (File dir : sessions) {
+            if (shown >= 4) break;
+            JSONObject m = SkiLiftStore.readSessionMeta(dir);
+            if (!"complete".equals(m.optString("status", ""))) continue;
+            long start = m.optLong("startEpochMs", 0);
+            if (start <= 0) continue;
+            String sport = "snowboard".equals(m.optString("sport")) ? "🏂 스노보드" : "⛷ 스키";
+            String date = new SimpleDateFormat("M월 d일 HH:mm", Locale.KOREAN).format(new Date(start));
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(9), 0, dp(4));
+            LinearLayout words = new LinearLayout(this); words.setOrientation(LinearLayout.VERTICAL);
+            words.addView(text(sport + " · " + date, 13, TEXT, true));
+            words.addView(text(String.format(Locale.KOREAN, "활주 %d회 · %.2f km · 최고 %.1f km/h",
+                    m.optInt("descentCount", 0), m.optLong("descentDistanceM", 0) / 1000.0, m.optDouble("maxSpeedKmh", 0)), 11, MUTED, false));
+            row.addView(words, new LinearLayout.LayoutParams(0, dp(50), 1f));
+            TextView arrow = text("›", 26, PRIMARY2, false); arrow.setGravity(Gravity.CENTER);
+            row.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(50)));
+            row.setOnClickListener(v -> openSessionDetail(dir, false));
+            c.addView(row);
+            shown++;
+        }
+        if (shown == 0) {
+            TextView empty = text("아직 완료된 스키 기록이 없어요.", 12, MUTED, false);
+            empty.setPadding(0, dp(10), 0, 0);
+            c.addView(empty);
+        }
         page.addView(c, cardParams());
     }
 
@@ -290,9 +332,39 @@ public class SkiActivity extends Activity {
     }
 
     private void stopSession() {
+        String path = runtime.getString(SkiRecorderService.KEY_SESSION_DIR, "");
+        File completedDir = path == null || path.isEmpty() ? null : new File(path);
         startService(new Intent(this, SkiRecorderService.class).setAction(SkiRecorderService.ACTION_STOP));
         Toast.makeText(this, "스키 기록을 저장합니다.", Toast.LENGTH_SHORT).show();
-        handler.postDelayed(this::render, 700L);
+        waitForStop(completedDir, 0);
+    }
+
+    private void waitForStop(File completedDir, int attempt) {
+        handler.postDelayed(() -> {
+            boolean recording = isRecording();
+            boolean complete = completedDir != null && completedDir.exists()
+                    && "complete".equals(SkiLiftStore.readSessionMeta(completedDir).optString("status", ""));
+            if (!recording && complete) {
+                render();
+                openSessionDetail(completedDir, true);
+                return;
+            }
+            if (attempt >= 25) {
+                render();
+                if (complete) openSessionDetail(completedDir, true);
+                else Toast.makeText(this, "기록 저장 상태를 확인해 주세요.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            waitForStop(completedDir, attempt + 1);
+        }, 200L);
+    }
+
+    private void openSessionDetail(File dir, boolean justFinished) {
+        if (dir == null || !dir.exists()) return;
+        Intent i = new Intent(this, SkiSessionDetailActivity.class)
+                .putExtra(SkiSessionDetailActivity.EXTRA_SESSION_PATH, dir.getAbsolutePath())
+                .putExtra(SkiSessionDetailActivity.EXTRA_JUST_FINISHED, justFinished);
+        startActivity(i);
     }
 
     private boolean isRecording() {
