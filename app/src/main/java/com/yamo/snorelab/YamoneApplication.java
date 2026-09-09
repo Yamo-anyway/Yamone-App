@@ -2,13 +2,32 @@ package com.yamo.snorelab;
 
 import android.app.Activity;
 import android.app.Application;
+import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 
-/** Installs small UI enhancements without changing established screen implementations. */
+/** Installs Yamone UI enhancements and keeps the launcher entry on Home. */
 public class YamoneApplication extends Application implements Application.ActivityLifecycleCallbacks {
     @Override public void onCreate() {
         super.onCreate();
         registerActivityLifecycleCallbacks(this);
+    }
+
+    @Override public void onActivityPreCreated(Activity activity, Bundle savedInstanceState) {
+        if (Build.VERSION.SDK_INT >= 29 && activity instanceof MainActivity
+                && activity.getIntent().getStringExtra("start_screen") == null) {
+            activity.getIntent().putExtra("start_screen", "home");
+        }
+    }
+
+    @Override public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+        // onActivityPreCreated does not exist on Android 8/9. Re-open once with Home there.
+        if (Build.VERSION.SDK_INT < 29 && activity instanceof MainActivity
+                && activity.getIntent().getStringExtra("start_screen") == null) {
+            Intent home = new Intent(activity, MainActivity.class).putExtra("start_screen", "home");
+            activity.startActivity(home);
+            activity.finish();
+        }
     }
 
     @Override public void onActivityResumed(Activity activity) {
@@ -17,12 +36,14 @@ public class YamoneApplication extends Application implements Application.Activi
             SleepUploadUiEnhancer.attach(main);
             ProfileSettingsUiEnhancer.attach(main);
             LocationSharingHomeUiEnhancer.attach(main);
+            LocationSharingHomeUiEnhancer.refresh(main);
         }
 
         if (activity instanceof LocationExerciseActivity
                 || activity instanceof SkiActivity
                 || activity instanceof SkiSessionDetailActivity
-                || activity instanceof SkiWaitTimesActivity) {
+                || activity instanceof SkiWaitTimesActivity
+                || activity instanceof HikingActivity) {
             ActivitySystemBarUiEnhancer.apply(activity);
         }
     }
@@ -34,9 +55,9 @@ public class YamoneApplication extends Application implements Application.Activi
             ProfileSettingsUiEnhancer.detach(main);
             LocationSharingHomeUiEnhancer.detach(main);
         }
+        ActivitySystemBarUiEnhancer.detach(activity);
     }
 
-    @Override public void onActivityCreated(Activity activity, Bundle savedInstanceState) {}
     @Override public void onActivityStarted(Activity activity) {}
     @Override public void onActivityPaused(Activity activity) {}
     @Override public void onActivityStopped(Activity activity) {}
