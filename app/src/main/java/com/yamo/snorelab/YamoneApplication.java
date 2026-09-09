@@ -16,6 +16,7 @@ public class YamoneApplication extends Application implements Application.Activi
             MainActivity main = (MainActivity) activity;
             SleepUploadUiEnhancer.attach(main);
             ProfileSettingsUiEnhancer.attach(main);
+            LocationSharingHomeUiEnhancer.attach(main);
         }
     }
 
@@ -24,6 +25,7 @@ public class YamoneApplication extends Application implements Application.Activi
             MainActivity main = (MainActivity) activity;
             SleepUploadUiEnhancer.detach(main);
             ProfileSettingsUiEnhancer.detach(main);
+            LocationSharingHomeUiEnhancer.detach(main);
         }
     }
 
