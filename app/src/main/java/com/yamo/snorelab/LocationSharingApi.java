@@ -73,21 +73,14 @@ public final class LocationSharingApi {
     public static void snapshot(Context context, JsonCallback callback) {
         synchronized (SNAPSHOT_LOCK) {
             if (cachedSnapshot != null && System.currentTimeMillis() - cachedSnapshotAt < SNAPSHOT_CACHE_MS) {
-                try {
-                    callback.onSuccess(new JSONObject(cachedSnapshot.toString()));
-                } catch (Exception e) {
-                    callback.onSuccess(cachedSnapshot);
-                }
+                callback.onSuccess(copy(cachedSnapshot));
                 return;
             }
         }
         run(() -> {
             String body = SupabaseAnonymousRpcClient.rpc(context, "location_room_snapshot", new JSONObject());
             JSONObject data = body.isEmpty() ? new JSONObject() : new JSONObject(body);
-            synchronized (SNAPSHOT_LOCK) {
-                cachedSnapshot = new JSONObject(data.toString());
-                cachedSnapshotAt = System.currentTimeMillis();
-            }
+            cacheIfSnapshot(data);
             callback.onSuccess(data);
         }, callback::onFailure);
     }
@@ -127,8 +120,7 @@ public final class LocationSharingApi {
             callback.onFailure("위치값을 준비하지 못했습니다.");
             return;
         }
-        // Do not invalidate the participant snapshot here. Other people's locations are intentionally
-        // refreshed no faster than once a minute, even while my own latest location is uploaded.
+        // Do not invalidate participant cache on each upload: map/participant reads stay minute-gated.
         rpcAsync(context, "location_report", args, callback);
     }
 
@@ -143,12 +135,27 @@ public final class LocationSharingApi {
         }
     }
 
+    private static void cacheIfSnapshot(JSONObject data) {
+        if (data == null || !data.has("active")) return;
+        if (data.optBoolean("active", false) && !data.has("members")) return;
+        synchronized (SNAPSHOT_LOCK) {
+            cachedSnapshot = copy(data);
+            cachedSnapshotAt = System.currentTimeMillis();
+        }
+    }
+
+    private static JSONObject copy(JSONObject data) {
+        try { return new JSONObject(data.toString()); }
+        catch (Exception e) { return data; }
+    }
+
     private static void rpcMutationAsync(Context context, String name, JSONObject args, JsonCallback callback) {
         invalidateSnapshot();
         run(() -> {
             String body = SupabaseAnonymousRpcClient.rpc(context, name, args);
-            invalidateSnapshot();
             JSONObject data = body.isEmpty() ? new JSONObject() : new JSONObject(body);
+            cacheIfSnapshot(data);
+            if (!data.has("active") && !data.has("members")) invalidateSnapshot();
             callback.onSuccess(data);
         }, callback::onFailure);
     }
