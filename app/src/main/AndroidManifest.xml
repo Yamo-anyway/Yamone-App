@@ -34,95 +34,32 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".AlarmActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".EnhancedExerciseActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".LocationExerciseActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".SkiActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".SkiSessionDetailActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".LocationSharingActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".LocationSharingActivityV2"
-            android:screenOrientation="portrait"
-            android:exported="false" />
-
-        <activity
-            android:name=".LocationSharingTimeActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
+        <activity android:name=".AlarmActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".EnhancedExerciseActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".LocationExerciseActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".SkiActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".SkiSessionDetailActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".SkiWaitTimesActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".LocationSharingActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".LocationSharingActivityV2" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".LocationSharingTimeActivity" android:screenOrientation="portrait" android:exported="false" />
 
         <activity-alias
             android:name=".ExerciseActivity"
             android:targetActivity=".LocationExerciseActivity"
             android:exported="false" />
 
-        <activity
-            android:name=".MiniGameActivity"
-            android:screenOrientation="portrait"
-            android:exported="false" />
+        <activity android:name=".MiniGameActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".AlarmRingActivity" android:screenOrientation="portrait" android:excludeFromRecents="true" android:exported="false" />
 
-        <activity
-            android:name=".AlarmRingActivity"
-            android:screenOrientation="portrait"
-            android:excludeFromRecents="true"
-            android:exported="false" />
+        <service android:name=".SleepRecorderService" android:foregroundServiceType="microphone" android:exported="false" />
+        <service android:name=".AlarmRingService" android:foregroundServiceType="mediaPlayback" android:exported="false" />
+        <service android:name=".WalkingRecorderService" android:foregroundServiceType="location" android:exported="false" />
+        <service android:name=".SkiRecorderService" android:foregroundServiceType="location" android:exported="false" />
+        <service android:name=".LocationSharingService" android:foregroundServiceType="location" android:exported="false" />
 
-        <service
-            android:name=".SleepRecorderService"
-            android:foregroundServiceType="microphone"
-            android:exported="false" />
-
-        <service
-            android:name=".AlarmRingService"
-            android:foregroundServiceType="mediaPlayback"
-            android:exported="false" />
-
-        <service
-            android:name=".WalkingRecorderService"
-            android:foregroundServiceType="location"
-            android:exported="false" />
-
-        <service
-            android:name=".SkiRecorderService"
-            android:foregroundServiceType="location"
-            android:exported="false" />
-
-        <service
-            android:name=".LocationSharingService"
-            android:foregroundServiceType="location"
-            android:exported="false" />
-
-        <receiver
-            android:name=".AlarmReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".AlarmBootReceiver"
-            android:enabled="true"
-            android:exported="false">
+        <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".AlarmBootReceiver" android:enabled="true" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
