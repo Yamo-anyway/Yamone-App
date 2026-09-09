@@ -6,6 +6,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /** In-process UI notification bus for immediate location-sharing state changes. */
 public final class LocationSharingUiBus {
+    // Kept intentionally tiny: this bus only refreshes local UI state immediately.
     public interface Listener { void onLocationSharingStateChanged(); }
 
     private static final CopyOnWriteArrayList<WeakReference<Listener>> LISTENERS = new CopyOnWriteArrayList<>();
