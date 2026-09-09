@@ -25,6 +25,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -32,6 +33,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /** Local-first ski/snowboard activity screen. */
 public class SkiActivity extends Activity {
@@ -60,6 +62,8 @@ public class SkiActivity extends Activity {
     private LinearLayout page;
     private SharedPreferences prefs;
     private SharedPreferences runtime;
+    private boolean providingHistorical;
+    private boolean updatingResort;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -195,6 +199,13 @@ public class SkiActivity extends Activity {
         row2.addView(metric("GPS 고도", Math.round(runtime.getFloat(SkiRecorderService.KEY_ALTITUDE_M, 0)) + " m"), new LinearLayout.LayoutParams(0, dp(68), 1f));
         c.addView(row2);
 
+        String resort = SkiResortStore.currentName(this);
+        if (!resort.isEmpty()) {
+            TextView resortView = text("📍 " + resort, 11, PRIMARY2, true);
+            resortView.setPadding(0, dp(6), 0, 0);
+            c.addView(resortView);
+        }
+
         TextView detector = text("자동 판별: 속도 · 고도 변화 · 지속시간 · 리프트 이동 직선성을 함께 확인합니다.", 10, MUTED, false);
         detector.setPadding(0, dp(7), 0, dp(11));
         c.addView(detector);
@@ -247,7 +258,10 @@ public class SkiActivity extends Activity {
 
         LinearLayout c = card();
         c.addView(text("🚡 리프트 정보", 16, TEXT, true));
-        TextView summary = text(String.format(Locale.KOREAN, "내 기록 %,d건 · 미제공 %,d건", total, pending), 12, MUTED, false);
+        String resortName = SkiResortStore.currentName(this);
+        String summaryText = String.format(Locale.KOREAN, "내 기록 %,d건 · 미제공 %,d건", total, pending);
+        if (!resortName.isEmpty()) summaryText += " · " + resortName;
+        TextView summary = text(summaryText, 12, MUTED, false);
         summary.setPadding(0, dp(5), 0, dp(8));
         c.addView(summary);
 
@@ -269,20 +283,25 @@ public class SkiActivity extends Activity {
         toggle.setChecked(realtime);
         toggle.setOnCheckedChangeListener((buttonView, checked) -> {
             SkiLiftStore.setRealtimeExchangeEnabled(this, checked);
+            if (checked) ensureCurrentResort(null);
             render();
         });
         realtimeRow.addView(toggle, new LinearLayout.LayoutParams(dp(58), dp(52)));
         c.addView(realtimeRow);
 
-        TextView realtimeGuide = text("ON이면 추후 현재 스키장의 최근 대기정보를 서로 제공·수신합니다. 현재 GPS 기록 자체는 서버로 보내지 않습니다.", 11, MUTED, false);
+        TextView realtimeGuide = text("ON이면 현재 스키장의 최근 리프트 대기정보만 자동 제공·수신합니다. 전체 GPS 경로는 서버로 보내지 않습니다.", 11, MUTED, false);
         realtimeGuide.setPadding(0, dp(2), 0, dp(10));
         c.addView(realtimeGuide);
         c.addView(actionButton("현재 예상 대기시간 보기", realtime, v -> showWaitTimes()), match(dp(52)));
 
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(ghostButton("리프트 정보 제공", v -> showProvideInfo(pending)), new LinearLayout.LayoutParams(0, dp(50), 1f));
+        Button provide = ghostButton(providingHistorical ? "제공 중…" : "리프트 정보 제공", v -> showProvideInfo(pending));
+        provide.setEnabled(!providingHistorical);
+        row.addView(provide, new LinearLayout.LayoutParams(0, dp(50), 1f));
         LinearLayout.LayoutParams up = new LinearLayout.LayoutParams(0, dp(50), 1f); up.leftMargin = dp(8);
-        row.addView(ghostButton("정보 업데이트", v -> showUpdateInfo()), up);
+        Button update = ghostButton(updatingResort ? "업데이트 중…" : "정보 업데이트", v -> showUpdateInfo());
+        update.setEnabled(!updatingResort);
+        row.addView(update, up);
         LinearLayout.LayoutParams rp = match(dp(50)); rp.topMargin = dp(8); c.addView(row, rp);
         page.addView(c, cardParams());
     }
@@ -290,7 +309,7 @@ public class SkiActivity extends Activity {
     private void buildPrivacyCard() {
         LinearLayout c = card();
         c.addView(text("🔒 스키 기록 원칙", 14, TEXT, true));
-        TextView p = text("전체 스키 GPS 경로는 휴대폰 내부에만 저장합니다. 리프트 정보 제공을 선택해도 리프트 이용·대기 관련 최소 정보만 별도로 제공하도록 설계합니다.", 11, MUTED, false);
+        TextView p = text("전체 스키 GPS 경로는 휴대폰 내부에만 저장합니다. 수동 제공은 아직 제공하지 않은 리프트 이용 기록만 보내며, 실시간 ON은 최근 리프트 대기정보만 전송합니다.", 11, MUTED, false);
         p.setPadding(0, dp(6), 0, 0);
         c.addView(p);
         page.addView(c, cardParams());
@@ -372,15 +391,99 @@ public class SkiActivity extends Activity {
     }
 
     private void showProvideInfo(int pending) {
-        String message = pending == 0 ? "아직 제공하지 않은 리프트 기록이 없습니다."
-                : String.format(Locale.KOREAN, "미제공 리프트 기록 %,d건이 있습니다.\n\n서버 연결 단계에서는 이 기록들만 제공하고 성공한 기록만 제공 완료로 표시합니다.", pending);
-        new AlertDialog.Builder(this).setTitle("리프트 정보 제공").setMessage(message).setPositiveButton("확인", null).show();
+        if (pending <= 0) {
+            new AlertDialog.Builder(this).setTitle("리프트 정보 제공")
+                    .setMessage("아직 제공하지 않은 리프트 기록이 없습니다.")
+                    .setPositiveButton("확인", null).show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("리프트 정보 제공")
+                .setMessage(String.format(Locale.KOREAN,
+                        "아직 제공하지 않은 리프트 기록 %,d건을 제공합니다.\n\n전체 스키 경로와 개인 활동 기록은 전송하지 않으며, 성공한 기록만 '제공 완료'로 표시합니다.", pending))
+                .setNegativeButton("취소", null)
+                .setPositiveButton("제공", (d, w) -> {
+                    providingHistorical = true;
+                    render();
+                    providePendingBatches(0);
+                }).show();
+    }
+
+    private void providePendingBatches(int markedSoFar) {
+        List<SkiLiftStore.PendingObservation> pending = SkiLiftStore.listPendingHistorical(this);
+        if (pending.isEmpty()) {
+            providingHistorical = false;
+            runOnUiThread(() -> {
+                render();
+                new AlertDialog.Builder(this).setTitle("리프트 정보 제공 완료")
+                        .setMessage(String.format(Locale.KOREAN, "%,d건을 제공했습니다. 이미 제공된 기록은 다시 전송하지 않습니다.", markedSoFar))
+                        .setPositiveButton("확인", null).show();
+            });
+            return;
+        }
+        SkiLiftApi.submitHistorical(this, pending, new SkiLiftApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                List<String> ids = SkiLiftApi.acceptedIds(data);
+                if (ids.isEmpty()) {
+                    onFailure("서버에서 제공 완료 기록을 확인하지 못했습니다.");
+                    return;
+                }
+                int marked = SkiLiftStore.markHistoricalProvided(SkiActivity.this, ids,
+                        System.currentTimeMillis(), UUID.randomUUID().toString());
+                if (marked <= 0 && !ids.isEmpty()) {
+                    onFailure("휴대폰의 제공 완료 상태를 저장하지 못했습니다.");
+                    return;
+                }
+                providePendingBatches(markedSoFar + marked);
+            }
+            @Override public void onFailure(String message) {
+                providingHistorical = false;
+                runOnUiThread(() -> {
+                    render();
+                    Toast.makeText(SkiActivity.this, message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
 
     private void showUpdateInfo() {
-        new AlertDialog.Builder(this).setTitle("리프트 정보 업데이트")
-                .setMessage("현재 스키장의 리프트 이름·통계만 내려받는 서버 연결은 다음 단계에서 붙입니다.")
-                .setPositiveButton("확인", null).show();
+        if (updatingResort) return;
+        updatingResort = true;
+        render();
+        ensureCurrentResort(() -> {
+            String key = SkiResortStore.currentKey(this);
+            if (key.isEmpty()) {
+                updatingResort = false;
+                render();
+                Toast.makeText(this, "현재 위치에 등록된 스키장 정보가 아직 없습니다.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            SkiLiftApi.resortSnapshot(this, key, new SkiLiftApi.JsonCallback() {
+                @Override public void onSuccess(JSONObject data) {
+                    updatingResort = false;
+                    runOnUiThread(() -> {
+                        if (!data.optBoolean("found", false)) {
+                            render();
+                            Toast.makeText(SkiActivity.this, "등록된 스키장 정보를 찾지 못했습니다.", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        SkiLiftStore.writeResortStatsCache(SkiActivity.this, key, data);
+                        String name = data.optString("resort_name", SkiResortStore.currentName(SkiActivity.this));
+                        SkiResortStore.setCurrent(SkiActivity.this, key, name);
+                        JSONArray lifts = data.optJSONArray("lifts");
+                        int count = lifts == null ? 0 : lifts.length();
+                        render();
+                        new AlertDialog.Builder(SkiActivity.this).setTitle("리프트 정보 업데이트 완료")
+                                .setMessage(name + "\n등록 리프트 " + count + "개와 요일·시간대 통계를 휴대폰에 저장했습니다.")
+                                .setPositiveButton("확인", null).show();
+                    });
+                }
+                @Override public void onFailure(String message) {
+                    updatingResort = false;
+                    runOnUiThread(() -> { render(); Toast.makeText(SkiActivity.this, message, Toast.LENGTH_LONG).show(); });
+                }
+            });
+        });
     }
 
     private void showWaitTimes() {
@@ -388,9 +491,46 @@ public class SkiActivity extends Activity {
             Toast.makeText(this, "실시간 리프트 정보를 먼저 ON 해주세요.", Toast.LENGTH_SHORT).show();
             return;
         }
-        new AlertDialog.Builder(this).setTitle("현재 예상 대기시간")
-                .setMessage("아직 수신된 실시간 리프트 정보가 없습니다. 서버 연결 후에는 리프트 이름과 예상 대기시간 목록을 보여줍니다.")
-                .setPositiveButton("확인", null).show();
+        ensureCurrentResort(() -> {
+            String key = SkiResortStore.currentKey(this);
+            if (key.isEmpty()) {
+                Toast.makeText(this, "현재 위치에 등록된 스키장 정보가 아직 없습니다.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            startActivity(new Intent(this, SkiWaitTimesActivity.class)
+                    .putExtra(SkiWaitTimesActivity.EXTRA_RESORT_KEY, key)
+                    .putExtra(SkiWaitTimesActivity.EXTRA_RESORT_NAME, SkiResortStore.currentName(this)));
+        });
+    }
+
+    private void ensureCurrentResort(Runnable after) {
+        String existing = SkiResortStore.currentKey(this);
+        float lat = runtime.getFloat(SkiRecorderService.KEY_LAT, Float.NaN);
+        float lon = runtime.getFloat(SkiRecorderService.KEY_LON, Float.NaN);
+        if (!Float.isFinite(lat) || !Float.isFinite(lon)) {
+            if (after != null) runOnUiThread(after);
+            return;
+        }
+        SkiLiftApi.detectResort(this, lat, lon, new SkiLiftApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                runOnUiThread(() -> {
+                    if (data.optBoolean("found", false)) {
+                        SkiResortStore.setCurrent(SkiActivity.this,
+                                data.optString("resort_key", ""), data.optString("resort_name", ""));
+                    } else if (existing.isEmpty()) {
+                        SkiResortStore.clearCurrent(SkiActivity.this);
+                    }
+                    render();
+                    if (after != null) after.run();
+                });
+            }
+            @Override public void onFailure(String message) {
+                runOnUiThread(() -> {
+                    if (after != null && !existing.isEmpty()) after.run();
+                    else if (after != null) Toast.makeText(SkiActivity.this, message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
 
     private String stateLabel(String state) {
