@@ -23,10 +23,11 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
- * Local-only ski/snowboard GPS recorder and heuristic motion detector.
- * No route or lift observation leaves the phone from this service.
+ * Local-first ski/snowboard GPS recorder and heuristic motion detector.
+ * Full routes stay on-device. Only lift observations may be sent when realtime exchange is ON.
  */
 public class SkiRecorderService extends Service {
     public static final String ACTION_START = "com.yamo.snorelab.SKI_START";
@@ -42,6 +43,8 @@ public class SkiRecorderService extends Service {
     public static final String KEY_MAX_SPEED_KMH = "max_speed_kmh";
     public static final String KEY_ALTITUDE_M = "altitude_m";
     public static final String KEY_ACCURACY_M = "accuracy_m";
+    public static final String KEY_LAT = "lat";
+    public static final String KEY_LON = "lon";
     public static final String KEY_DESCENT_COUNT = "descent_count";
     public static final String KEY_LIFT_COUNT = "lift_count";
     public static final String KEY_DESCENT_DISTANCE_M = "descent_distance_m";
@@ -53,13 +56,14 @@ public class SkiRecorderService extends Service {
     public static final String STATE_DESCENT = "DESCENT";
     public static final String STATE_LIFT = "LIFT";
     public static final String STATE_CHECKING = "CHECKING";
-    public static final String DETECTOR_VERSION = "ski-heuristic-0.1";
+    public static final String DETECTOR_VERSION = "ski-heuristic-0.2";
 
     private static final String CHANNEL = "ski_recording_v1";
     private static final int NOTIFY_ID = 5401;
     private static final float MAX_ACCURACY_M = 50f;
     private static final float HARD_MAX_SPEED_MPS = 45f;
     private static final long GPS_GAP_RESET_MS = 20_000L;
+    private static final long RESORT_DETECT_RETRY_MS = 5 * 60_000L;
 
     private SharedPreferences runtime;
     private LocationManager locationManager;
@@ -77,6 +81,8 @@ public class SkiRecorderService extends Service {
     private float accuracyM = Float.NaN;
     private float currentSpeedKmh;
     private float maxSpeedKmh;
+    private double lastLat = Double.NaN;
+    private double lastLon = Double.NaN;
     private int rejectedGpsPoints;
 
     private int descentCount;
@@ -102,6 +108,9 @@ public class SkiRecorderService extends Service {
     private double activeLiftPathM;
     private long activeLiftLastRiseMs;
     private Location activeLiftLastLoc;
+
+    private long lastResortDetectAttemptMs;
+    private boolean resortDetectInFlight;
 
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
@@ -148,6 +157,11 @@ public class SkiRecorderService extends Service {
             return;
         }
 
+        if (SkiResortStore.detectedAt(this) > 0
+                && System.currentTimeMillis() - SkiResortStore.detectedAt(this) > 12 * 60 * 60_000L) {
+            SkiResortStore.clearCurrent(this);
+        }
+
         sport = "snowboard".equals(intent.getStringExtra("sport")) ? "snowboard" : "ski";
         startMs = System.currentTimeMillis();
         sessionDir = SkiLiftStore.createSession(this, startMs, sport);
@@ -178,6 +192,8 @@ public class SkiRecorderService extends Service {
         accuracyM = Float.NaN;
         currentSpeedKmh = 0;
         maxSpeedKmh = 0;
+        lastLat = Double.NaN;
+        lastLon = Double.NaN;
         rejectedGpsPoints = 0;
         descentCount = 0;
         liftCount = 0;
@@ -191,6 +207,8 @@ public class SkiRecorderService extends Service {
         waitCandidateAnchor = null;
         liftCandidate = null;
         descentCandidate = null;
+        lastResortDetectAttemptMs = 0;
+        resortDetectInFlight = false;
         clearActiveLift();
     }
 
@@ -217,9 +235,15 @@ public class SkiRecorderService extends Service {
 
         long now = loc.getTime() > 0 ? loc.getTime() : System.currentTimeMillis();
         accuracyM = loc.hasAccuracy() ? loc.getAccuracy() : Float.NaN;
+        lastLat = loc.getLatitude();
+        lastLon = loc.getLongitude();
+
+        double previousSmoothedAltitude = smoothedAltitude;
         double rawAlt = loc.hasAltitude() ? loc.getAltitude() : smoothedAltitude;
         if (Double.isNaN(smoothedAltitude) && !Double.isNaN(rawAlt)) smoothedAltitude = rawAlt;
         else if (!Double.isNaN(rawAlt)) smoothedAltitude = smoothedAltitude * 0.75 + rawAlt * 0.25;
+
+        maybeDetectResort(loc);
 
         if (lastLoc == null || lastTime <= 0) {
             lastLoc = new Location(loc);
@@ -238,6 +262,7 @@ public class SkiRecorderService extends Service {
             descentCandidate = null;
             currentSpeedKmh = 0;
             state = STATE_CHECKING;
+            persistRuntime();
             return;
         }
 
@@ -251,9 +276,8 @@ public class SkiRecorderService extends Service {
             return;
         }
 
-        double previousAlt = safeAltitudeFrom(lastLoc);
         double currentAlt = safeAltitude();
-        double altDelta = (!Double.isNaN(previousAlt) && !Double.isNaN(currentAlt)) ? currentAlt - previousAlt : 0;
+        double altDelta = !Double.isNaN(previousSmoothedAltitude) ? currentAlt - previousSmoothedAltitude : 0;
         currentSpeedKmh = Math.max(0, speedMps * 3.6f);
         if (currentSpeedKmh <= HARD_MAX_SPEED_MPS * 3.6f) maxSpeedKmh = Math.max(maxSpeedKmh, currentSpeedKmh);
 
@@ -284,9 +308,23 @@ public class SkiRecorderService extends Service {
         persistRuntime();
     }
 
-    private double safeAltitudeFrom(Location loc) {
-        if (loc == null || !loc.hasAltitude()) return Double.NaN;
-        return loc.getAltitude();
+    private void maybeDetectResort(Location loc) {
+        if (!SkiLiftStore.isRealtimeExchangeEnabled(this)) return;
+        if (!SkiResortStore.currentKey(this).isEmpty()) return;
+        long now = System.currentTimeMillis();
+        if (resortDetectInFlight || now - lastResortDetectAttemptMs < RESORT_DETECT_RETRY_MS) return;
+        lastResortDetectAttemptMs = now;
+        resortDetectInFlight = true;
+        SkiLiftApi.detectResort(this, loc.getLatitude(), loc.getLongitude(), new SkiLiftApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                resortDetectInFlight = false;
+                if (data.optBoolean("found", false)) {
+                    SkiResortStore.setCurrent(SkiRecorderService.this,
+                            data.optString("resort_key", ""), data.optString("resort_name", ""));
+                }
+            }
+            @Override public void onFailure(String message) { resortDetectInFlight = false; }
+        });
     }
 
     private double safeAltitude() {
@@ -441,6 +479,7 @@ public class SkiRecorderService extends Service {
 
         JSONObject item = new JSONObject();
         try {
+            item.put("observationId", UUID.randomUUID().toString());
             item.put("waitStartEpochMs", waitDuration > 0 ? activeLiftWaitStartMs : activeLiftStartMs);
             item.put("rideStartEpochMs", activeLiftStartMs);
             item.put("rideEndEpochMs", endMs);
@@ -458,11 +497,30 @@ public class SkiRecorderService extends Service {
             item.put("confidence", confidence);
             item.put("nameStatus", "unknown");
             item.put("detectorVersion", DETECTOR_VERSION);
+
+            String resortKey = SkiResortStore.currentKey(this);
+            String resortName = SkiResortStore.currentName(this);
+            item.put("resortKey", resortKey);
+            item.put("resortName", resortName);
+            JSONObject cachedLift = SkiResortStore.resolveCachedLift(this, item);
+            if (cachedLift != null) {
+                item.put("liftKey", cachedLift.optString("lift_key", ""));
+                item.put("liftName", cachedLift.optString("lift_name", ""));
+                item.put("nameStatus", "verified");
+            }
+
             String id = SkiLiftStore.appendLiftObservation(sessionDir, item);
             if (!id.isEmpty()) {
                 liftCount++;
                 liftTimeMs += rideDuration;
                 waitTimeMs += waitDuration;
+                item.put("observationId", id);
+                if (SkiLiftStore.isRealtimeExchangeEnabled(this) && !resortKey.isEmpty()) {
+                    SkiLiftApi.submitRealtime(this, resortKey, item, new SkiLiftApi.JsonCallback() {
+                        @Override public void onSuccess(JSONObject data) {}
+                        @Override public void onFailure(String message) {}
+                    });
+                }
             }
         } catch (Exception ignored) {}
         clearActiveLift();
@@ -494,7 +552,10 @@ public class SkiRecorderService extends Service {
             finishActiveLift(activeLiftLastLoc, now, activeLiftMaxAlt);
         }
         persistSessionMetrics();
-        if (sessionDir != null) SkiLiftStore.completeSession(sessionDir, now, "", "");
+        if (sessionDir != null) {
+            SkiLiftStore.completeSession(sessionDir, now,
+                    SkiResortStore.currentKey(this), SkiResortStore.currentName(this));
+        }
         recording = false;
         stopLocation();
         handler.removeCallbacks(ticker);
@@ -513,7 +574,7 @@ public class SkiRecorderService extends Service {
 
     private void persistRuntime() {
         if (runtime == null) return;
-        runtime.edit()
+        SharedPreferences.Editor editor = runtime.edit()
                 .putBoolean(KEY_RECORDING, recording)
                 .putString(KEY_SPORT, sport)
                 .putLong(KEY_START_MS, startMs)
@@ -528,8 +589,11 @@ public class SkiRecorderService extends Service {
                 .putLong(KEY_DESCENT_DISTANCE_M, Math.round(descentDistanceM))
                 .putLong(KEY_DESCENT_VERTICAL_M, Math.round(descentVerticalM))
                 .putLong(KEY_LIFT_TIME_MS, liftTimeMs)
-                .putLong(KEY_WAIT_TIME_MS, waitTimeMs)
-                .apply();
+                .putLong(KEY_WAIT_TIME_MS, waitTimeMs);
+        if (Double.isFinite(lastLat) && Double.isFinite(lastLon)) {
+            editor.putFloat(KEY_LAT, (float) lastLat).putFloat(KEY_LON, (float) lastLon);
+        }
+        editor.apply();
     }
 
     private void persistSessionMetrics() {
