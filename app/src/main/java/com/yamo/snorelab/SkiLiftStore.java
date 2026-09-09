@@ -210,7 +210,7 @@ public final class SkiLiftStore {
         String batch = clean(batchId);
         for (File dir : listSessions(context)) {
             JSONArray items = readLiftObservations(dir);
-            boolean changed = false;
+            int changedCount = 0;
             for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.optJSONObject(i);
                 if (item == null) continue;
@@ -219,11 +219,13 @@ public final class SkiLiftStore {
                 try {
                     item.put("historicalProvidedAtEpochMs", at);
                     item.put("historicalProvideBatchId", batch);
-                    marked++;
-                    changed = true;
+                    changedCount++;
                 } catch (Exception ignored) {}
             }
-            if (changed && !writeJsonArray(new File(dir, FILE_LIFTS), items)) return Math.max(0, marked - 1);
+            if (changedCount > 0) {
+                if (!writeJsonArray(new File(dir, FILE_LIFTS), items)) return marked;
+                marked += changedCount;
+            }
         }
         return marked;
     }
@@ -290,11 +292,19 @@ public final class SkiLiftStore {
     }
 
     private static boolean writeJson(File target, JSONObject value) {
-        return writeTextAtomic(target, value == null ? "{}" : value.toString(2));
+        try {
+            return writeTextAtomic(target, value == null ? "{}" : value.toString(2));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean writeJsonArray(File target, JSONArray value) {
-        return writeTextAtomic(target, value == null ? "[]" : value.toString(2));
+        try {
+            return writeTextAtomic(target, value == null ? "[]" : value.toString(2));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean writeTextAtomic(File target, String text) {
