@@ -1,0 +1,27 @@
+name: Apply Yamone alarm polish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-alarm-polish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply alarm polish
+        run: python3 .github/scripts/patch_alarm_polish.py
+      - name: Commit changes
+        run: |
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab/AlarmActivity.java
+          git commit -m 'Polish Yamone alarm overview UI'
+          git push
