@@ -10,4 +10,5 @@
     <color name="warning">#FFC56D</color>
     <color name="success">#61D6A8</color>
     <color name="yamone_launcher_bg">#DDF8EF</color>
+    <color name="ic_launcher_bg">#FFF0F6</color>
 </resources>

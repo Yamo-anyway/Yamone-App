@@ -119,6 +119,8 @@ public class MainActivity extends Activity {
         buildRoot();
         int retention = prefs.getInt("retention_days", 30);
         new Thread(() -> SessionStore.cleanupAudioOlderThan(this, retention)).start();
+        String settingsReturn = getIntent().getStringExtra("settings_return");
+        if (settingsReturn != null && !settingsReturn.trim().isEmpty()) settingsReturnScreen = settingsReturn;
         String startScreen = getIntent().getStringExtra("start_screen");
         if ("settings".equals(startScreen)) showSettings();
         else if ("home".equals(startScreen)) showHome();
@@ -146,7 +148,7 @@ public class MainActivity extends Activity {
     }
 
     private boolean pinkTheme() {
-        return "pink".equals(prefs == null ? "mint" : prefs.getString(KEY_THEME, "mint"));
+        return "pink".equals(prefs == null ? "mint" : prefs.getString(KEY_THEME, "pink"));
     }
 
     private void applyThemeFromPrefs() {
@@ -248,22 +250,23 @@ public class MainActivity extends Activity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(18), dp(7), dp(18), dp(8));
+        header.setPadding(dp(18), dp(8), dp(18), dp(9));
         header.setBackgroundColor(BG);
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
+        words.setGravity(Gravity.CENTER_VERTICAL);
         words.addView(text(title, 26, TEXT, true));
         TextView sub = text(subtitle, 12, MUTED, false);
         sub.setPadding(0, dp(2), 0, 0);
         words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
 
-        TextView gear = text("⚙", 24, TEXT, false);
+        TextView gear = text("⚙", 21, PRIMARY2, false);
         gear.setGravity(Gravity.CENTER);
-        gear.setBackground(round(CARD2, 18, 0, 0));
+        gear.setBackground(round(CARD, 24, 1, 0xFFFFD7E3));
         gear.setOnClickListener(v -> { settingsReturnScreen = screen; showSettings(); });
-        header.addView(gear, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return header;
     }
 
@@ -290,7 +293,7 @@ public class MainActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedHeader("야모네", "오늘도, 좋은 하루가 쌓여요."), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        shell.addView(fixedHeader("홈", "좋은 하루예요! 오늘도 빛나는 당신을 응원해요 💕"), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = bodyPage();
@@ -564,7 +567,7 @@ public class MainActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedBackHeader("수면 설정", "테마와 마이크 측정을 편하게 조절해요.", v -> returnFromSettings()),
+        shell.addView(fixedBackHeader("설정", "야모네의 테마와 기록 환경을 편하게 조절해요.", v -> returnFromSettings()),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);
@@ -657,8 +660,17 @@ public class MainActivity extends Activity {
     private void returnFromSettings() {
         String target = settingsReturnScreen;
         settingsReturnScreen = "home";
-        if ("sleep".equals(target)) showSleep();
-        else showHome();
+        if ("activity".equals(target)) {
+            startActivity(new Intent(this, LocationExerciseActivity.class));
+            finish();
+        } else if ("alarm".equals(target)) {
+            startActivity(new Intent(this, AlarmActivity.class));
+            finish();
+        } else if ("sleep".equals(target)) {
+            showSleep();
+        } else {
+            showHome();
+        }
     }
 
     private String sensitivityGuide(int value) {

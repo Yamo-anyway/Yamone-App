@@ -137,6 +137,35 @@ public class ExerciseActivity extends Activity {
         setContentView(root);
     }
 
+    private LinearLayout mainHeader(String title, String subtitle) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(18), dp(8), dp(18), dp(9));
+        header.setBackgroundColor(BG);
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.setGravity(Gravity.CENTER_VERTICAL);
+        words.addView(text(title, 26, TEXT, true));
+        TextView sub = text(subtitle, 12, MUTED, false);
+        sub.setPadding(0, dp(2), 0, 0);
+        words.addView(sub);
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
+
+        TextView gear = text("⚙", 21, PRIMARY2, false);
+        gear.setGravity(Gravity.CENTER);
+        gear.setBackground(round(CARD, 24, 1, 0xFF35445F));
+        gear.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class)
+                    .putExtra("start_screen", "settings")
+                    .putExtra("settings_return", "activity");
+            startActivity(intent);
+        });
+        header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        return header;
+    }
+
     private void showHome() {
         detailOpen = false;
         detailDir = null;
@@ -157,15 +186,16 @@ public class ExerciseActivity extends Activity {
         liveRoute = null;
         lastRouteReload = 0L;
         content.removeAllViews();
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setBackgroundColor(BG);
+        shell.addView(mainHeader("활동", "오늘도 움직여요! 작은 움직임이 큰 변화를 만들어요 💕"),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = page();
         scroll.addView(page);
-        content.addView(scroll);
-
-        page.addView(text("활동", 24, TEXT, true));
-        TextView sub = text("걷기/러닝 · 자전거 · 스키/스노우보드", 12, MUTED, false);
-        sub.setPadding(0, dp(3), 0, dp(14));
-        page.addView(sub);
+        shell.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        content.addView(shell);
 
         if (runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false)) {
             buildLive(page);

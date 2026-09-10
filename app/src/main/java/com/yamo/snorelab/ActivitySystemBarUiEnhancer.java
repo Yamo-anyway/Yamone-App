@@ -179,7 +179,7 @@ public final class ActivitySystemBarUiEnhancer {
 
     private static boolean pink(Activity activity) {
         return "pink".equals(activity.getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
     }
 
     private static int bg(Activity a) { return pink(a) ? 0xFFFFF7FA : 0xFFF7FFFB; }

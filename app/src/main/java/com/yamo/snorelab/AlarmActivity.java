@@ -88,7 +88,7 @@ public class AlarmActivity extends Activity {
     }
 
     private boolean pinkTheme() {
-        return "pink".equals(prefs == null ? "mint" : prefs.getString(KEY_THEME, "mint"));
+        return "pink".equals(prefs == null ? "mint" : prefs.getString(KEY_THEME, "pink"));
     }
 
     private void applyTheme() {
@@ -163,22 +163,28 @@ public class AlarmActivity extends Activity {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(18), dp(7), dp(18), dp(8));
+        header.setPadding(dp(18), dp(8), dp(18), dp(9));
         header.setBackgroundColor(BG);
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
+        words.setGravity(Gravity.CENTER_VERTICAL);
         words.addView(text(title, 26, TEXT, true));
         TextView sub = text(subtitle, 12, MUTED, false);
         sub.setPadding(0, dp(2), 0, 0);
         words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(56), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
 
-        TextView gear = text("⚙", 24, TEXT, false);
+        TextView gear = text("⚙", 21, PRIMARY2, false);
         gear.setGravity(Gravity.CENTER);
-        gear.setBackground(rounded(CARD2, 18, 0, 0));
-        gear.setOnClickListener(v -> goMain("settings"));
-        header.addView(gear, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        gear.setBackground(rounded(CARD, 24, 1, 0xFFFFD7E3));
+        gear.setOnClickListener(v -> {
+            startActivity(new Intent(this, MainActivity.class)
+                    .putExtra("start_screen", "settings")
+                    .putExtra("settings_return", "alarm"));
+            finish();
+        });
+        header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return header;
     }
 
@@ -204,7 +210,7 @@ public class AlarmActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedHeader("알람", "기분 좋은 시작을 준비해요."), matchWrap());
+        shell.addView(fixedHeader("알람", "잊지 말고, 챙겨요! 좋은 습관이 좋은 하루를 만들어요 💕"), matchWrap());
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = bodyPage();
