@@ -3,7 +3,6 @@ package com.yamo.snorelab;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -49,7 +48,7 @@ public final class LocationSharingMapView extends FrameLayout {
 
     public LocationSharingMapView(Context context) {
         super(context);
-        setBackgroundColor(0xFFFFF7FA);
+        setBackgroundColor(pink() ? 0xFFFFF7FA : 0xFFF7FFFB);
 
         MapLibre.getInstance(context.getApplicationContext());
         mapView = new MapView(context);
@@ -60,11 +59,11 @@ public final class LocationSharingMapView extends FrameLayout {
 
         status = new TextView(context);
         status.setText("지도 불러오는 중…");
-        status.setTextColor(0xFF9A7180);
+        status.setTextColor(pink() ? 0xFF9A7180 : 0xFF718984);
         status.setTextSize(12);
         status.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         status.setGravity(Gravity.CENTER);
-        status.setBackgroundColor(0xEEFFF7FA);
+        status.setBackgroundColor(pink() ? 0xEEFFF7FA : 0xEEF7FFFB);
         FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(38));
         sp.gravity = Gravity.TOP;
@@ -72,12 +71,14 @@ public final class LocationSharingMapView extends FrameLayout {
 
         myLocationButton = new TextView(context);
         myLocationButton.setText("내 위치");
-        myLocationButton.setTextColor(0xFFE94778);
+        myLocationButton.setTextColor(pink() ? 0xFFE94778 : 0xFF159A7A);
         myLocationButton.setTextSize(12);
         myLocationButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         myLocationButton.setGravity(Gravity.CENTER);
         myLocationButton.setPadding(dp(10), 0, dp(10), 0);
-        myLocationButton.setBackground(round(0xF8FFFFFF, 16, 1, 0xFFFFD7E3));
+        myLocationButton.setBackground(round(
+                pink() ? 0xF8FFF7FA : 0xF8F7FFFB,
+                16, 1, pink() ? 0xFFFFD7E3 : 0xFFD7EFE7));
         myLocationButton.setOnClickListener(v -> moveToSelf());
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(92), dp(40));
         bp.gravity = Gravity.END | Gravity.BOTTOM;
@@ -119,9 +120,9 @@ public final class LocationSharingMapView extends FrameLayout {
             positions.add(point);
             if (self) selfLatLng = point;
 
-            String markerText = self ? "나 · " + nickname : nickname;
-
-            Icon icon = IconFactory.getInstance(getContext()).fromBitmap(markerBitmap(markerText, self, state, userStatus));
+            String markerText = nickname + (self ? " (나)" : "");
+            Icon icon = IconFactory.getInstance(getContext())
+                    .fromBitmap(markerBitmap(markerText, self, state, userStatus));
             String snippet = stateLabel(state) + statusSuffix(userStatus);
             map.addMarker(new MarkerOptions()
                     .position(point)
@@ -172,7 +173,8 @@ public final class LocationSharingMapView extends FrameLayout {
             JSONObject member = members.optJSONObject(i);
             if (member == null || !memberId.equals(member.optString("member_id", ""))) continue;
             if (member.isNull("last_lat") || member.isNull("last_lon")) {
-                showTransientStatus((nickname == null || nickname.isEmpty() ? "선택한 사용자" : nickname) + "님의 위치를 아직 받지 못했어요.");
+                showTransientStatus((nickname == null || nickname.isEmpty() ? "선택한 사용자" : nickname)
+                        + "님의 위치를 아직 받지 못했어요.");
                 return false;
             }
             double lat = member.optDouble("last_lat", Double.NaN);
@@ -192,66 +194,53 @@ public final class LocationSharingMapView extends FrameLayout {
         }, 1800);
     }
 
+    /** Marker is always nickname text with the same status-color dot used in the list/status selector. */
     private Bitmap markerBitmap(String label, boolean self, String state, String userStatus) {
         float density = getResources().getDisplayMetrics().density;
         Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        textPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        textPaint.setTypeface(Typeface.create(Typeface.DEFAULT, self ? Typeface.BOLD : Typeface.NORMAL));
         textPaint.setTextSize(12f * density);
+        int foreground = pink() ? 0xFF4B2633 : 0xFF153633;
+        if ("disconnected".equals(state) || "location_stale".equals(state)) {
+            foreground = pink() ? 0xFF9A7180 : 0xFF718984;
+        }
+        textPaint.setColor(foreground);
+
+        int dotColor = LocationStatusPalette.color(userStatus);
+        int dotDiameter = dp(11);
+        int textStart = dp(29);
         float textWidth = textPaint.measureText(label);
-        int width = Math.max(dp(72), Math.round(textWidth + dp(22)));
+        int width = Math.max(dp(78), Math.round(textWidth + textStart + dp(10)));
         int height = dp(34);
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
-        int background;
-        int foreground;
-        if ("emergency".equals(userStatus)) {
-            background = 0xF2E75B6D;
-            foreground = Color.WHITE;
-        } else if ("help".equals(userStatus)) {
-            background = 0xF8FFF0F3;
-            foreground = 0xFFE45A6A;
-        } else if ("contact".equals(userStatus)) {
-            background = 0xF8FFF6E7;
-            foreground = 0xFFD98A20;
-        } else if (self) {
-            background = 0xF2E94778;
-            foreground = Color.WHITE;
-        } else if ("disconnected".equals(state) || "location_stale".equals(state)) {
-            background = 0xF8FFF0F3;
-            foreground = 0xFFE75B6D;
-        } else if ("waiting".equals(state)) {
-            background = 0xF8FFF7FA;
-            foreground = 0xFF9A7180;
-        } else {
-            background = 0xF8FFFFFF;
-            foreground = 0xFF4B2633;
-        }
-
         Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bg.setColor(background);
+        bg.setColor(pink() ? 0xF9FFF7FA : 0xF9F7FFFB);
         RectF rect = new RectF(0, 0, width, height);
         canvas.drawRoundRect(rect, dp(14), dp(14), bg);
-        if (!self) {
-            Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
-            border.setStyle(Paint.Style.STROKE);
-            border.setStrokeWidth(Math.max(1f, density));
-            border.setColor(0xFFFFD7E3);
-            canvas.drawRoundRect(rect, dp(14), dp(14), border);
-        }
 
-        textPaint.setColor(foreground);
+        Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
+        border.setStyle(Paint.Style.STROKE);
+        border.setStrokeWidth(dp(self ? 1.8f : 1f));
+        border.setColor(self ? dotColor : (pink() ? 0xFFFFD7E3 : 0xFFD7EFE7));
+        canvas.drawRoundRect(rect, dp(14), dp(14), border);
+
+        Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+        dot.setColor(dotColor);
+        float dotCx = dp(11) + dotDiameter / 2f;
+        float dotCy = height / 2f;
+        canvas.drawCircle(dotCx, dotCy, dotDiameter / 2f, dot);
+
         Paint.FontMetrics fm = textPaint.getFontMetrics();
         float y = height / 2f - (fm.ascent + fm.descent) / 2f;
-        canvas.drawText(label, dp(11), y, textPaint);
+        canvas.drawText(label, textStart, y, textPaint);
         return bitmap;
     }
 
     private String statusSuffix(String status) {
-        if ("emergency".equals(status)) return " · 긴급";
-        if ("help".equals(status)) return " · 도움 필요";
-        if ("contact".equals(status)) return " · 연락 요청";
-        return "";
+        if ("normal".equals(status)) return "";
+        return " · " + LocationStatusPalette.label(status);
     }
 
     private String stateLabel(String state) {
@@ -282,6 +271,11 @@ public final class LocationSharingMapView extends FrameLayout {
 
     public void onLowMemory() {
         if (!destroyed) try { mapView.onLowMemory(); } catch (Exception ignored) {}
+    }
+
+    private boolean pink() {
+        return "pink".equals(getContext().getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "pink"));
     }
 
     private GradientDrawable round(int color, int radiusDp, int strokeDp, int strokeColor) {
