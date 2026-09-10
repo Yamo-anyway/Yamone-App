@@ -71,7 +71,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private static final float MAX_ACCEPTABLE_ACCURACY_M = 45f;
     private static final float MIN_NOISE_FLOOR_M = 2.0f;
     private static final float MAX_NOISE_FLOOR_M = 6.0f;
-    private static final long GPS_GAP_RESET_MS = 12_000L;
+    private static final long GPS_GAP_RESET_MS = 10_000L;
+    private static final long GPS_SHADOW_MAX_MS = 10 * 60_000L;
     private static final long RECENT_STEP_WINDOW_MS = 5_000L;
 
     // Combined walk/run mode uses hysteresis so GPS noise does not flip modes repeatedly.
@@ -121,6 +122,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private long lastWrittenTime;
     private int rejectedGpsPoints;
     private int gpsGapResets;
+    private int gpsShadowSegments;
+    private double gpsShadowDistanceM;
+    private long gpsShadowDurationMs;
     private int stationaryGpsDiscards;
     private File sessionDir;
     private long goalDistanceM;
@@ -175,6 +179,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         goalNotified = false;
         rejectedGpsPoints = 0;
         gpsGapResets = 0;
+        gpsShadowSegments = 0;
+        gpsShadowDistanceM = 0;
+        gpsShadowDurationMs = 0;
         stationaryGpsDiscards = 0;
         lastStepDetectedMs = 0;
         lastAcceptedSpeedMps = 0f;
@@ -280,11 +287,13 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         long dtMs = now - lastAcceptedTime;
         if (dtMs > GPS_GAP_RESET_MS) {
             gpsGapResets++;
+            boolean bridged = bridgeGpsShadow(loc, now, dtMs);
             currentSpeedKmh = 0f;
             resetAutoPending();
             resetMaxSpeedCandidate();
-            rebaseStationaryAnchor(loc, now, true);
+            if (!bridged) rebaseStationaryAnchor(loc, now, true);
             persistRuntime();
+            checkGoal();
             return;
         }
 
@@ -405,6 +414,58 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         acceptAnchor(loc, now, filteredMps, true);
         persistRuntime();
         checkGoal();
+    }
+
+    private boolean bridgeGpsShadow(Location loc, long now, long dtMs) {
+        if (lastAccepted == null || dtMs <= GPS_GAP_RESET_MS || dtMs > GPS_SHADOW_MAX_MS) return false;
+
+        float d = lastAccepted.distanceTo(loc);
+        float dtSec = dtMs / 1000f;
+        float averageMps = d / Math.max(0.001f, dtSec);
+        float previousAccuracy = lastAccepted.hasAccuracy() ? lastAccepted.getAccuracy() : 0f;
+        float combinedAccuracy = Math.max(previousAccuracy, loc.hasAccuracy() ? loc.getAccuracy() : 0f);
+        float minSpeed = minMovingSpeedMps();
+        float maxSpeed = maxMovingSpeedMps();
+        float reportedMps = loc.hasSpeed() ? Math.max(0f, loc.getSpeed()) : Float.NaN;
+        boolean recentStep = !isCycling() && stepAvailable && lastStepDetectedMs > 0
+                && System.currentTimeMillis() - lastStepDetectedMs <= RECENT_STEP_WINDOW_MS;
+        boolean movingBefore = lastAcceptedSpeedMps >= minSpeed * 0.75f;
+        boolean movingAfter = !Float.isNaN(reportedMps)
+                && reportedMps >= minSpeed * 0.75f && reportedMps <= maxSpeed * 1.10f;
+        float minimumBridgeDistance = Math.max(isCycling() ? 15f : 8f, combinedAccuracy * 0.50f);
+
+        // Bridge only plausible movement. A straight line deliberately underestimates curved tunnels,
+        // but avoids inventing distance without a paid/external road-matching service.
+        if (d < minimumBridgeDistance) return false;
+        if (averageMps < minSpeed * 0.45f || averageMps > maxSpeed * 1.05f) return false;
+        if (!(movingBefore || movingAfter || recentStep)) return false;
+
+        distanceM += d;
+        movingMs += dtMs;
+        gpsShadowSegments++;
+        gpsShadowDistanceM += d;
+        gpsShadowDurationMs += dtMs;
+
+        if (isWalkRun()) {
+            if ("running".equals(autoMotionMode)) {
+                runningDistanceM += d;
+                runningMovingMs += dtMs;
+            } else {
+                walkingDistanceM += d;
+                walkingMovingMs += dtMs;
+            }
+        }
+
+        while (distanceM >= nextSplitM) {
+            long split = Math.max(0, movingMs - lastSplitMovingMs);
+            splitsMs.add(split);
+            lastSplitMovingMs = movingMs;
+            nextSplitM += 1000;
+        }
+
+        // Never feed the estimated bridge speed into max-speed confirmation.
+        acceptAnchor(loc, now, Math.min(averageMps, maxSpeed), true);
+        return true;
     }
 
     private void updateAutoMode(float filteredMps, long now) {
@@ -673,9 +734,12 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             m.put("goalState", goalState);
             m.put("splitsMs", WalkingStore.longListToJson(splitsMs));
             m.put("locationStorage", "local_only");
-            m.put("gpsFilter", "local_" + activityType + "_v5");
+            m.put("gpsFilter", "local_" + activityType + "_v6_shadow");
             m.put("rejectedGpsPoints", rejectedGpsPoints);
             m.put("gpsGapResets", gpsGapResets);
+            m.put("gpsShadowSegments", gpsShadowSegments);
+            m.put("gpsShadowDistanceM", Math.round(gpsShadowDistanceM));
+            m.put("gpsShadowDurationMs", gpsShadowDurationMs);
             m.put("stationaryGpsDiscards", stationaryGpsDiscards);
             if (isWalkRun()) {
                 m.put("autoMotionModeLast", autoMotionMode);

@@ -46,6 +46,8 @@ public final class HikingRecorderService extends Service {
     private static final float MAX_ACCURACY_M = 45f;
     private static final float MAX_SPEED_MPS = 8.5f;
     private static final float MIN_MOVE_M = 2.0f;
+    private static final long GPS_SHADOW_MIN_MS = 10_000L;
+    private static final long GPS_SHADOW_MAX_MS = 10 * 60_000L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SharedPreferences runtime;
@@ -62,6 +64,10 @@ public final class HikingRecorderService extends Service {
     private float accuracyM = Float.NaN;
     private Location lastLocation;
     private long lastLocationTime;
+    private float lastSpeedMps;
+    private int gpsShadowSegments;
+    private double gpsShadowDistanceM;
+    private long gpsShadowDurationMs;
     private File sessionDir;
 
     private final Runnable ticker = new Runnable() {
@@ -103,6 +109,10 @@ public final class HikingRecorderService extends Service {
         accuracyM = Float.NaN;
         lastLocation = null;
         lastLocationTime = 0L;
+        lastSpeedMps = 0f;
+        gpsShadowSegments = 0;
+        gpsShadowDistanceM = 0;
+        gpsShadowDurationMs = 0L;
         sessionDir = HikingStore.createSession(this, startMs);
         recording = true;
 
@@ -163,9 +173,14 @@ public final class HikingRecorderService extends Service {
         }
         if (now <= lastLocationTime) return;
         long dtMs = now - lastLocationTime;
-        if (dtMs > 20_000L) {
+        if (dtMs > GPS_SHADOW_MIN_MS) {
+            if (bridgeGpsShadow(loc, now, dtMs)) {
+                persist();
+                return;
+            }
             lastLocation = new Location(loc);
             lastLocationTime = now;
+            lastSpeedMps = 0f;
             append(loc, now, 0f);
             persist();
             return;
@@ -179,8 +194,37 @@ public final class HikingRecorderService extends Service {
 
         lastLocation = new Location(loc);
         lastLocationTime = now;
-        append(loc, now, speed <= MAX_SPEED_MPS ? speed : 0f);
+        lastSpeedMps = speed <= MAX_SPEED_MPS ? Math.max(0f, speed) : 0f;
+        append(loc, now, lastSpeedMps);
         persist();
+    }
+
+    private boolean bridgeGpsShadow(Location loc, long now, long dtMs) {
+        if (lastLocation == null || dtMs <= GPS_SHADOW_MIN_MS || dtMs > GPS_SHADOW_MAX_MS) return false;
+        float d = lastLocation.distanceTo(loc);
+        float dtSec = dtMs / 1000f;
+        float averageMps = d / Math.max(0.001f, dtSec);
+        float previousAccuracy = lastLocation.hasAccuracy() ? lastLocation.getAccuracy() : 0f;
+        float combinedAccuracy = Math.max(previousAccuracy, loc.hasAccuracy() ? loc.getAccuracy() : 0f);
+        float reportedMps = loc.hasSpeed() ? Math.max(0f, loc.getSpeed()) : Float.NaN;
+        boolean movingBefore = lastSpeedMps >= 0.30f;
+        boolean movingAfter = !Float.isNaN(reportedMps)
+                && reportedMps >= 0.30f && reportedMps <= MAX_SPEED_MPS * 1.10f;
+        float minimumBridgeDistance = Math.max(8f, combinedAccuracy * 0.50f);
+
+        if (d < minimumBridgeDistance) return false;
+        if (averageMps < 0.18f || averageMps > MAX_SPEED_MPS) return false;
+        if (!(movingBefore || movingAfter || averageMps >= 0.45f)) return false;
+
+        distanceM += d;
+        gpsShadowSegments++;
+        gpsShadowDistanceM += d;
+        gpsShadowDurationMs += dtMs;
+        lastLocation = new Location(loc);
+        lastLocationTime = now;
+        lastSpeedMps = averageMps;
+        append(loc, now, averageMps);
+        return true;
     }
 
     private void append(Location loc, long now, float speedMps) {
@@ -223,7 +267,10 @@ public final class HikingRecorderService extends Service {
             m.put("maxAltitudeM", Double.isNaN(maxAltitude) ? JSONObject.NULL : maxAltitude);
             m.put("minAltitudeM", Double.isNaN(minAltitude) ? JSONObject.NULL : minAltitude);
             m.put("locationStorage", "local_only");
-            m.put("gpsFilter", "local_hiking_v1");
+            m.put("gpsFilter", "local_hiking_v2_shadow");
+            m.put("gpsShadowSegments", gpsShadowSegments);
+            m.put("gpsShadowDistanceM", Math.round(gpsShadowDistanceM));
+            m.put("gpsShadowDurationMs", gpsShadowDurationMs);
             HikingStore.writeMeta(sessionDir, m);
         } catch (Exception ignored) {}
     }
