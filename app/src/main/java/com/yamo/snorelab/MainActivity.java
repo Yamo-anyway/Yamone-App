@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private int SUCCESS = 0xFF159A7A;
 
     private FrameLayout content;
+    private LinearLayout bottomNav;
     private TextView alarmNav;
     private TextView sleepNav;
     private TextView homeNav;
@@ -190,7 +191,8 @@ public class MainActivity extends Activity {
         content = new FrameLayout(this);
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        LinearLayout nav = new LinearLayout(this);
+        bottomNav = new LinearLayout(this);
+        LinearLayout nav = bottomNav;
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
@@ -225,6 +227,10 @@ public class MainActivity extends Activity {
             root.requestApplyInsets();
         }
         setContentView(root);
+    }
+
+    private void setBottomNavVisible(boolean visible) {
+        if (bottomNav != null) bottomNav.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
     private TextView navItem(String label, boolean selected, View.OnClickListener click) {
@@ -284,6 +290,7 @@ public class MainActivity extends Activity {
         detailSession = null;
         screen = "home";
         updateNav();
+        setBottomNavVisible(true);
         content.removeAllViews();
 
         LinearLayout shell = new LinearLayout(this);
@@ -463,6 +470,7 @@ public class MainActivity extends Activity {
         screen = "sleep";
         updateNav();
         if (detailSession != null) { showSessionDetail(detailSession); return; }
+        setBottomNavVisible(true);
         content.removeAllViews();
 
         LinearLayout shell = new LinearLayout(this);
@@ -654,7 +662,7 @@ public class MainActivity extends Activity {
     }
 
     private void showSessionDetail(File dir) {
-        screen = "sleep"; updateNav(); content.removeAllViews(); stopPlayer();
+        screen = "sleep"; updateNav(); setBottomNavVisible(false); content.removeAllViews(); stopPlayer();
         JSONObject meta = SessionStore.readMeta(dir); JSONArray events = SessionStore.readEvents(dir);
         long start = meta.optLong("startEpochMs", 0); long duration = meta.optLong("durationMs", Math.max(1, System.currentTimeMillis() - start));
         long candidateMs = 0; for (int i = 0; i < events.length(); i++) { JSONObject e = events.optJSONObject(i); if (e != null) candidateMs += e.optLong("durationMs", 0); }
@@ -727,7 +735,7 @@ public class MainActivity extends Activity {
     }
 
     private void showSettings() {
-        screen = "settings"; updateNav(); content.removeAllViews();
+        screen = "settings"; updateNav(); setBottomNavVisible(false); content.removeAllViews();
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);

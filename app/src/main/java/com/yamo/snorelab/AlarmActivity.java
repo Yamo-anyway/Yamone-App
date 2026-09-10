@@ -60,6 +60,7 @@ public class AlarmActivity extends Activity {
     private int WARNING;
 
     private FrameLayout content;
+    private LinearLayout bottomNav;
     private boolean editorOpen;
     private SharedPreferences prefs;
     private AudioTrack previewTrack;
@@ -122,7 +123,8 @@ public class AlarmActivity extends Activity {
         content = new FrameLayout(this);
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        LinearLayout nav = new LinearLayout(this);
+        bottomNav = new LinearLayout(this);
+        LinearLayout nav = bottomNav;
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
@@ -152,6 +154,10 @@ public class AlarmActivity extends Activity {
             root.requestApplyInsets();
         }
         setContentView(root);
+    }
+
+    private void setBottomNavVisible(boolean visible) {
+        if (bottomNav != null) bottomNav.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
     private void goMain(String screen) {
@@ -192,6 +198,7 @@ public class AlarmActivity extends Activity {
 
     private void showList() {
         editorOpen = false;
+        setBottomNavVisible(true);
         stopPreview();
         content.removeAllViews();
 
@@ -400,6 +407,7 @@ public class AlarmActivity extends Activity {
 
     private void showEditor(AlarmStore.Item existing) {
         editorOpen = true;
+        setBottomNavVisible(false);
         stopPreview();
         content.removeAllViews();
         AlarmStore.Item draft = existing == null ? new AlarmStore.Item() : copy(existing);

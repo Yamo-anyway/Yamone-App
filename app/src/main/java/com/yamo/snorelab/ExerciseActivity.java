@@ -50,6 +50,7 @@ public class ExerciseActivity extends Activity {
     private static final int WARNING = 0xFFFFC56D;
 
     private FrameLayout content;
+    private LinearLayout bottomNav;
     private SharedPreferences runtime;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean detailOpen;
@@ -114,7 +115,8 @@ public class ExerciseActivity extends Activity {
         content = new FrameLayout(this);
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        LinearLayout nav = new LinearLayout(this);
+        bottomNav = new LinearLayout(this);
+        LinearLayout nav = bottomNav;
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
@@ -137,6 +139,10 @@ public class ExerciseActivity extends Activity {
         setContentView(root);
     }
 
+    private void setBottomNavVisible(boolean visible) {
+        if (bottomNav != null) bottomNav.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
     private LinearLayout mainHeader(String title, String subtitle) {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
@@ -157,6 +163,7 @@ public class ExerciseActivity extends Activity {
     private void showHome() {
         detailOpen = false;
         detailDir = null;
+        setBottomNavVisible(!runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false));
         // Clear stale live-view references before rebuilding the non-recording home.
         // Otherwise the 1-second refresher sees the old liveDistance reference and
         // calls showHome() repeatedly after recording has ended, resetting ScrollView to the top.
@@ -472,6 +479,7 @@ public class ExerciseActivity extends Activity {
 
     private void showWalkRunMenu() {
         detailOpen = true;
+        setBottomNavVisible(false);
         detailDir = null;
         content.removeAllViews();
         ScrollView scroll = new ScrollView(this);
@@ -491,6 +499,7 @@ public class ExerciseActivity extends Activity {
 
     private void showCyclingMenu() {
         detailOpen = true;
+        setBottomNavVisible(false);
         detailDir = null;
         content.removeAllViews();
         ScrollView scroll = new ScrollView(this);
@@ -503,6 +512,7 @@ public class ExerciseActivity extends Activity {
 
     private void showSkiPreview() {
         detailOpen = true;
+        setBottomNavVisible(false);
         detailDir = null;
         content.removeAllViews();
         ImageView image = new ImageView(this);
@@ -815,7 +825,7 @@ public class ExerciseActivity extends Activity {
     private void showResult(File dir) { showActivitySummary(dir, true); }
 
     private void showActivitySummary(File dir, boolean justFinished) {
-        detailOpen = true; detailDir = dir; content.removeAllViews();
+        detailOpen = true; detailDir = dir; setBottomNavVisible(false); content.removeAllViews();
         ScrollView scroll = new ScrollView(this); LinearLayout page = page(); scroll.addView(page); content.addView(scroll);
         JSONObject m = WalkingStore.readMeta(dir);
         String type = m.optString("type", "walking");
