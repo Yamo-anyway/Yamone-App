@@ -761,9 +761,13 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             return;
         }
         long end = System.currentTimeMillis();
+        if (!recording) restorePersistedSessionForStop();
         if (paused && pauseStartedMs > 0) pausedAccumMs += Math.max(0, end - pauseStartedMs);
         paused = false;
         pauseStartedMs = 0;
+        // Temporarily treat a restored session as active so elapsedMs() and writeMeta()
+        // can finalize the persisted record instead of leaving status=recording forever.
+        recording = true;
         persistRuntime();
         writeMeta("complete", end);
         recording = false;
@@ -775,8 +779,41 @@ public class WalkingRecorderService extends Service implements SensorEventListen
                 .apply();
         handler.removeCallbacks(ticker);
         stopSensors();
-        stopForeground(true);
+        try { stopForeground(true); } catch (Exception ignored) {}
         stopSelf();
+    }
+
+    private void restorePersistedSessionForStop() {
+        activityType = runtime.getString(KEY_ACTIVITY_TYPE, "walking");
+        startMs = runtime.getLong(KEY_START_MS, 0L);
+        movingMs = runtime.getLong(KEY_MOVING_MS, 0L);
+        distanceM = runtime.getLong(KEY_DISTANCE_M, 0L);
+        steps = runtime.getLong(KEY_STEPS, 0L);
+        stepAvailable = runtime.getBoolean(KEY_STEP_AVAILABLE, false);
+        maxSpeedKmh = runtime.getFloat(KEY_MAX_SPEED_KMH, 0f);
+        altitudeM = runtime.getFloat(KEY_ALTITUDE_M, Float.NaN);
+        accuracyM = runtime.getFloat(KEY_ACCURACY_M, Float.NaN);
+        goalDistanceM = runtime.getLong(KEY_GOAL_DISTANCE_M, 0L);
+        goalTimeMs = runtime.getLong(KEY_GOAL_TIME_MS, 0L);
+        goalState = runtime.getString(KEY_GOAL_STATE, "ACTIVE");
+        autoMotionMode = runtime.getString(KEY_AUTO_MOTION_MODE, "walking");
+        walkingDistanceM = runtime.getLong(KEY_WALKING_DISTANCE_M, 0L);
+        runningDistanceM = runtime.getLong(KEY_RUNNING_DISTANCE_M, 0L);
+        walkingMovingMs = runtime.getLong(KEY_WALKING_MOVING_MS, 0L);
+        runningMovingMs = runtime.getLong(KEY_RUNNING_MOVING_MS, 0L);
+        paused = runtime.getBoolean(KEY_PAUSED, false);
+        String path = runtime.getString(KEY_SESSION_DIR, "");
+        sessionDir = path.isEmpty() ? null : new File(path);
+
+        long persistedElapsed = runtime.getLong(KEY_ELAPSED_MS, 0L);
+        if (startMs > 0L && persistedElapsed >= 0L) {
+            pausedAccumMs = Math.max(0L, endOfPersistedWindow() - startMs - persistedElapsed);
+        }
+        pauseStartedMs = 0L;
+    }
+
+    private long endOfPersistedWindow() {
+        return System.currentTimeMillis();
     }
 
     private void stopSensors() {

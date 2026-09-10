@@ -807,7 +807,7 @@ public class MainActivity extends Activity {
         fine.addView(plus, new LinearLayout.LayoutParams(0, dp(42), 1f));
         measure.addView(fine);
 
-        measure.addView(settingSwitch("전체 녹음", "개발자 검증용 AAC 전체 녹음 저장", "developer_full_recording", true));
+        measure.addView(settingSwitch("전체 녹음", "개발자 검증용 AAC 전체 녹음 저장", "developer_full_recording", false));
         measure.addView(settingSwitch("코골이 후보 음원 저장", "후보 앞 3초를 포함한 WAV 구간 저장", "save_candidate_clips", true));
         page.addView(measure, cardParams());
 

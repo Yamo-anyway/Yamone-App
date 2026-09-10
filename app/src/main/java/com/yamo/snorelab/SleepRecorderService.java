@@ -89,7 +89,7 @@ public class SleepRecorderService extends Service {
         String errorText = null;
 
         int sensitivity = prefs.getInt("sensitivity", 65);
-        boolean fullRecording = prefs.getBoolean("developer_full_recording", true);
+        boolean fullRecording = prefs.getBoolean("developer_full_recording", false);
         boolean saveClips = prefs.getBoolean("save_candidate_clips", true);
 
         try {

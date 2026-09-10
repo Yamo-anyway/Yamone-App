@@ -40,7 +40,12 @@ public class AlarmRingService extends Service {
     private boolean ringing;
     private long ringStartedAt;
 
-    private final Runnable autoStop = () -> stopRinging(false);
+    private final Runnable autoStop = () -> {
+        if (item != null && item.retryCount == 0 && alarmId >= 0) {
+            AlarmScheduler.markActive(this, alarmId, false, 0);
+        }
+        stopRinging(false);
+    };
     private final Runnable volumeRamp = new Runnable() {
         @Override public void run() {
             if (!ringing || item == null) return;
