@@ -166,15 +166,18 @@ public final class LocationSharingHomeUiEnhancer {
         LinearLayout words = new LinearLayout(activity);
         words.setOrientation(LinearLayout.VERTICAL);
         words.setPadding(dp(activity, 9), 0, 0, 0);
-        TextView title = text(activity, "● 위치 공유 중", 15, primary2(activity), true);
+        TextView title = text(activity, "위치 공유 중", 15, primary2(activity), true);
         words.addView(title);
         TextView room = text(activity, "", 13, textColor(activity), true);
         room.setTag("active_room");
         room.setPadding(0, dp(activity, 2), 0, 0);
         words.addView(room);
         head.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView arrow = text(activity, "›", 27, primary2(activity), false);
-        head.addView(arrow);
+        TextView actionHint = text(activity, "보기", 11, primary2(activity), true);
+        actionHint.setGravity(Gravity.CENTER);
+        actionHint.setPadding(dp(activity, 9), 0, dp(activity, 9), 0);
+        actionHint.setBackground(round(activity, pink(activity) ? 0xFFFFE3EC : 0xFFDFF8F0, 13, 0, 0));
+        head.addView(actionHint, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(activity, 30)));
         card.addView(head);
 
         TextView info = text(activity, "", 11, muted(activity), false);
@@ -210,7 +213,7 @@ public final class LocationSharingHomeUiEnhancer {
             int count = LocationSharingStateStore.memberCount(activity);
             int interval = Math.max(1, LocationSharingStateStore.intervalSeconds(activity) / 60);
             String remaining = LocationSharingStateStore.remainingText(activity);
-            info.setText("👥 " + count + "명  ·  ⏱ " + remaining + "  ·  위치 " + interval + "분 간격");
+            info.setText("참여 " + count + "명  ·  " + remaining + "  ·  위치 " + interval + "분 간격");
         }
     }
 

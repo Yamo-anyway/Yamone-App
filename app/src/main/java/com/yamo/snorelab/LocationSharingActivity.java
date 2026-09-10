@@ -502,7 +502,7 @@ public class LocationSharingActivity extends Activity {
 
         LinearLayout myStatus = card();
         myStatus.addView(text("내 상태", 15, TEXT, true));
-        activeStatusHint = text("도움 필요·긴급 상태는 다른 참여자의 다음 확인 시 기기 알림으로 알려줘요.", 11, MUTED, false);
+        activeStatusHint = text("", 11, MUTED, false);
         activeStatusHint.setPadding(0, dp(4), 0, dp(10));
         myStatus.addView(activeStatusHint);
 
@@ -603,6 +603,7 @@ public class LocationSharingActivity extends Activity {
         activeInfo.setText(String.format(Locale.KOREAN, "참여 %d명 · 내 위치 %s 간격 공유", members.length(), intervalLabel(interval)));
         currentSelfStatus = self == null ? "normal" : self.optString("user_status", "normal");
         styleSelfStatus();
+        refreshStatusAlertHint();
         if (sharingMap != null) sharingMap.setMembers(members);
         renderParticipants(members);
     }
@@ -654,15 +655,13 @@ public class LocationSharingActivity extends Activity {
             }
             row.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-            TextView badge = text("normal".equals(userStatus) ? "●" : userStatusShortLabel(userStatus),
-                    "normal".equals(userStatus) ? 14 : 10, userStatusColor(userStatus, self, state), true);
-            badge.setGravity(Gravity.CENTER);
             if (!"normal".equals(userStatus)) {
+                TextView badge = text(userStatusShortLabel(userStatus), 10, userStatusColor(userStatus, self, state), true);
+                badge.setGravity(Gravity.CENTER);
                 badge.setPadding(dp(8), 0, dp(8), 0);
                 badge.setBackground(round(userStatusBackground(userStatus), 12, 1, userStatusColor(userStatus, self, state)));
+                row.addView(badge, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(28)));
             }
-            row.addView(badge, new LinearLayout.LayoutParams(
-                    "normal".equals(userStatus) ? dp(24) : ViewGroup.LayoutParams.WRAP_CONTENT, dp(28)));
 
             final String memberId = member.optString("member_id", "");
             final String memberNickname = nickname;
@@ -716,10 +715,7 @@ public class LocationSharingActivity extends Activity {
             @Override public void onSuccess(JSONObject data) {
                 runOnUiThread(() -> {
                     applySnapshot(data);
-                    if (activeStatusHint != null) {
-                        activeStatusHint.setText("도움 필요·긴급 상태는 다른 참여자의 다음 확인 시 기기 알림으로 알려줘요.");
-                        activeStatusHint.setTextColor(MUTED);
-                    }
+                    refreshStatusAlertHint();
                 });
             }
             @Override public void onFailure(String message) {
@@ -732,6 +728,17 @@ public class LocationSharingActivity extends Activity {
                 });
             }
         });
+    }
+
+    private void refreshStatusAlertHint() {
+        if (activeStatusHint == null) return;
+        if (hasNotificationPermission()) {
+            activeStatusHint.setText("도움 필요·긴급 상태는 다른 참여자의 다음 확인 시 기기 알림으로 알려줘요.");
+            activeStatusHint.setTextColor(MUTED);
+        } else {
+            activeStatusHint.setText("알림 권한이 꺼져 있어요. 상태는 화면에서 확인할 수 있지만 도움·긴급 기기 알림은 표시되지 않아요.");
+            activeStatusHint.setTextColor(WARNING);
+        }
     }
 
     private void styleSelfStatus() {
@@ -882,6 +889,7 @@ public class LocationSharingActivity extends Activity {
             pendingSubmitAfterPermission = false;
             submit();
         } else if (activeScreen) LocationSharingService.start(this);
+        if (activeScreen) refreshStatusAlertHint();
     }
 
     private boolean hasLocationPermission() {

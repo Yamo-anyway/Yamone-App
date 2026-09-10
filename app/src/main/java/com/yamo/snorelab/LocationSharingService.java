@@ -65,6 +65,7 @@ public final class LocationSharingService extends Service {
     private boolean gpsRegistered;
     private boolean networkRegistered;
     private long lastReportAttemptAt;
+    private final Runnable locationRetry = this::reportLatestIfNew;
 
     private final Runnable reporter = new Runnable() {
         @Override public void run() {
@@ -362,12 +363,22 @@ public final class LocationSharingService extends Service {
                     @Override public void onSuccess(JSONObject data) {
                         handler.post(() -> {
                             reportInFlight = false;
-                            lastReportedLocationReceivedAt = Math.max(lastReportedLocationReceivedAt, candidateReceipt);
-                            if (wasInitialFix) {
-                                initialFixPending = false;
-                                LocationSharingApi.invalidateSnapshot();
-                                // Fast location updates are only used until the first successful upload.
-                                startLocationUpdates();
+                            handler.removeCallbacks(locationRetry);
+                            boolean skipped = data.optBoolean("skipped", false);
+                            if (skipped) {
+                                long nextAllowed = parseInstant(data.optString("next_allowed_at", ""));
+                                long delay = nextAllowed > System.currentTimeMillis()
+                                        ? Math.max(1_000L, nextAllowed - System.currentTimeMillis() + 750L)
+                                        : MIN_NETWORK_INTERVAL_MS;
+                                handler.postDelayed(locationRetry, delay);
+                            } else {
+                                lastReportedLocationReceivedAt = Math.max(lastReportedLocationReceivedAt, candidateReceipt);
+                                if (wasInitialFix) {
+                                    initialFixPending = false;
+                                    LocationSharingApi.invalidateSnapshot();
+                                    // Fast location updates are only used until the first successful upload.
+                                    startLocationUpdates();
+                                }
                             }
                             long serverUntil = parseInstant(data.optString("share_until", ""));
                             if (serverUntil > 0) shareUntilMs = serverUntil;
@@ -388,6 +399,8 @@ public final class LocationSharingService extends Service {
                                 stopSelf();
                             } else {
                                 updateNotification("네트워크 연결 대기 중 · 위치 공유 유지");
+                                handler.removeCallbacks(locationRetry);
+                                handler.postDelayed(locationRetry, MIN_NETWORK_INTERVAL_MS);
                             }
                         });
                     }
