@@ -646,7 +646,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private static float clamp(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }
 
     @Override public void onSensorChanged(SensorEvent event) {
-        if (isCycling() || !recording || event == null || event.sensor == null || event.sensor.getType() != Sensor.TYPE_STEP_COUNTER) return;
+        if (isCycling() || !recording || paused || event == null || event.sensor == null || event.sensor.getType() != Sensor.TYPE_STEP_COUNTER) return;
         float current = event.values.length > 0 ? event.values[0] : 0f;
         if (stepBase < 0) stepBase = current - steps;
         long previousSteps = steps;
@@ -678,6 +678,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         lastAcceptedTime = 0;
         lastAcceptedSpeedMps = 0f;
         lastStepDetectedMs = 0;
+        stepBase = -1f;
         currentSpeedKmh = 0;
         resetAutoPending();
         resetMaxSpeedCandidate();

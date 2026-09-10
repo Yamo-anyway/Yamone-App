@@ -627,6 +627,24 @@ public class SkiRecorderService extends Service {
             stopSelf();
             return;
         }
+        if (!recording) {
+            sport = runtime.getString(KEY_SPORT, "ski");
+            startMs = runtime.getLong(KEY_START_MS, 0L);
+            String path = runtime.getString(KEY_SESSION_DIR, "");
+            sessionDir = path.isEmpty() ? null : new File(path);
+            maxSpeedKmh = runtime.getFloat(KEY_MAX_SPEED_KMH, 0f);
+            smoothedAltitude = runtime.getFloat(KEY_ALTITUDE_M, Float.NaN);
+            accuracyM = runtime.getFloat(KEY_ACCURACY_M, Float.NaN);
+            descentCount = runtime.getInt(KEY_DESCENT_COUNT, 0);
+            liftCount = runtime.getInt(KEY_LIFT_COUNT, 0);
+            descentDistanceM = runtime.getLong(KEY_DESCENT_DISTANCE_M, 0L);
+            descentVerticalM = runtime.getLong(KEY_DESCENT_VERTICAL_M, 0L);
+            liftTimeMs = runtime.getLong(KEY_LIFT_TIME_MS, 0L);
+            waitTimeMs = runtime.getLong(KEY_WAIT_TIME_MS, 0L);
+            state = STATE_CHECKING;
+            currentSpeedKmh = 0f;
+            clearActiveLift();
+        }
         recording = true;
         if (sessionDir == null) {
             String path = runtime.getString(KEY_SESSION_DIR, "");
