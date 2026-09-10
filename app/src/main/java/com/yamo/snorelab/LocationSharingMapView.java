@@ -160,14 +160,36 @@ public final class LocationSharingMapView extends FrameLayout {
     public void moveToSelf() {
         if (map == null) return;
         if (selfLatLng == null) {
-            status.setText("아직 내 위치를 받지 못했어요.");
-            status.setVisibility(VISIBLE);
-            postDelayed(() -> {
-                if (map != null && selfLatLng != null) status.setVisibility(GONE);
-            }, 1800);
+            showTransientStatus("아직 내 위치를 받지 못했어요.");
             return;
         }
         map.animateCamera(CameraUpdateFactory.newLatLngZoom(selfLatLng, 16.0), 420);
+    }
+
+    public boolean moveToMember(String memberId, String nickname) {
+        if (map == null || memberId == null || memberId.isEmpty()) return false;
+        for (int i = 0; i < members.length(); i++) {
+            JSONObject member = members.optJSONObject(i);
+            if (member == null || !memberId.equals(member.optString("member_id", ""))) continue;
+            if (member.isNull("last_lat") || member.isNull("last_lon")) {
+                showTransientStatus((nickname == null || nickname.isEmpty() ? "선택한 사용자" : nickname) + "님의 위치를 아직 받지 못했어요.");
+                return false;
+            }
+            double lat = member.optDouble("last_lat", Double.NaN);
+            double lon = member.optDouble("last_lon", Double.NaN);
+            if (Double.isNaN(lat) || Double.isNaN(lon)) return false;
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lat, lon), 16.0), 420);
+            return true;
+        }
+        return false;
+    }
+
+    private void showTransientStatus(String message) {
+        status.setText(message);
+        status.setVisibility(VISIBLE);
+        postDelayed(() -> {
+            if (map != null) status.setVisibility(GONE);
+        }, 1800);
     }
 
     private Bitmap markerBitmap(String label, boolean self, String state, String userStatus) {

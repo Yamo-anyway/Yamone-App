@@ -659,6 +659,17 @@ public class LocationSharingActivity extends Activity {
             row.addView(badge, new LinearLayout.LayoutParams(
                     "normal".equals(userStatus) ? dp(24) : ViewGroup.LayoutParams.WRAP_CONTENT, dp(28)));
 
+            final String memberId = member.optString("member_id", "");
+            final String memberNickname = nickname;
+            row.setClickable(true);
+            row.setFocusable(true);
+            row.setOnClickListener(v -> {
+                if (sharingMap == null) return;
+                if (!sharingMap.moveToMember(memberId, memberNickname)) {
+                    toast(memberNickname + "님의 위치를 아직 받지 못했어요.");
+                }
+            });
+
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             if (i > 0) rp.topMargin = dp(7);
             participantList.addView(row, rp);
