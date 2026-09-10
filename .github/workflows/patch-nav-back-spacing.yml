@@ -1,4 +1,4 @@
-name: Patch Yamone navigation and spacing
+name: Patch Yamone activity scroll and navigation
 
 on:
   push:
@@ -15,15 +15,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Remove duplicate alarm back handler
-        run: python3 .github/scripts/fix_alarm_duplicate.py
+      - name: Fix activity scroll reset and navigation transition
+        run: python3 .github/scripts/fix_activity_scroll_and_nav.py
+
+      - name: Verify fixes
+        run: |
+          grep -q 'Clear stale live-view references' app/src/main/java/com/yamo/snorelab/ExerciseActivity.java
+          grep -q 'Animation.SnoreLab.NoTransition' app/src/main/res/values/themes.xml
 
       - name: Commit fix
         run: |
-          git config user.name 'Yamo'
-          git config user.email 'diahnet@naver.com'
-          git add app/src/main/java/com/yamo/snorelab/AlarmActivity.java
-          git commit -m 'Fix duplicate alarm back handler'
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab/ExerciseActivity.java app/src/main/res/values/themes.xml
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix activity scroll reset and bottom navigation transitions'
           git push
