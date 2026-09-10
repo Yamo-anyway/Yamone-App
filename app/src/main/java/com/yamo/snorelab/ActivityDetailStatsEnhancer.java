@@ -68,8 +68,8 @@ public final class ActivityDetailStatsEnhancer {
 
         if (analysis.hasAltitude) {
             LinearLayout elevation = card(activity);
-            elevation.addView(text(activity, "고도 변화", 15, textColor(activity), true));
-            TextView sub = text(activity, "활동 전체 시간에 따른 GPS 고도 변화", 11, muted(activity), false);
+            elevation.addView(text(activity, "고도", 15, textColor(activity), true));
+            TextView sub = text(activity, "전체 기록 · 두 손가락 확대 · 좌우 이동", 11, muted(activity), false);
             sub.setPadding(0, dp(activity, 4), 0, dp(activity, 4));
             elevation.addView(sub);
             ActivityProfileChartView chart = new ActivityProfileChartView(activity);
@@ -90,8 +90,8 @@ public final class ActivityDetailStatsEnhancer {
 
         if (analysis.hasSpeed) {
             LinearLayout speed = card(activity);
-            speed.addView(text(activity, "속도 변화", 15, textColor(activity), true));
-            TextView sub = text(activity, "GPS가 안정된 구간의 이동 속도 변화", 11, muted(activity), false);
+            speed.addView(text(activity, "속도", 15, textColor(activity), true));
+            TextView sub = text(activity, "GPS 안정 구간 · 두 손가락 확대 · 좌우 이동", 11, muted(activity), false);
             sub.setPadding(0, dp(activity, 4), 0, dp(activity, 4));
             speed.addView(sub);
             ActivityProfileChartView chart = new ActivityProfileChartView(activity);

@@ -206,7 +206,7 @@ public final class HikingActivity extends Activity {
 
     private void buildDetail(File dir) {
         JSONObject meta = HikingStore.readMeta(dir);
-        page.addView(header("등산 / 트레킹 기록", "경로와 고도 변화를 확인해요", v -> {
+        page.addView(header("등산 / 트레킹 기록", "경로와 고도를 확인해요", v -> {
             detailSession = null;
             render();
         }));
@@ -243,8 +243,8 @@ public final class HikingActivity extends Activity {
 
         if (analysis.hasAltitude) {
             LinearLayout elevation = card();
-            elevation.addView(text("고도 변화", 15, textColor(), true));
-            TextView sub = text("활동 전체 시간에 따른 고도 변화", 11, muted(), false);
+            elevation.addView(text("고도", 15, textColor(), true));
+            TextView sub = text("전체 기록 · 두 손가락 확대 · 좌우 이동", 11, muted(), false);
             sub.setPadding(0, dp(4), 0, dp(4));
             elevation.addView(sub);
             ActivityProfileChartView chart = new ActivityProfileChartView(this);
@@ -260,7 +260,7 @@ public final class HikingActivity extends Activity {
 
         if (analysis.hasSpeed) {
             LinearLayout speed = card();
-            speed.addView(text("이동 속도 변화", 15, textColor(), true));
+            speed.addView(text("속도", 15, textColor(), true));
             ActivityProfileChartView chart = new ActivityProfileChartView(this);
             chart.setData(analysis, ActivityProfileChartView.MODE_SPEED);
             speed.addView(chart, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(165)));
