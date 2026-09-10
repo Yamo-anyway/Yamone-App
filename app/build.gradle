@@ -10,8 +10,8 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 39
-        versionName '0.3.36-location-status-alerts'
+        versionCode 40
+        versionName '0.3.37-location-status-hardening'
         manifestPlaceholders = [appLabel: '야모네']
     }
 
