@@ -145,7 +145,7 @@ public final class ActivityProfileChartView extends View {
             if (hasRange) {
                 float v = fullMaxValue - (fullMaxValue - fullMinValue) * ratio;
                 text.setTextAlign(Paint.Align.RIGHT);
-                canvas.drawText(formatValue(v), left - dp(7), y + dp(3.5f), text);
+                canvas.drawText(formatValue(v), left - dp(4), y + dp(3.5f), text);
             }
         }
         canvas.drawLine(left, top, left, bottom, axis);
@@ -254,8 +254,16 @@ public final class ActivityProfileChartView extends View {
     }
 
     private float plotLeft() {
-        // Enough room for values like "123.4km/h" while keeping Y labels on the left only.
-        return dp(mode == MODE_ALTITUDE ? 48 : 67);
+        // Keep only the width actually needed by the widest Y-axis label plus a compact gap.
+        // This gives the graph substantially more horizontal room than the old fixed 48/67dp margin.
+        if (!hasRange) return dp(mode == MODE_ALTITUDE ? 30 : 42);
+        float widest = 0f;
+        for (int i = 0; i <= 4; i++) {
+            float ratio = i / 4f;
+            float value = fullMaxValue - (fullMaxValue - fullMinValue) * ratio;
+            widest = Math.max(widest, text.measureText(formatValue(value)));
+        }
+        return Math.max(dp(24), widest + dp(6));
     }
 
     private float plotRight() {
