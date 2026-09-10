@@ -234,6 +234,7 @@ public final class HikingActivity extends Activity {
             LinearLayout route = card();
             route.addView(text("이동 경로", 15, textColor(), true));
             WalkingMapView map = new WalkingMapView(this);
+            map.setInteractive(true);
             map.setAnalysisSamples(analysis.samples);
             LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(230));
             mp.topMargin = dp(8);

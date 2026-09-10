@@ -876,7 +876,7 @@ public class ExerciseActivity extends Activity {
             page.addView(modes, cardParams());
         }
 
-        LinearLayout routeCard = card(); routeCard.addView(text("이동 경로", 15, TEXT, true)); WalkingMapView rv = new WalkingMapView(this); rv.setPoints(WalkingStore.readRoute(dir, 1200)); LinearLayout.LayoutParams rp = match(dp(230)); rp.topMargin = dp(8); routeCard.addView(rv, rp); page.addView(routeCard, cardParams());
+        LinearLayout routeCard = card(); routeCard.addView(text("이동 경로", 15, TEXT, true)); WalkingMapView rv = new WalkingMapView(this); rv.setInteractive(true); rv.setPoints(WalkingStore.readRoute(dir, 1200)); LinearLayout.LayoutParams rp = match(dp(230)); rp.topMargin = dp(8); routeCard.addView(rv, rp); page.addView(routeCard, cardParams());
 
         JSONArray splits = m.optJSONArray("splitsMs");
         if (splits != null && splits.length() > 0) {
