@@ -29,16 +29,7 @@ import static org.maplibre.android.style.layers.PropertyFactory.lineJoin;
 import static org.maplibre.android.style.layers.PropertyFactory.lineOpacity;
 import static org.maplibre.android.style.layers.PropertyFactory.lineWidth;
 
-/**
- * Lightweight route map used by activity screens.
- *
- * Performance rules:
- * - The stored route is never changed, but only up to MAX_RENDER_POINTS are sent to the map renderer.
- * - Only pan + pinch zoom are enabled. Rotation/tilt/quick-zoom are kept off.
- * - The furthest zoom-out is the zoom that fits the recorded activity route.
- * - Camera targets are constrained to the recorded route bounds with a very small margin.
- * - One-finger vertical movement is yielded to the parent ScrollView; horizontal drag and pinch stay on the map.
- */
+/** Lightweight route map shared by live and completed activity screens. */
 public class WalkingMapView extends FrameLayout {
     private static final String STYLE_URI = "https://tiles.openfreemap.org/styles/liberty";
     private static final String SOURCE_ID = "walking-route-source";
@@ -56,6 +47,7 @@ public class WalkingMapView extends FrameLayout {
     private boolean resumed;
     private boolean destroyed;
     private boolean styleReady;
+    private boolean interactive;
     private float touchDownX;
     private float touchDownY;
 
@@ -74,10 +66,8 @@ public class WalkingMapView extends FrameLayout {
         mapView = new MapView(context);
         mapView.onCreate(null);
         mapView.setAlpha(0f);
-        mapView.setClickable(true);
-        mapView.setFocusable(true);
-        mapView.setEnabled(true);
         installScrollFriendlyTouchHandling();
+        applyInteractionMode();
         addView(mapView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -95,17 +85,7 @@ public class WalkingMapView extends FrameLayout {
 
         mapView.getMapAsync(value -> {
             map = value;
-            try {
-                map.getUiSettings().setAllGesturesEnabled(false);
-                map.getUiSettings().setScrollGesturesEnabled(true);
-                map.getUiSettings().setZoomGesturesEnabled(true);
-                map.getUiSettings().setRotateGesturesEnabled(false);
-                map.getUiSettings().setTiltGesturesEnabled(false);
-                map.getUiSettings().setDoubleTapGesturesEnabled(false);
-                map.getUiSettings().setQuickZoomGesturesEnabled(false);
-                map.getUiSettings().setAllVelocityAnimationsEnabled(false);
-                map.getUiSettings().setCompassEnabled(false);
-            } catch (Exception ignored) {}
+            applyInteractionMode();
             map.setStyle(STYLE_URI, style -> {
                 routeSource = new GeoJsonSource(SOURCE_ID);
                 style.addSource(routeSource);
@@ -123,8 +103,38 @@ public class WalkingMapView extends FrameLayout {
         });
     }
 
+    /** Completed-record screens opt in. Live recording maps stay fixed for smooth GPS updates. */
+    public void setInteractive(boolean value) {
+        interactive = value;
+        applyInteractionMode();
+    }
+
+    private void applyInteractionMode() {
+        mapView.setEnabled(interactive);
+        mapView.setClickable(interactive);
+        mapView.setFocusable(interactive);
+        if (map == null) return;
+        try {
+            map.getUiSettings().setAllGesturesEnabled(false);
+            if (interactive) {
+                map.getUiSettings().setScrollGesturesEnabled(true);
+                map.getUiSettings().setZoomGesturesEnabled(true);
+            }
+            map.getUiSettings().setRotateGesturesEnabled(false);
+            map.getUiSettings().setTiltGesturesEnabled(false);
+            map.getUiSettings().setDoubleTapGesturesEnabled(false);
+            map.getUiSettings().setQuickZoomGesturesEnabled(false);
+            map.getUiSettings().setAllVelocityAnimationsEnabled(false);
+            map.getUiSettings().setCompassEnabled(false);
+        } catch (Exception ignored) {}
+    }
+
     private void installScrollFriendlyTouchHandling() {
         mapView.setOnTouchListener((v, event) -> {
+            if (!interactive) {
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                return false;
+            }
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_DOWN) {
                 touchDownX = event.getX();
@@ -138,7 +148,6 @@ public class WalkingMapView extends FrameLayout {
                 } else {
                     float dx = Math.abs(event.getX() - touchDownX);
                     float dy = Math.abs(event.getY() - touchDownY);
-                    // Vertical one-finger motion remains page scrolling. Horizontal motion pans the map.
                     boolean mapGesture = dx > dp(6) && dx > dy * 1.15f;
                     if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(mapGesture);
                 }
@@ -195,14 +204,12 @@ public class WalkingMapView extends FrameLayout {
 
     private void updateRoute() {
         if (!styleReady || routeSource == null || map == null || points.isEmpty()) return;
-
         List<WalkingStore.Point> visible = renderPoints();
         ArrayList<Point> geo = new ArrayList<>(visible.size());
         for (WalkingStore.Point p : visible) geo.add(Point.fromLngLat(p.lon, p.lat));
         if (geo.size() >= 2) routeSource.setGeoJson(LineString.fromLngLats(geo));
         else routeSource.setGeoJson(Point.fromLngLat(points.get(0).lon, points.get(0).lat));
-
-        post(() -> fitAndConstrainCamera());
+        post(this::fitAndConstrainCamera);
     }
 
     private void fitAndConstrainCamera() {
@@ -229,16 +236,11 @@ public class WalkingMapView extends FrameLayout {
                 }
                 LatLngBounds routeBounds = routeBuilder.build();
                 int pad = dp(26);
-                CameraPosition fit = map.getCameraForLatLngBounds(
-                        routeBounds, new int[]{pad, pad, pad, pad});
-                if (fit != null) {
-                    // This is the maximum permitted zoom-out: the full activity already fits here.
-                    map.setMinZoomPreference(fit.zoom);
-                }
+                CameraPosition fit = map.getCameraForLatLngBounds(routeBounds, new int[]{pad, pad, pad, pad});
+                if (fit != null) map.setMinZoomPreference(fit.zoom);
                 map.setLatLngBoundsForCameraTarget(expandedTargetBounds(minLat, maxLat, minLon, maxLon));
                 map.moveCamera(CameraUpdateFactory.newLatLngBounds(routeBounds, pad));
             }
-
             mapView.postDelayed(() -> {
                 mapView.setAlpha(1f);
                 status.setVisibility(GONE);
