@@ -8,7 +8,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.TextView;
 
-/** Theme-colored Yamone bottom navigation item with stronger selected state. */
+/** Theme-colored Yamone bottom navigation item with equal optical icon sizing. */
 public final class YamoneBottomNav {
     private YamoneBottomNav() {}
 
@@ -17,6 +17,7 @@ public final class YamoneBottomNav {
                                   View.OnClickListener click) {
         TextView item = new TextView(activity);
         item.setText(label);
+        item.setTextSize(11.5f);
         item.setGravity(Gravity.CENTER);
         item.setCompoundDrawablePadding(dp(activity, 3));
         item.setPadding(dp(activity, 6), dp(activity, 5), dp(activity, 6), dp(activity, 4));
@@ -33,7 +34,7 @@ public final class YamoneBottomNav {
         if (item == null) return;
         int color = selected ? activeColor : mutedColor;
         item.setTextColor(color);
-        item.setTextSize(selected ? 12.2f : 11.2f);
+        item.setTextSize(11.5f);
         item.setAlpha(selected ? 1f : 0.72f);
         item.setTypeface(android.graphics.Typeface.DEFAULT,
                 selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
@@ -42,7 +43,7 @@ public final class YamoneBottomNav {
         if (tag instanceof Integer) {
             Drawable icon = activity.getResources().getDrawable((Integer) tag).mutate();
             if (Build.VERSION.SDK_INT >= 21) icon.setTint(color);
-            int iconSize = dp(activity, selected ? 26 : 22);
+            int iconSize = dp(activity, 24);
             icon.setBounds(0, 0, iconSize, iconSize);
             item.setCompoundDrawables(null, icon, null, null);
         }
