@@ -1,0 +1,27 @@
+name: Apply Yamone location UI redesign
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-location-ui-v044.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply location and navigation UI redesign
+        run: python3 .github/scripts/patch_location_ui_v044.py
+      - name: Commit changes
+        run: |
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab
+          git commit -m 'Redesign location sharing and themed navigation'
+          git push
