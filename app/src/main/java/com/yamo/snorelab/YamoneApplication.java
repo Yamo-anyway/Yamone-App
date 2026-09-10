@@ -1,13 +1,17 @@
 package com.yamo.snorelab;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 
 /** Installs Yamone UI enhancements and keeps the launcher entry on Home. */
 public class YamoneApplication extends Application implements Application.ActivityLifecycleCallbacks {
+    private boolean locationSharingRecoveryAttempted;
+
     @Override public void onCreate() {
         super.onCreate();
         registerActivityLifecycleCallbacks(this);
@@ -37,6 +41,7 @@ public class YamoneApplication extends Application implements Application.Activi
             ProfileSettingsUiEnhancer.attach(main);
             LocationSharingHomeUiEnhancer.attach(main);
             LocationSharingHomeUiEnhancer.refresh(main);
+            recoverLocationSharingIfNeeded(main);
         }
 
         if (activity instanceof LocationExerciseActivity
@@ -46,6 +51,15 @@ public class YamoneApplication extends Application implements Application.Activi
                 || activity instanceof HikingActivity) {
             ActivitySystemBarUiEnhancer.apply(activity);
         }
+    }
+
+    private void recoverLocationSharingIfNeeded(MainActivity activity) {
+        if (locationSharingRecoveryAttempted) return;
+        locationSharingRecoveryAttempted = true;
+        if (!LocationSharingStateStore.isActive(activity)) return;
+        boolean hasLocation = activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (hasLocation) LocationSharingService.start(activity);
     }
 
     @Override public void onActivityDestroyed(Activity activity) {

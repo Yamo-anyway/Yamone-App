@@ -62,6 +62,8 @@ public final class LocationSharingService extends Service {
     private boolean leaveInFlight;
     private boolean initialFixPending;
     private boolean statusPollInFlight;
+    private boolean gpsRegistered;
+    private boolean networkRegistered;
     private long lastReportAttemptAt;
 
     private final Runnable reporter = new Runnable() {
@@ -98,6 +100,7 @@ public final class LocationSharingService extends Service {
     private final Runnable statusPoller = new Runnable() {
         @Override public void run() {
             if (!configured) return;
+            refreshLocationProviderRegistrations();
             pollStatusSnapshot();
             handler.postDelayed(this, STATUS_POLL_MS);
         }
@@ -261,6 +264,7 @@ public final class LocationSharingService extends Service {
                         0f,
                         locationListener,
                         Looper.getMainLooper());
+                gpsRegistered = true;
             }
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 locationManager.requestLocationUpdates(
@@ -269,8 +273,30 @@ public final class LocationSharingService extends Service {
                         0f,
                         locationListener,
                         Looper.getMainLooper());
+                networkRegistered = true;
             }
         } catch (SecurityException ignored) {}
+    }
+
+    private void refreshLocationProviderRegistrations() {
+        if (!configured || !hasLocationPermission()) return;
+        LocationManager manager = locationManager;
+        if (manager == null) manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (manager == null) return;
+
+        boolean gpsEnabled = false;
+        boolean networkEnabled = false;
+        try { gpsEnabled = manager.isProviderEnabled(LocationManager.GPS_PROVIDER); }
+        catch (Exception ignored) {}
+        try { networkEnabled = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER); }
+        catch (Exception ignored) {}
+
+        if (!gpsEnabled) gpsRegistered = false;
+        if (!networkEnabled) networkRegistered = false;
+
+        if ((gpsEnabled && !gpsRegistered) || (networkEnabled && !networkRegistered)) {
+            startLocationUpdates();
+        }
     }
 
     private void tryRecentLastKnownLocation() {
@@ -467,6 +493,8 @@ public final class LocationSharingService extends Service {
         }
         locationListener = null;
         locationManager = null;
+        gpsRegistered = false;
+        networkRegistered = false;
     }
 
     private boolean hasLocationPermission() {
