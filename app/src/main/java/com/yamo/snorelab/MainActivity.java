@@ -509,8 +509,7 @@ public class MainActivity extends Activity {
             elapsed.setPadding(0, dp(5), 0, dp(5));
             live.addView(elapsed);
 
-            TextView hint = text("화면을 꺼도 계속 측정해요.
-편안하게 좋은 꿈 꾸세요 ♡", 12, MUTED, false);
+            TextView hint = text("화면을 꺼도 계속 측정해요.\n편안하게 좋은 꿈 꾸세요 ♡", 12, MUTED, false);
             hint.setGravity(Gravity.CENTER);
             live.addView(hint);
 
