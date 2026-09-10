@@ -504,8 +504,10 @@ public class LocationSharingActivity extends Activity {
         timeRow.setPadding(dp(12), dp(8), dp(10), dp(8));
 
         activeRemaining = text("남은 시간 확인 중…", 13, TEXT, true);
+        activeRemaining.setGravity(Gravity.CENTER_VERTICAL);
+        activeRemaining.setIncludeFontPadding(false);
         timeRow.addView(activeRemaining, new LinearLayout.LayoutParams(
-                0, dp(42), 1f));
+                0, dp(40), 1f));
 
         Button extend = softButton("시간 연장");
         extend.setTextSize(11);
@@ -642,12 +644,15 @@ public class LocationSharingActivity extends Activity {
 
             TextView name = text(nickname + (self ? "  (나)" : ""), 12, TEXT, self);
             name.setSingleLine(true);
+            name.setGravity(Gravity.CENTER_VERTICAL);
+            name.setIncludeFontPadding(false);
             row.addView(name, new LinearLayout.LayoutParams(0, dp(34), 1f));
 
             String age = ageText(lastLocationAt);
             TextView ageView = text(age.isEmpty() ? "위치 대기" : age, 11, MUTED, false);
             ageView.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
             ageView.setSingleLine(true);
+            ageView.setIncludeFontPadding(false);
             row.addView(ageView, new LinearLayout.LayoutParams(dp(76), dp(34)));
 
             final String memberId = member.optString("member_id", "");
@@ -945,21 +950,27 @@ public class LocationSharingActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dp(14), dp(10), dp(12), dp(10));
+        // 64dp card: 44dp icon + 6dp vertical padding fits without clipping.
+        card.setPadding(dp(14), dp(6), dp(12), dp(6));
         card.setBackground(round(CARD, 22, 1, BORDER));
         if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(primary ? 2 : 1));
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
         icon.setColorFilter(PRIMARY2);
-        icon.setPadding(dp(11), dp(11), dp(11), dp(11));
-        icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 24, 0, 0));
-        card.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        icon.setPadding(dp(10), dp(10), dp(10), dp(10));
+        icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 22, 0, 0));
+        card.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
+        words.setGravity(Gravity.CENTER_VERTICAL);
         words.setPadding(dp(12), 0, dp(8), 0);
-        words.addView(text(title, 15, TEXT, true));
+        TextView titleView = text(title, 15, TEXT, true);
+        titleView.setSingleLine(true);
+        titleView.setGravity(Gravity.CENTER_VERTICAL);
+        titleView.setIncludeFontPadding(false);
+        words.addView(titleView);
         if (subtitle != null && !subtitle.trim().isEmpty()) {
             TextView sub = text(subtitle, 11, MUTED, false);
             sub.setPadding(0, dp(3), 0, 0);
@@ -970,9 +981,9 @@ public class LocationSharingActivity extends Activity {
         ImageView arrow = new ImageView(this);
         arrow.setImageResource(R.drawable.ic_yamone_chevron_right);
         arrow.setColorFilter(PRIMARY2);
-        arrow.setPadding(dp(8), dp(8), dp(8), dp(8));
-        arrow.setBackground(round(CARD2, 18, 0, 0));
-        card.addView(arrow, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        arrow.setPadding(dp(7), dp(7), dp(7), dp(7));
+        arrow.setBackground(round(CARD2, 17, 0, 0));
+        card.addView(arrow, new LinearLayout.LayoutParams(dp(34), dp(34)));
         return card;
     }
 
@@ -1012,6 +1023,12 @@ public class LocationSharingActivity extends Activity {
         b.setTextSize(15);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setAllCaps(false);
+        b.setGravity(Gravity.CENTER);
+        b.setIncludeFontPadding(false);
+        b.setPadding(0, 0, 0, 0);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);
         b.setBackground(round(pinkButton ? 0xFFFF6F98 : 0xFF45CDAE, 18, 0, 0));
         return b;
     }
@@ -1023,6 +1040,12 @@ public class LocationSharingActivity extends Activity {
         b.setTextSize(14);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setAllCaps(false);
+        b.setGravity(Gravity.CENTER);
+        b.setIncludeFontPadding(false);
+        b.setPadding(0, 0, 0, 0);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);
         b.setBackground(round(CARD2, 16, 1, BORDER));
         return b;
     }
@@ -1034,6 +1057,12 @@ public class LocationSharingActivity extends Activity {
         b.setTextSize(14);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setAllCaps(false);
+        b.setGravity(Gravity.CENTER);
+        b.setIncludeFontPadding(false);
+        b.setPadding(0, 0, 0, 0);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);
         b.setBackground(round(DANGER_BG, 16, 1, DANGER_BORDER));
         return b;
     }
