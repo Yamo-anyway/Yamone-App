@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Soft white badge behind the mark so the icon stays readable at small sizes. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,20C35.2,20 20,35.2 20,54s15.2,34 34,34 34,-15.2 34,-34S72.8,20 54,20z" />
+
+    <!-- Yamone Y: rounded, friendly and deliberately simple for launcher-size rendering. -->
+    <path
+        android:fillColor="#FF159A7A"
+        android:pathData="M35.5,37.5c-2.1,0 -3.8,1.7 -3.8,3.8c0,1 0.4,2 1.1,2.7l16,16v13.7c0,2.9 2.3,5.2 5.2,5.2s5.2,-2.3 5.2,-5.2V60l16,-16c0.7,-0.7 1.1,-1.7 1.1,-2.7c0,-2.1 -1.7,-3.8 -3.8,-3.8c-1,0 -2,0.4 -2.7,1.1L54,54.5L38.2,38.6c-0.7,-0.7 -1.7,-1.1 -2.7,-1.1z" />
+
+    <!-- Small pink heart accent, matching Yamone's mint/pink visual language. -->
+    <path
+        android:fillColor="#FFFF769F"
+        android:pathData="M73.8,27.7c-3.5,0 -5.6,2.2 -6.8,4.1c-1.2,-1.9 -3.3,-4.1 -6.8,-4.1c-4.3,0 -7.5,3.4 -7.5,7.7c0,6.1 7.4,11.1 14.3,16.1c6.9,-5 14.3,-10 14.3,-16.1c0,-4.3 -3.2,-7.7 -7.5,-7.7z" />
+</vector>
