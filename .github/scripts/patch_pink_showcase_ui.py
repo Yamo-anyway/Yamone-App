@@ -1,0 +1,246 @@
+from pathlib import Path
+
+ROOT = Path('app/src/main/java/com/yamo/snorelab')
+
+
+def replace_method(path, signature, replacement):
+    p = Path(path)
+    s = p.read_text()
+    start = s.find(signature)
+    if start < 0:
+        raise SystemExit(f'{path}: method not found: {signature}')
+    brace = s.find('{', start)
+    depth = 0
+    end = None
+    for i in range(brace, len(s)):
+        if s[i] == '{':
+            depth += 1
+        elif s[i] == '}':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end is None:
+        raise SystemExit(f'{path}: method close not found')
+    p.write_text(s[:start] + replacement + s[end + 1:])
+
+
+# Pink-first fresh-install default. Explicit saved choices still win.
+for name in ['MainActivity.java', 'AlarmActivity.java', 'ActivitySystemBarUiEnhancer.java', 'LocationExerciseActivity.java']:
+    p = ROOT / name
+    s = p.read_text()
+    s = s.replace('getString(KEY_THEME, "mint")', 'getString(KEY_THEME, "pink")')
+    s = s.replace('getString("yamone_theme", "mint")', 'getString("yamone_theme", "pink")')
+    p.write_text(s)
+
+main = ROOT / 'MainActivity.java'
+s = main.read_text()
+old = '        String startScreen = getIntent().getStringExtra("start_screen");\n'
+new = ('        String settingsReturn = getIntent().getStringExtra("settings_return");\n'
+       '        if (settingsReturn != null && !settingsReturn.trim().isEmpty()) settingsReturnScreen = settingsReturn;\n'
+       '        String startScreen = getIntent().getStringExtra("start_screen");\n')
+if old not in s:
+    raise SystemExit('MainActivity start_screen anchor missing')
+s = s.replace(old, new, 1)
+s = s.replace('fixedHeader("야모네", "오늘도, 좋은 하루가 쌓여요.")',
+              'fixedHeader("홈", "좋은 하루예요! 오늘도 빛나는 당신을 응원해요 💕")', 1)
+s = s.replace('fixedBackHeader("수면 설정", "테마와 마이크 측정을 편하게 조절해요."',
+              'fixedBackHeader("설정", "야모네의 테마와 기록 환경을 편하게 조절해요."', 1)
+main.write_text(s)
+
+replace_method(
+    ROOT / 'MainActivity.java',
+    'private LinearLayout fixedHeader(String title, String subtitle)',
+'''private LinearLayout fixedHeader(String title, String subtitle) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(18), dp(8), dp(18), dp(9));
+        header.setBackgroundColor(BG);
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.setGravity(Gravity.CENTER_VERTICAL);
+        words.addView(text(title, 26, TEXT, true));
+        TextView sub = text(subtitle, 12, MUTED, false);
+        sub.setPadding(0, dp(2), 0, 0);
+        words.addView(sub);
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
+
+        TextView gear = text("⚙", 21, PRIMARY2, false);
+        gear.setGravity(Gravity.CENTER);
+        gear.setBackground(round(CARD, 24, 1, 0xFFFFD7E3));
+        gear.setOnClickListener(v -> { settingsReturnScreen = screen; showSettings(); });
+        header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        return header;
+    }''')
+
+replace_method(
+    ROOT / 'MainActivity.java',
+    'private void returnFromSettings()',
+'''private void returnFromSettings() {
+        String target = settingsReturnScreen;
+        settingsReturnScreen = "home";
+        if ("activity".equals(target)) {
+            startActivity(new Intent(this, LocationExerciseActivity.class));
+            finish();
+        } else if ("alarm".equals(target)) {
+            startActivity(new Intent(this, AlarmActivity.class));
+            finish();
+        } else if ("sleep".equals(target)) {
+            showSleep();
+        } else {
+            showHome();
+        }
+    }''')
+
+# Activity overview: main-page header with settings. Detail pages keep only Back.
+ex = ROOT / 'ExerciseActivity.java'
+s = ex.read_text()
+old = '''        content.removeAllViews();
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout page = page();
+        scroll.addView(page);
+        content.addView(scroll);
+
+        page.addView(text("활동", 24, TEXT, true));
+        TextView sub = text("걷기/러닝 · 자전거 · 스키/스노우보드", 12, MUTED, false);
+        sub.setPadding(0, dp(3), 0, dp(14));
+        page.addView(sub);
+'''
+new = '''        content.removeAllViews();
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setBackgroundColor(BG);
+        shell.addView(mainHeader("활동", "오늘도 움직여요! 작은 움직임이 큰 변화를 만들어요 💕"),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout page = page();
+        scroll.addView(page);
+        shell.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        content.addView(shell);
+'''
+if old not in s:
+    raise SystemExit('ExerciseActivity showHome header block missing')
+s = s.replace(old, new, 1)
+marker = '    private void showHome() {'
+insert = '''    private LinearLayout mainHeader(String title, String subtitle) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(18), dp(8), dp(18), dp(9));
+        header.setBackgroundColor(BG);
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.setGravity(Gravity.CENTER_VERTICAL);
+        words.addView(text(title, 26, TEXT, true));
+        TextView sub = text(subtitle, 12, MUTED, false);
+        sub.setPadding(0, dp(2), 0, 0);
+        words.addView(sub);
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
+
+        TextView gear = text("⚙", 21, PRIMARY2, false);
+        gear.setGravity(Gravity.CENTER);
+        gear.setBackground(round(CARD, 24, 1, 0xFF35445F));
+        gear.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class)
+                    .putExtra("start_screen", "settings")
+                    .putExtra("settings_return", "activity");
+            startActivity(intent);
+        });
+        header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        return header;
+    }
+
+'''
+idx = s.find(marker)
+if idx < 0:
+    raise SystemExit('ExerciseActivity showHome marker missing')
+s = s[:idx] + insert + s[idx:]
+ex.write_text(s)
+
+replace_method(
+    ROOT / 'AlarmActivity.java',
+    'private LinearLayout fixedHeader(String title, String subtitle)',
+'''private LinearLayout fixedHeader(String title, String subtitle) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(18), dp(8), dp(18), dp(9));
+        header.setBackgroundColor(BG);
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.setGravity(Gravity.CENTER_VERTICAL);
+        words.addView(text(title, 26, TEXT, true));
+        TextView sub = text(subtitle, 12, MUTED, false);
+        sub.setPadding(0, dp(2), 0, 0);
+        words.addView(sub);
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
+
+        TextView gear = text("⚙", 21, PRIMARY2, false);
+        gear.setGravity(Gravity.CENTER);
+        gear.setBackground(rounded(CARD, 24, 1, 0xFFFFD7E3));
+        gear.setOnClickListener(v -> {
+            startActivity(new Intent(this, MainActivity.class)
+                    .putExtra("start_screen", "settings")
+                    .putExtra("settings_return", "alarm"));
+            finish();
+        });
+        header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        return header;
+    }''')
+
+alarm = ROOT / 'AlarmActivity.java'
+s = alarm.read_text().replace('fixedHeader("알람", "기분 좋은 시작을 준비해요.")',
+                              'fixedHeader("알람", "잊지 말고, 챙겨요! 좋은 습관이 좋은 하루를 만들어요 💕")', 1)
+alarm.write_text(s)
+
+# Pink heart + white Y launcher with sparkle points.
+fg = Path('app/src/main/res/drawable/ic_launcher_foreground.xml')
+fg.write_text('''<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FF69A0"
+        android:pathData="M54,94 C47,87 14,65 14,39 C14,24 25,14 39,14 C46,14 52,18 54,25 C56,18 62,14 69,14 C83,14 94,24 94,39 C94,65 61,87 54,94z"/>
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M34,34 L45,34 L54,47 L63,34 L74,34 L60,55 L60,78 L48,78 L48,55z"/>
+    <path android:fillColor="#FFFFD9E8" android:pathData="M80,20 l2.2,5.2 l5.2,2.2 l-5.2,2.2 l-2.2,5.2 l-2.2,-5.2 l-5.2,-2.2 l5.2,-2.2z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M27,63 l1.6,3.8 l3.8,1.6 l-3.8,1.6 l-1.6,3.8 l-1.6,-3.8 l-3.8,-1.6 l3.8,-1.6z"/>
+</vector>''')
+
+colors = Path('app/src/main/res/values/colors.xml')
+s = colors.read_text()
+if 'name="ic_launcher_bg"' not in s:
+    s = s.replace('</resources>', '    <color name="ic_launcher_bg">#FFF0F6</color>\n</resources>')
+    colors.write_text(s)
+
+mip = Path('app/src/main/res/mipmap-anydpi-v26')
+mip.mkdir(parents=True, exist_ok=True)
+adaptive = '''<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_bg" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>'''
+(mip / 'ic_launcher.xml').write_text(adaptive)
+(mip / 'ic_launcher_round.xml').write_text(adaptive)
+
+manifest = Path('app/src/main/AndroidManifest.xml')
+s = manifest.read_text()
+if 'android:icon="@drawable/ic_launcher_foreground"' in s:
+    s = s.replace('android:icon="@drawable/ic_launcher_foreground">',
+                  'android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round">', 1)
+manifest.write_text(s)
+
+for name, needles in {
+    'MainActivity.java': ['settingsReturnScreen = screen', '"⚙"'],
+    'ExerciseActivity.java': ['settings_return", "activity"', 'mainHeader("활동"'],
+    'AlarmActivity.java': ['settings_return", "alarm"', '"⚙"'],
+}.items():
+    text = (ROOT / name).read_text()
+    for needle in needles:
+        if needle not in text:
+            raise SystemExit(f'{name}: missing {needle}')
+
+if '@mipmap/ic_launcher' not in manifest.read_text():
+    raise SystemExit('manifest launcher icon not updated')
