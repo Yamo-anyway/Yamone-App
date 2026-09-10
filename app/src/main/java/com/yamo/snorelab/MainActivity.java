@@ -193,7 +193,7 @@ public class MainActivity extends Activity {
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
-        nav.setBackgroundColor(CARD);
+        nav.setBackgroundColor(BG);
         if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(6));
 
         homeNav = navItem("⌂\n홈", false, v -> { detailSession = null; showHome(); });

@@ -69,7 +69,6 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
         fixLandingBack(root);
         replaceLandingIllustration(root);
         replaceStopAction(root);
-        polishParticipantLocationLabels(root);
         polishBottomSpacing(root);
     }
 
@@ -93,42 +92,11 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
     }
 
     private void replaceStopAction(View root) {
-        TextView stop = findExact(root, "위치 공유 중단하기");
+        TextView stop = findExact(root, "공유 중단");
+        if (stop == null) stop = findExact(root, "위치 공유 중단하기");
         if (stop != null) stop.setOnClickListener(v -> showYamoneStopDialog());
     }
 
-
-    private void polishParticipantLocationLabels(View view) {
-        if (view instanceof TextView) {
-            TextView text = (TextView) view;
-            String value = text.getText() == null ? "" : text.getText().toString();
-            if (value.startsWith("지금")) {
-                String age = value.contains("·") ? value.substring(value.indexOf('·') + 1).trim() : "방금";
-                text.setText("최종 위치 " + (age.isEmpty() ? "방금" : age));
-            } else if (value.startsWith("연결 끊김")) {
-                String age = extractAge(value);
-                text.setText("연결 끊김" + (age.isEmpty() ? "" : " · 최종 위치 " + age));
-            } else if (value.startsWith("위치 갱신 대기")) {
-                String age = extractAge(value);
-                text.setText(age.isEmpty() ? "최종 위치 갱신 대기" : "최종 위치 " + age + " · 갱신 대기");
-            } else if (value.startsWith("첫 위치를 기다리는 중")) {
-                text.setText("최종 위치 기다리는 중");
-            }
-            return;
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) polishParticipantLocationLabels(group.getChildAt(i));
-        }
-    }
-
-    private String extractAge(String value) {
-        int idx = value.lastIndexOf('·');
-        if (idx < 0) return "";
-        String age = value.substring(idx + 1).trim();
-        age = age.replace("마지막 위치", "").trim();
-        return age;
-    }
 
     private void polishBottomSpacing(View root) {
         TextView create = findExact(root, "방 만들기");

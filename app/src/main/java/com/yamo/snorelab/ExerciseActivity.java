@@ -118,7 +118,7 @@ public class ExerciseActivity extends Activity {
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
-        nav.setBackgroundColor(0xFFFFFFFF);
+        nav.setBackgroundColor(bottomNavBackground());
         if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(6));
         nav.addView(navItem("⌂\n홈", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "home")); finish(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
         nav.addView(navItem("🏃\n활동", PRIMARY2, v -> { detailOpen = false; showHome(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
@@ -1137,8 +1137,19 @@ public class ExerciseActivity extends Activity {
         String clean = label.contains("활동") ? "활동"
                 : label.contains("알람") ? "알람"
                 : label.contains("수면") ? "수면" : "홈";
-        return YamoneBottomNav.create(this, icon, clean, color == PRIMARY2, PRIMARY2, MUTED, CARD2, click);
+        return YamoneBottomNav.create(this, icon, clean, color == PRIMARY2,
+                bottomNavActive(), bottomNavMuted(), bottomNavSelectedBackground(), click);
     }
+
+    private boolean pinkBottomNav() {
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "pink"));
+    }
+    private int bottomNavBackground() { return pinkBottomNav() ? 0xFFFFF7FA : 0xFFF7FFFB; }
+    private int bottomNavSelectedBackground() { return pinkBottomNav() ? 0xFFFFE3EC : 0xFFDFF8F0; }
+    private int bottomNavActive() { return pinkBottomNav() ? 0xFFE94778 : 0xFF159A7A; }
+    private int bottomNavMuted() { return pinkBottomNav() ? 0xFF9A7180 : 0xFF718984; }
+
     private TextView text(String s, int sp, int color, boolean bold) { TextView v = new TextView(this); v.setText(s); v.setTextSize(sp); v.setTextColor(color); if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD); v.setLineSpacing(0, 1.08f); return v; }
     private Button actionButton(String s, boolean primary, View.OnClickListener click) { Button b = new Button(this); b.setText(s); b.setAllCaps(false); b.setTextSize(14); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD); b.setTextColor(Color.WHITE); b.setBackground(round(primary ? PRIMARY : 0xFF33425B, 16, 0, 0)); b.setOnClickListener(click); return b; }
     private Button ghostButton(String s, View.OnClickListener click) { Button b = new Button(this); b.setText(s); b.setAllCaps(false); b.setTextSize(13); b.setTextColor(TEXT); b.setBackground(round(CARD2, 13, 1, 0xFF35445F)); b.setOnClickListener(click); return b; }

@@ -126,7 +126,7 @@ public class AlarmActivity extends Activity {
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
-        nav.setBackgroundColor(CARD);
+        nav.setBackgroundColor(BG);
         if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(6));
         nav.addView(navItem("⌂\n홈", false, v -> goMain("home")), new LinearLayout.LayoutParams(0, dp(62), 1f));
         nav.addView(navItem("🏃\n활동", false, v -> { startActivity(new Intent(this, LocationExerciseActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
