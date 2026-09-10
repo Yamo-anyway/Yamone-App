@@ -22,6 +22,7 @@ import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -169,9 +170,14 @@ public class LocationSharingActivity extends Activity {
         LinearLayout root = rootShell();
         LinearLayout body = bodyPage();
         body.setGravity(Gravity.CENTER);
-        TextView pin = text("📍", 48, PRIMARY2, false);
-        pin.setGravity(Gravity.CENTER);
-        body.addView(pin, matchWrap());
+        ImageView pin = new ImageView(this);
+        pin.setImageResource(R.drawable.ic_location_pin);
+        pin.setColorFilter(PRIMARY2);
+        pin.setPadding(dp(18), dp(18), dp(18), dp(18));
+        pin.setBackground(round(CARD2, 34, 1, BORDER));
+        LinearLayout.LayoutParams pinParams = new LinearLayout.LayoutParams(dp(68), dp(68));
+        pinParams.gravity = Gravity.CENTER_HORIZONTAL;
+        body.addView(pin, pinParams);
         TextView title = text("위치 공유", 25, TEXT, true);
         title.setGravity(Gravity.CENTER);
         title.setPadding(0, dp(10), 0, dp(5));
@@ -218,26 +224,25 @@ public class LocationSharingActivity extends Activity {
         scroll.setFillViewport(true);
         LinearLayout page = bodyPage();
 
-        TextView headline = text("지금, 소중한 사람들과\n함께 있는지 확인해보세요 💕", 20, TEXT, true);
+        TextView headline = text("지금, 소중한 사람들과\n함께 있는지 확인해보세요", 20, TEXT, true);
         headline.setPadding(0, dp(8), 0, dp(18));
         page.addView(headline);
 
         LinearLayout illustration = card();
         illustration.setGravity(Gravity.CENTER);
-        TextView art = text("🏔️   👩🏻‍🦰  📍  👦🏻   🗺️", 34, TEXT, false);
-        art.setGravity(Gravity.CENTER);
-        illustration.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(112)));
+        YamonePastelArtView art = new YamonePastelArtView(this, YamonePastelArtView.MODE_LOCATION_SCENE);
+        illustration.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(138)));
         page.addView(illustration);
 
-        TextView create = bigMenuButton("👥  방 만들기", "새로운 방을 만들어 친구를 초대해요", true);
+        LinearLayout create = locationMenuCard(R.drawable.ic_location_group, "방 만들기", "새로운 방을 만들어 친구를 초대해요", true);
         create.setOnClickListener(v -> showRoomForm(true));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(70));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(78));
         cp.topMargin = dp(16);
         page.addView(create, cp);
 
-        TextView join = bigMenuButton("👥  방 참여하기", "친구가 만든 방에 참여해요", false);
+        LinearLayout join = locationMenuCard(R.drawable.ic_location_group, "방 참여하기", "친구가 만든 방에 참여해요", false);
         join.setOnClickListener(v -> showRoomForm(false));
-        LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(70));
+        LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(78));
         jp.topMargin = dp(10);
         page.addView(join, jp);
 
@@ -245,8 +250,11 @@ public class LocationSharingActivity extends Activity {
         LinearLayout infoRow = new LinearLayout(this);
         infoRow.setOrientation(LinearLayout.HORIZONTAL);
         infoRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView infoIcon = text("ⓘ", 22, PRIMARY2, true);
-        infoIcon.setGravity(Gravity.CENTER);
+        ImageView infoIcon = new ImageView(this);
+        infoIcon.setImageResource(R.drawable.ic_location_info);
+        infoIcon.setColorFilter(PRIMARY2);
+        infoIcon.setPadding(dp(10), dp(10), dp(10), dp(10));
+        infoIcon.setBackground(round(CARD2, 22, 0, 0));
         infoRow.addView(infoIcon, new LinearLayout.LayoutParams(dp(44), dp(44)));
         LinearLayout infoText = new LinearLayout(this);
         infoText.setOrientation(LinearLayout.VERTICAL);
@@ -473,7 +481,7 @@ public class LocationSharingActivity extends Activity {
         LinearLayout status = card();
         activeRoomTitle = text("위치 공유 중", 17, TEXT, true);
         status.addView(activeRoomTitle);
-        activeRemaining = text("● 공유 중 · 남은 시간 확인 중…", 12, PRIMARY2, true);
+        activeRemaining = text("공유 중 · 남은 시간 확인 중…", 12, PRIMARY2, true);
         activeRemaining.setPadding(0, dp(5), 0, 0);
         status.addView(activeRemaining);
         activeInfo = text("참여 상태 확인 중…", 11, MUTED, false);
@@ -502,13 +510,13 @@ public class LocationSharingActivity extends Activity {
         participants.addView(participantList);
         page.addView(participants, cardParams());
 
-        Button extend = softButton("⏱  공유 시간 연장하기");
+        Button extend = softButton("공유 시간 연장하기");
         extend.setOnClickListener(v -> startActivity(new Intent(this, LocationSharingTimeActivity.class)));
         LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
         ep.topMargin = dp(12);
         page.addView(extend, ep);
 
-        Button leave = dangerButton("▣  위치 공유 중단하기");
+        Button leave = dangerButton("위치 공유 중단하기");
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
         lp.topMargin = dp(10);
         page.addView(leave, lp);
@@ -552,7 +560,7 @@ public class LocationSharingActivity extends Activity {
 
         LocationSharingStateStore.update(this, roomName, shareUntil, interval, members.length());
         activeRoomTitle.setText(roomName);
-        activeRemaining.setText("● 공유 중 · 남은 시간 " + remainingText(shareUntil));
+        activeRemaining.setText("공유 중 · 남은 시간 " + remainingText(shareUntil));
         activeInfo.setText(String.format(Locale.KOREAN, "참여 %d명 · 내 위치 %s 간격 공유", members.length(), intervalLabel(interval)));
         if (sharingMap != null) sharingMap.setMembers(members);
         renderParticipants(members);
@@ -579,8 +587,11 @@ public class LocationSharingActivity extends Activity {
             row.setPadding(dp(12), dp(10), dp(12), dp(10));
             row.setBackground(round(CARD2, 16, 0, 0));
 
-            TextView avatar = text(self ? "🌸" : "🙂", 22, TEXT, false);
-            avatar.setGravity(Gravity.CENTER);
+            ImageView avatar = new ImageView(this);
+            avatar.setImageResource(R.drawable.ic_location_person);
+            avatar.setColorFilter(self ? PRIMARY2 : ("connected".equals(state) ? SUCCESS : MUTED));
+            avatar.setPadding(dp(9), dp(9), dp(9), dp(9));
+            avatar.setBackground(round(self ? 0xFFFFE2EB : CARD, 20, 1, BORDER));
             row.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
             LinearLayout words = new LinearLayout(this);
@@ -754,6 +765,39 @@ public class LocationSharingActivity extends Activity {
         page.setPadding(dp(18), dp(8), dp(18), dp(32));
         page.setBackgroundColor(BG);
         return page;
+    }
+
+    private LinearLayout locationMenuCard(int iconRes, String title, String subtitle, boolean primary) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(14), dp(10), dp(12), dp(10));
+        card.setBackground(round(CARD, 22, 1, BORDER));
+        if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(primary ? 2 : 1));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(PRIMARY2);
+        icon.setPadding(dp(11), dp(11), dp(11), dp(11));
+        icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 24, 0, 0));
+        card.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.setPadding(dp(12), 0, dp(8), 0);
+        words.addView(text(title, 15, TEXT, true));
+        TextView sub = text(subtitle, 11, MUTED, false);
+        sub.setPadding(0, dp(3), 0, 0);
+        words.addView(sub);
+        card.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        ImageView arrow = new ImageView(this);
+        arrow.setImageResource(R.drawable.ic_yamone_chevron_right);
+        arrow.setColorFilter(PRIMARY2);
+        arrow.setPadding(dp(8), dp(8), dp(8), dp(8));
+        arrow.setBackground(round(CARD2, 18, 0, 0));
+        card.addView(arrow, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        return card;
     }
 
     private TextView bigMenuButton(String title, String subtitle, boolean pinkButton) {

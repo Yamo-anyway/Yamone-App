@@ -93,7 +93,7 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
     }
 
     private void replaceStopAction(View root) {
-        TextView stop = findExact(root, "▣  위치 공유 중단하기");
+        TextView stop = findExact(root, "위치 공유 중단하기");
         if (stop != null) stop.setOnClickListener(v -> showYamoneStopDialog());
     }
 
@@ -140,8 +140,8 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
                     parent.getPaddingRight(), Math.max(parent.getPaddingBottom(), dp(18)));
         }
         addBottomMargin(findExact(root, "중복 확인"), 8);
-        addBottomMargin(findExact(root, "⏱  공유 시간 연장하기"), 12);
-        addBottomMargin(findExact(root, "▣  위치 공유 중단하기"), 22);
+        addBottomMargin(findExact(root, "공유 시간 연장하기"), 12);
+        addBottomMargin(findExact(root, "위치 공유 중단하기"), 22);
     }
 
     private void addBottomMargin(View view, int marginDp) {

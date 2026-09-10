@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -96,9 +97,15 @@ public class LocationSharingTimeActivity extends Activity {
         page.setGravity(Gravity.CENTER_HORIZONTAL);
         page.setPadding(dp(18), dp(22), dp(18), dp(24));
 
-        TextView clock = text("⏰", 64, TEXT, false);
-        clock.setGravity(Gravity.CENTER);
-        page.addView(clock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(104)));
+        ImageView clock = new ImageView(this);
+        clock.setImageResource(R.drawable.ic_location_clock);
+        clock.setColorFilter(PRIMARY2);
+        clock.setPadding(dp(22), dp(22), dp(22), dp(22));
+        clock.setBackground(round(CARD2, 38, 1, BORDER));
+        LinearLayout.LayoutParams clockParams = new LinearLayout.LayoutParams(dp(76), dp(76));
+        clockParams.gravity = Gravity.CENTER_HORIZONTAL;
+        clockParams.bottomMargin = dp(12);
+        page.addView(clock, clockParams);
 
         TextView question = text("얼마나 더 공유할까요?", 20, TEXT, true);
         question.setGravity(Gravity.CENTER);
@@ -147,7 +154,7 @@ public class LocationSharingTimeActivity extends Activity {
         extendButton.setTextSize(15);
         extendButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         extendButton.setAllCaps(false);
-        extendButton.setBackground(round(0xFF45CDAE, 18, 0, 0));
+        extendButton.setBackground(round(PRIMARY2, 18, 0, 0));
         extendButton.setOnClickListener(v -> extend());
         bottom.addView(extendButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
         root.addView(bottom);
