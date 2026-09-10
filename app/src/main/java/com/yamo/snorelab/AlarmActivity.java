@@ -257,38 +257,73 @@ public class AlarmActivity extends Activity {
 
     private View alarmCard(AlarmStore.Item item) {
         LinearLayout c = card();
+        c.setPadding(dp(15), dp(14), dp(15), dp(14));
+
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
 
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_nav_alarm);
+        icon.setColorFilter(PRIMARY2);
+        icon.setPadding(dp(10), dp(10), dp(10), dp(10));
+        icon.setBackground(rounded(CARD2, 23, 0, 0));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(46), dp(46));
+        iconParams.rightMargin = dp(12);
+        head.addView(icon, iconParams);
+
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
-        left.addView(text(String.format(Locale.KOREAN, "%02d:%02d", item.hour, item.minute), 34, item.enabled ? TEXT : MUTED, true));
-        left.addView(text(item.label == null || item.label.trim().isEmpty() ? "알람" : item.label, 13, item.enabled ? TEXT : MUTED, true));
+        TextView time = text(String.format(Locale.KOREAN, "%02d:%02d", item.hour, item.minute), 32,
+                item.enabled ? TEXT : MUTED, true);
+        left.addView(time);
+        TextView label = text(item.label == null || item.label.trim().isEmpty() ? "알람" : item.label,
+                12, item.enabled ? TEXT : MUTED, true);
+        label.setPadding(0, dp(1), 0, 0);
+        left.addView(label);
         head.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
         Switch enabled = new Switch(this);
         enabled.setChecked(item.enabled);
+        enabled.setContentDescription(item.enabled ? "알람 켜짐" : "알람 꺼짐");
         head.addView(enabled, new LinearLayout.LayoutParams(dp(58), dp(52)));
         c.addView(head);
 
-        String mode = "TTS".equals(item.alertMode) ? "텍스트 읽기" : "알람음";
-        String extras = item.vibrate ? " · 진동" : "";
-        if (item.shakeToStop) extras += " · 흔들기 " + item.shakeCount + "회";
-        TextView modeText = text(mode + extras, 12, PRIMARY2, true);
-        modeText.setPadding(0, dp(8), 0, 0);
-        c.addView(modeText);
+        LinearLayout chips = new LinearLayout(this);
+        chips.setOrientation(LinearLayout.HORIZONTAL);
+        chips.setPadding(0, dp(11), 0, 0);
 
-        TextView repeat = text(scheduleText(item) + "  ·  스누즈 " + item.snoozeMinutes + "분", 12, MUTED, false);
-        repeat.setPadding(0, dp(5), 0, 0);
-        c.addView(repeat);
-        TextView next = text(item.enabled ? "다음  " + AlarmScheduler.nextDateText(item) : "알람 꺼짐", 12, item.enabled ? PRIMARY2 : MUTED, false);
-        next.setPadding(0, dp(5), 0, dp(10));
+        String mode = "TTS".equals(item.alertMode) ? "텍스트 읽기" : "알람음";
+        TextView modeChip = alarmChip(mode, item.enabled ? PRIMARY2 : MUTED);
+        chips.addView(modeChip);
+
+        TextView scheduleChip = alarmChip(scheduleText(item), item.enabled ? PRIMARY2 : MUTED);
+        LinearLayout.LayoutParams scheduleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(32));
+        scheduleParams.leftMargin = dp(6);
+        chips.addView(scheduleChip, scheduleParams);
+        c.addView(chips);
+
+        StringBuilder detail = new StringBuilder("스누즈 ").append(item.snoozeMinutes).append("분");
+        if (item.vibrate) detail.append(" · 진동");
+        if (item.shakeToStop) detail.append(" · 흔들기 ").append(item.shakeCount).append("회");
+        TextView details = text(detail.toString(), 11, MUTED, false);
+        details.setPadding(0, dp(7), 0, 0);
+        c.addView(details);
+
+        TextView next = text(item.enabled ? "다음  " + AlarmScheduler.nextDateText(item) : "알람 꺼짐",
+                12, item.enabled ? PRIMARY2 : MUTED, true);
+        next.setPadding(0, dp(6), 0, dp(10));
         c.addView(next);
 
         if (!item.skipDate.isEmpty()) {
-            TextView skipped = text("이번 알람 건너뜀  " + item.skipDate, 12, WARNING, true);
-            skipped.setPadding(0, 0, 0, dp(9));
-            c.addView(skipped);
+            TextView skipped = text("이번 알람 건너뜀  " + item.skipDate, 11, WARNING, true);
+            skipped.setPadding(dp(10), dp(7), dp(10), dp(7));
+            skipped.setBackground(rounded(0xFFFFF6E7, 12, 0, 0));
+            LinearLayout.LayoutParams skippedParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            skippedParams.bottomMargin = dp(9);
+            c.addView(skipped, skippedParams);
         }
 
         LinearLayout buttons = new LinearLayout(this);
@@ -325,6 +360,15 @@ public class AlarmActivity extends Activity {
             showList();
         });
         return c;
+    }
+
+    private TextView alarmChip(String value, int color) {
+        TextView chip = text(value, 11, color, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(11), 0, dp(11), 0);
+        chip.setBackground(rounded(CARD2, 12, 0, 0));
+        chip.setSingleLine(true);
+        return chip;
     }
 
     private void confirmDelete(AlarmStore.Item item) {
