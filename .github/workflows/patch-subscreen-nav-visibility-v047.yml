@@ -1,0 +1,27 @@
+name: Apply Yamone subscreen nav visibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-subscreen-nav-visibility-v047.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Hide bottom nav on sub screens
+        run: python3 .github/scripts/patch_subscreen_nav_visibility_v047.py
+      - name: Commit changes
+        run: |
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab/MainActivity.java app/src/main/java/com/yamo/snorelab/AlarmActivity.java app/src/main/java/com/yamo/snorelab/ExerciseActivity.java
+          git commit -m 'Hide bottom navigation on sub screens'
+          git push
