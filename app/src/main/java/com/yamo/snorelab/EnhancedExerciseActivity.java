@@ -23,12 +23,13 @@ import java.util.Locale;
  * chart with activity-family and metric filters.
  */
 public class EnhancedExerciseActivity extends UploadExerciseActivity {
-    private static final int CARD = 0xFF16243B;
-    private static final int CARD2 = 0xFF111C31;
-    private static final int TEXT = 0xFFF5F7FF;
-    private static final int MUTED = 0xFF9DA9BF;
-    private static final int PRIMARY = 0xFF6D72FF;
-    private static final int PRIMARY2 = 0xFF8B8FFF;
+    private int CARD = 0xFFFFFFFF;
+    private int CARD2 = 0xFFFFEEF3;
+    private int TEXT = 0xFF4B2633;
+    private int MUTED = 0xFF9A7180;
+    private int PRIMARY = 0xFFFF769F;
+    private int PRIMARY2 = 0xFFE94778;
+    private int BORDER = 0xFFFFD7E3;
     private static final String WEEKLY_TAG = "yamone_weekly_activity_filter";
 
     private String weeklyMetric = "distance";
@@ -38,13 +39,27 @@ public class EnhancedExerciseActivity extends UploadExerciseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        applyPalette();
         attachWeeklyChartEnhancer();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        applyPalette();
         scheduleWeeklyEnhance();
+    }
+
+    private void applyPalette() {
+        boolean pink = "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "pink"));
+        CARD = 0xFFFFFFFF;
+        CARD2 = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
+        TEXT = pink ? 0xFF4B2633 : 0xFF153633;
+        MUTED = pink ? 0xFF9A7180 : 0xFF718984;
+        PRIMARY = pink ? 0xFFFF769F : 0xFF56D1B3;
+        PRIMARY2 = pink ? 0xFFE94778 : 0xFF159A7A;
+        BORDER = pink ? 0xFFFFD7E3 : 0xFFD7EFE7;
     }
 
     private void attachWeeklyChartEnhancer() {
@@ -259,9 +274,9 @@ public class EnhancedExerciseActivity extends UploadExerciseActivity {
     }
 
     private TextView chip(String label, boolean selected) {
-        TextView chip = text(label, 12, selected ? Color.WHITE : MUTED, true);
+        TextView chip = text(label, 12, selected ? Color.WHITE : TEXT, true);
         chip.setGravity(Gravity.CENTER);
-        chip.setBackground(round(selected ? PRIMARY : CARD2, 12, selected ? 0 : 1, 0xFF35445F));
+        chip.setBackground(round(selected ? PRIMARY2 : CARD2, 14, selected ? 0 : 1, BORDER));
         return chip;
     }
 
@@ -293,7 +308,7 @@ public class EnhancedExerciseActivity extends UploadExerciseActivity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(16), dp(15), dp(16), dp(15));
-        card.setBackground(round(CARD, 18, 0, 0));
+        card.setBackground(round(CARD, 20, 1, BORDER));
         return card;
     }
 
