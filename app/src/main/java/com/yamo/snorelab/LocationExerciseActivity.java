@@ -12,7 +12,7 @@ import android.widget.TextView;
 
 /** Adds Yamone activity entries without mixing location-sharing UI into Activity. */
 public class LocationExerciseActivity extends EnhancedExerciseActivity {
-    private static final String HIKING_TAG = "yamone_hiking_entry_v1";
+    private static final String HIKING_TAG = "yamone_hiking_entry_v2";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -31,19 +31,23 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
             renameActivityCopy(root);
             attachSkiEntry(root);
             attachHikingEntry(root);
+            compactActivityEntries(root);
             ActivitySystemBarUiEnhancer.apply(this);
         });
     }
 
     private void renameActivityCopy(View root) {
-        TextView oldSki = findText(root, "스키 / 스노우보드");
-        if (oldSki != null) oldSki.setText("스키 / 스노보드");
+        TextView oldSki = findContaining(root, "스키 / 스노우보드");
+        if (oldSki != null) {
+            oldSki.setText(oldSki.getText().toString().replace("스키 / 스노우보드", "스키 / 스노보드"));
+        }
         TextView subtitle = findContaining(root, "걷기/러닝 · 자전거 · 스키/스노우보드");
-        if (subtitle != null) subtitle.setText("걷기/러닝 · 자전거 · 등산 · 스키/스노보드");
+        if (subtitle != null) subtitle.setText("걷기/러닝 · 자전거 · 등산/트레킹 · 스키/스노보드");
     }
 
     private void attachSkiEntry(View root) {
-        TextView title = findText(root, "스키 / 스노보드");
+        TextView title = findClickableContaining(root, "스키 / 스노보드");
+        if (title == null) title = findClickableContaining(root, "스키 / 스노우보드");
         if (title == null) return;
         View card = clickableAncestor(title, root);
         if (card != null) card.setOnClickListener(v -> startActivity(new Intent(this, SkiActivity.class)));
@@ -51,7 +55,8 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
 
     private void attachHikingEntry(View root) {
         if (root.findViewWithTag(HIKING_TAG) != null) return;
-        TextView skiTitle = findText(root, "스키 / 스노보드");
+        TextView skiTitle = findClickableContaining(root, "스키 / 스노보드");
+        if (skiTitle == null) skiTitle = findClickableContaining(root, "스키 / 스노우보드");
         if (skiTitle == null) return;
         View skiCard = clickableAncestor(skiTitle, root);
         if (skiCard == null || !(skiCard.getParent() instanceof LinearLayout)) return;
@@ -62,30 +67,83 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         LinearLayout card = new LinearLayout(this);
         card.setTag(HIKING_TAG);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(15), dp(16), dp(15));
+        card.setPadding(dp(16), dp(10), dp(16), dp(10));
         card.setBackground(round(0xFFFFFFFF, 18, 1, border()));
         card.setOnClickListener(v -> startActivity(new Intent(this, HikingActivity.class)));
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout words = new LinearLayout(this);
-        words.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("🥾  ⛰️  등산", 18, textColor(), true);
-        words.addView(title);
-        TextView desc = text("거리 · 시간 · 고도 · 누적 상승 · 이동 경로를 기록합니다.", 12, muted(), false);
-        desc.setPadding(0, dp(6), dp(8), 0);
-        words.addView(desc);
-        head.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView arrow = text("›", 30, primary2(), false);
+        TextView title = text("🥾  ⛰️  등산 / 트레킹", 18, textColor(), true);
+        head.addView(title, new LinearLayout.LayoutParams(0, dp(40), 1f));
+        TextView arrow = text("›", 28, primary2(), false);
         arrow.setGravity(Gravity.CENTER);
-        head.addView(arrow, new LinearLayout.LayoutParams(dp(34), dp(60)));
+        head.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(40)));
         card.addView(head);
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.bottomMargin = dp(12);
+        params.bottomMargin = dp(9);
         page.addView(card, index, params);
+    }
+
+    private void compactActivityEntries(View root) {
+        compactEntry(root, "걷기 / 러닝");
+        compactEntry(root, "자전거");
+        compactEntry(root, "스키 / 스노보드");
+    }
+
+    private void compactEntry(View root, String titleText) {
+        TextView title = findClickableContaining(root, titleText);
+        if (title == null) return;
+        View card = clickableAncestor(title, root);
+        if (!(card instanceof ViewGroup)) return;
+        card.setPadding(dp(16), dp(10), dp(16), dp(10));
+        hideRecordDescription((ViewGroup) card);
+        TextView arrow = findText((ViewGroup) card, "›");
+        if (arrow != null) {
+            ViewGroup.LayoutParams lp = arrow.getLayoutParams();
+            if (lp != null) {
+                lp.width = dp(30);
+                lp.height = dp(40);
+                arrow.setLayoutParams(lp);
+            }
+        }
+        ViewGroup.LayoutParams cardLp = card.getLayoutParams();
+        if (cardLp instanceof LinearLayout.LayoutParams) {
+            ((LinearLayout.LayoutParams) cardLp).bottomMargin = dp(9);
+            card.setLayoutParams(cardLp);
+        }
+    }
+
+    private void hideRecordDescription(ViewGroup group) {
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof TextView) {
+                CharSequence value = ((TextView) child).getText();
+                String s = value == null ? "" : value.toString();
+                if (s.contains("기록합니다") || s.contains("보여줍니다")) child.setVisibility(View.GONE);
+            } else if (child instanceof ViewGroup) {
+                hideRecordDescription((ViewGroup) child);
+            }
+        }
+    }
+
+    private TextView findClickableContaining(View root, String wanted) {
+        if (root instanceof TextView) {
+            CharSequence value = ((TextView) root).getText();
+            if (value != null && value.toString().contains(wanted) && clickableAncestor(root, findViewById(android.R.id.content)) != null) {
+                return (TextView) root;
+            }
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                TextView found = findClickableContaining(group.getChildAt(i), wanted);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private View clickableAncestor(View start, View root) {
@@ -134,7 +192,6 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
     }
 
     private int textColor() { return pink() ? 0xFF4B2633 : 0xFF153633; }
-    private int muted() { return pink() ? 0xFF9A7180 : 0xFF718984; }
     private int primary2() { return pink() ? 0xFFE94778 : 0xFF159A7A; }
     private int border() { return pink() ? 0xFFFFD7E3 : 0xFFD7EFE7; }
 
@@ -144,6 +201,7 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         v.setTextSize(sp);
         v.setTextColor(color);
         if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        v.setGravity(Gravity.CENTER_VERTICAL);
         return v;
     }
 
