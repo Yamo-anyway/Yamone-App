@@ -110,6 +110,7 @@ public final class LocationSharingService extends Service {
     }
 
     public static void stop(Context context) {
+        LocationStatusAlert.clear(context);
         context.stopService(new Intent(context, LocationSharingService.class));
     }
 
@@ -356,6 +357,7 @@ public final class LocationSharingService extends Service {
                             String lower = message == null ? "" : message.toLowerCase(Locale.KOREAN);
                             if (lower.contains("참여 중인 위치 공유 방이 없습니다")) {
                                 LocationSharingStateStore.clear(LocationSharingService.this);
+                                LocationStatusAlert.clear(LocationSharingService.this);
                                 cancelWarning();
                                 stopSelf();
                             } else {
