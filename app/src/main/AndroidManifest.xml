@@ -50,7 +50,6 @@
             android:targetActivity=".LocationExerciseActivity"
             android:exported="false" />
 
-        <activity android:name=".MiniGameActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".AlarmRingActivity" android:screenOrientation="portrait" android:excludeFromRecents="true" android:exported="false" />
 
         <service android:name=".SleepRecorderService" android:foregroundServiceType="microphone" android:exported="false" />

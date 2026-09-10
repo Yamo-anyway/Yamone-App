@@ -62,7 +62,6 @@ public class MainActivity extends Activity {
     private TextView sleepNav;
     private TextView homeNav;
     private TextView activityNav;
-    private TextView miniGameNav;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private String screen = "home";
     private String settingsReturnScreen = "home";
@@ -124,7 +123,6 @@ public class MainActivity extends Activity {
         if ("settings".equals(startScreen)) showSettings();
         else if ("home".equals(startScreen)) showHome();
         else if ("activity".equals(startScreen)) startActivity(new Intent(this, LocationExerciseActivity.class));
-        else if ("minigame".equals(startScreen)) startActivity(new Intent(this, MiniGameActivity.class));
         else if ("alarm".equals(startScreen)) startActivity(new Intent(this, AlarmActivity.class));
         else showHome();
         requestNotificationPermissionIfHelpful();
@@ -195,13 +193,11 @@ public class MainActivity extends Activity {
         activityNav = navItem("🏃\n활동", false, v -> startActivity(new Intent(this, LocationExerciseActivity.class)));
         alarmNav = navItem("⏰\n알람", false, v -> startActivity(new Intent(this, AlarmActivity.class)));
         sleepNav = navItem("☾\n수면", true, v -> { detailSession = null; showSleep(); });
-        miniGameNav = navItem("🎮\n미니게임", false, v -> startActivity(new Intent(this, MiniGameActivity.class)));
 
         nav.addView(homeNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(activityNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(alarmNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(sleepNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(miniGameNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -241,7 +237,6 @@ public class MainActivity extends Activity {
         styleNav(activityNav, false);
         styleNav(alarmNav, false);
         styleNav(sleepNav, "sleep".equals(screen));
-        styleNav(miniGameNav, false);
     }
 
     private LinearLayout fixedHeader(String title, String subtitle) {

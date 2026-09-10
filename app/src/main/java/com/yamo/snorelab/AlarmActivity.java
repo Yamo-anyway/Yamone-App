@@ -127,7 +127,6 @@ public class AlarmActivity extends Activity {
         nav.addView(navItem("🏃\n활동", false, v -> { startActivity(new Intent(this, LocationExerciseActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(navItem("⏰\n알람", true, v -> showList()), new LinearLayout.LayoutParams(0, dp(60), 1f));
         nav.addView(navItem("☾\n수면", false, v -> goMain("sleep")), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("🎮\n미니게임", false, v -> { startActivity(new Intent(this, MiniGameActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         if (Build.VERSION.SDK_INT >= 21) {
