@@ -140,7 +140,22 @@ public class ExerciseActivity extends Activity {
     private void showHome() {
         detailOpen = false;
         detailDir = null;
+        // Clear stale live-view references before rebuilding the non-recording home.
+        // Otherwise the 1-second refresher sees the old liveDistance reference and
+        // calls showHome() repeatedly after recording has ended, resetting ScrollView to the top.
+        liveDistance = null;
+        liveTime = null;
+        livePace = null;
+        liveSteps = null;
+        liveSpeed = null;
+        liveMoving = null;
+        liveAltitude = null;
+        liveAccuracy = null;
         liveModeBreakdown = null;
+        liveGoal = null;
+        liveProgress = null;
+        liveRoute = null;
+        lastRouteReload = 0L;
         content.removeAllViews();
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = page();
