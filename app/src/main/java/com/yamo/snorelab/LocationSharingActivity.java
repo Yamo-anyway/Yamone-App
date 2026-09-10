@@ -3,10 +3,12 @@ package com.yamo.snorelab;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,7 +21,9 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -686,16 +690,119 @@ public class LocationSharingActivity extends Activity {
     private void requestStatusChange(String status) {
         if (status == null || status.equals(currentSelfStatus)) return;
         if ("help".equals(status) || "emergency".equals(status)) {
-            String label = userStatusLabel(status);
-            new AlertDialog.Builder(this)
-                    .setTitle(label + " 상태로 바꿀까요?")
-                    .setMessage("같은 방 참여자가 다음 상태 확인을 할 때 야모네가 기기 알림과 진동으로 알려줄 수 있어요.")
-                    .setNegativeButton("취소", null)
-                    .setPositiveButton("상태 변경", (dialog, which) -> commitStatusChange(status))
-                    .show();
+            showUrgentStatusDialog(status);
             return;
         }
         commitStatusChange(status);
+    }
+
+    private void showUrgentStatusDialog(String status) {
+        final boolean emergency = "emergency".equals(status);
+        final String label = userStatusLabel(status);
+        final int statusColor = LocationStatusPalette.color(status);
+        final int softColor = LocationStatusPalette.softColor(status);
+
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCancelable(true);
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(22), dp(22), dp(22), dp(20));
+        panel.setBackground(round(CARD, 26, 1, statusColor));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView statusIcon = text("!", 25, Color.WHITE, true);
+        statusIcon.setGravity(Gravity.CENTER);
+        statusIcon.setIncludeFontPadding(false);
+        statusIcon.setBackground(round(statusColor, 25, 0, 0));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(50), dp(50));
+        iconParams.rightMargin = dp(13);
+        head.addView(statusIcon, iconParams);
+
+        LinearLayout titleBlock = new LinearLayout(this);
+        titleBlock.setOrientation(LinearLayout.VERTICAL);
+        TextView title = text(label + " 상태로 바꿀까요?", 19, TEXT, true);
+        title.setIncludeFontPadding(false);
+        titleBlock.addView(title);
+        TextView statusName = text(emergency ? "긴급 상태" : "도움이 필요한 상태", 11, statusColor, true);
+        statusName.setPadding(0, dp(4), 0, 0);
+        titleBlock.addView(statusName);
+        head.addView(titleBlock, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        panel.addView(head);
+
+        TextView message = text(
+                "같은 방 참여자가 다음 상태 확인 시\n" + label + " 상태를 볼 수 있어요.",
+                14, TEXT, false);
+        message.setLineSpacing(dp(3), 1f);
+        message.setPadding(0, dp(18), 0, dp(14));
+        panel.addView(message);
+
+        LinearLayout notice = new LinearLayout(this);
+        notice.setOrientation(LinearLayout.HORIZONTAL);
+        notice.setGravity(Gravity.CENTER_VERTICAL);
+        notice.setPadding(dp(13), dp(11), dp(13), dp(11));
+        notice.setBackground(round(softColor, 16, 0, 0));
+
+        View dot = new View(this);
+        GradientDrawable dotDrawable = new GradientDrawable();
+        dotDrawable.setShape(GradientDrawable.OVAL);
+        dotDrawable.setColor(statusColor);
+        dot.setBackground(dotDrawable);
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(10), dp(10));
+        dotParams.rightMargin = dp(9);
+        notice.addView(dot, dotParams);
+
+        TextView noticeText = text(
+                "위치공유 중인 참여자에게 기기 알림과 진동으로 안내될 수 있어요.",
+                11, TEXT, false);
+        noticeText.setLineSpacing(dp(2), 1f);
+        notice.addView(noticeText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        panel.addView(notice);
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setPadding(0, dp(18), 0, 0);
+
+        TextView cancel = text("취소", 14, TEXT, true);
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setBackground(round(CARD2, 17, 1, BORDER));
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        buttons.addView(cancel, new LinearLayout.LayoutParams(0, dp(50), 1f));
+
+        TextView confirm = text(label + "로 변경", 14, Color.WHITE, true);
+        confirm.setGravity(Gravity.CENTER);
+        confirm.setBackground(round(statusColor, 17, 0, 0));
+        confirm.setOnClickListener(v -> {
+            dialog.dismiss();
+            commitStatusChange(status);
+        });
+        LinearLayout.LayoutParams confirmParams = new LinearLayout.LayoutParams(0, dp(50), 1.35f);
+        confirmParams.leftMargin = dp(9);
+        buttons.addView(confirm, confirmParams);
+        panel.addView(buttons);
+
+        dialog.setContentView(panel);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams attrs = window.getAttributes();
+            attrs.dimAmount = 0.38f;
+            window.setAttributes(attrs);
+        }
+        dialog.show();
+
+        window = dialog.getWindow();
+        if (window != null) {
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            int wantedWidth = Math.min(dp(370), screenWidth - dp(36));
+            window.setLayout(wantedWidth, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.CENTER);
+        }
     }
 
     private void commitStatusChange(String status) {
