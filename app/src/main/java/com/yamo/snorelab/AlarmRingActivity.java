@@ -52,7 +52,7 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
 
         SharedPreferences prefs = getSharedPreferences(SleepRecorderService.PREFS, MODE_PRIVATE);
-        boolean pink = "pink".equals(prefs.getString("yamone_theme", "mint"));
+        boolean pink = "pink".equals(prefs.getString("yamone_theme", "pink"));
         BG = pink ? 0xFFFFF7FA : 0xFFF7FFFB;
         CARD = 0xFFFFFFFF;
         CARD2 = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
@@ -180,7 +180,7 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
     }
 
     private int pinkTextColor() {
-        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, MODE_PRIVATE).getString("yamone_theme", "mint"))
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, MODE_PRIVATE).getString("yamone_theme", "pink"))
                 ? 0xFF4B2633 : 0xFF08352A;
     }
 

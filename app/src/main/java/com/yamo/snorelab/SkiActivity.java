@@ -38,15 +38,15 @@ import java.util.UUID;
 /** Local-first ski/snowboard activity screen. */
 public class SkiActivity extends Activity {
     private static final int REQ_LOCATION = 5501;
-    private static final int BG = 0xFF0B1324;
-    private static final int CARD = 0xFF16243B;
-    private static final int CARD2 = 0xFF111C31;
-    private static final int TEXT = 0xFFF5F7FF;
-    private static final int MUTED = 0xFF9DA9BF;
-    private static final int PRIMARY = 0xFF6D72FF;
-    private static final int PRIMARY2 = 0xFF8B8FFF;
-    private static final int SUCCESS = 0xFF61D6A8;
-    private static final int WARNING = 0xFFFFC56D;
+    private static final int BG = 0xFFFFF7FA;
+    private static final int CARD = 0xFFFFFFFF;
+    private static final int CARD2 = 0xFFFFEEF3;
+    private static final int TEXT = 0xFF4B2633;
+    private static final int MUTED = 0xFF9A7180;
+    private static final int PRIMARY = 0xFFFF769F;
+    private static final int PRIMARY2 = 0xFFE94778;
+    private static final int SUCCESS = 0xFF36A57D;
+    private static final int WARNING = 0xFFE9A642;
 
     private static final String PREFS = "yamone_ski_ui_v1";
     private static final String KEY_SPORT = "sport";
@@ -71,6 +71,11 @@ public class SkiActivity extends Activity {
         runtime = getSharedPreferences(SkiRecorderService.PREFS, MODE_PRIVATE);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 23) {
+            int flags = getWindow().getDecorView().getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }
         buildRoot();
         render();
     }
@@ -140,9 +145,9 @@ public class SkiActivity extends Activity {
         String sport = selectedSport();
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(choiceButton("⛷  스키", "ski".equals(sport), v -> selectSport("ski")), new LinearLayout.LayoutParams(0, dp(52), 1f));
+        row.addView(choiceButton("스키", "ski".equals(sport), v -> selectSport("ski")), new LinearLayout.LayoutParams(0, dp(52), 1f));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(52), 1f); p.leftMargin = dp(8);
-        row.addView(choiceButton("🏂  스노보드", "snowboard".equals(sport), v -> selectSport("snowboard")), p);
+        row.addView(choiceButton("스노보드", "snowboard".equals(sport), v -> selectSport("snowboard")), p);
         c.addView(row);
         page.addView(c, cardParams());
     }
@@ -155,7 +160,7 @@ public class SkiActivity extends Activity {
             TextView desc = text("시작하면 화면이 꺼져 있어도 GPS 기록과 활주·리프트·정지 판별을 계속합니다.", 12, MUTED, false);
             desc.setPadding(0, dp(7), 0, dp(12));
             c.addView(desc);
-            c.addView(actionButton("▶ " + ("snowboard".equals(selectedSport()) ? "스노보드" : "스키") + " 기록 시작", true, v -> startSession()), match(dp(56)));
+            c.addView(actionButton( ("snowboard".equals(selectedSport()) ? "스노보드" : "스키") + " 기록 시작", true, v -> startSession()), match(dp(56)));
             page.addView(c, cardParams());
             return;
         }
@@ -189,7 +194,7 @@ public class SkiActivity extends Activity {
 
         String resort = SkiResortStore.currentName(this);
         if (!resort.isEmpty()) {
-            TextView resortView = text("📍 " + resort, 11, PRIMARY2, true);
+            TextView resortView = text("현재 스키장  " + resort, 11, PRIMARY2, true);
             resortView.setPadding(0, dp(6), 0, 0);
             c.addView(resortView);
         }
@@ -197,7 +202,7 @@ public class SkiActivity extends Activity {
         TextView detector = text("자동 판별: 속도 · 고도 변화 · 지속시간 · 리프트 이동 직선성을 함께 확인합니다.", 10, MUTED, false);
         detector.setPadding(0, dp(7), 0, dp(11));
         c.addView(detector);
-        c.addView(actionButton("■ 기록 종료", false, v -> confirmStop()), match(dp(54)));
+        c.addView(actionButton("기록 종료", false, v -> confirmStop()), match(dp(54)));
         page.addView(c, cardParams());
     }
 
@@ -212,7 +217,7 @@ public class SkiActivity extends Activity {
             if (!"complete".equals(m.optString("status", ""))) continue;
             long start = m.optLong("startEpochMs", 0);
             if (start <= 0) continue;
-            String sport = "snowboard".equals(m.optString("sport")) ? "🏂 스노보드" : "⛷ 스키";
+            String sport = "snowboard".equals(m.optString("sport")) ? "스노보드" : "스키";
             String date = new SimpleDateFormat("M월 d일 HH:mm", Locale.KOREAN).format(new Date(start));
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -223,8 +228,12 @@ public class SkiActivity extends Activity {
             words.addView(text(String.format(Locale.KOREAN, "활주 %d회 · %.2f km · 최고 %.1f km/h",
                     m.optInt("descentCount", 0), m.optLong("descentDistanceM", 0) / 1000.0, m.optDouble("maxSpeedKmh", 0)), 11, MUTED, false));
             row.addView(words, new LinearLayout.LayoutParams(0, dp(50), 1f));
-            TextView arrow = text("›", 26, PRIMARY2, false); arrow.setGravity(Gravity.CENTER);
-            row.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(50)));
+            ImageView arrow = new ImageView(this);
+            arrow.setImageResource(R.drawable.ic_yamone_chevron_right);
+            arrow.setColorFilter(PRIMARY2);
+            arrow.setPadding(dp(8), dp(8), dp(8), dp(8));
+            arrow.setBackground(rounded(CARD2, 18, 0, 0));
+            row.addView(arrow, new LinearLayout.LayoutParams(dp(36), dp(36)));
             row.setOnClickListener(v -> openSessionDetail(dir, false));
             c.addView(row);
             shown++;
@@ -245,7 +254,7 @@ public class SkiActivity extends Activity {
         long liftMs = runtime.getLong(SkiRecorderService.KEY_LIFT_TIME_MS, 0);
 
         LinearLayout c = card();
-        c.addView(text("🚡 리프트 정보", 16, TEXT, true));
+        c.addView(text("리프트 정보", 16, TEXT, true));
         String resortName = SkiResortStore.currentName(this);
         String summaryText = String.format(Locale.KOREAN, "내 기록 %,d건 · 미제공 %,d건", total, pending);
         if (!resortName.isEmpty()) summaryText += " · " + resortName;
@@ -296,7 +305,7 @@ public class SkiActivity extends Activity {
 
     private void buildPrivacyCard() {
         LinearLayout c = card();
-        c.addView(text("🔒 스키 기록 원칙", 14, TEXT, true));
+        c.addView(text("스키 기록 원칙", 14, TEXT, true));
         TextView p = text("전체 스키 GPS 경로는 휴대폰 내부에만 저장합니다. 수동 제공은 아직 제공하지 않은 리프트 이용 기록만 보내며, 실시간 ON은 최근 리프트 대기정보만 전송합니다.", 11, MUTED, false);
         p.setPadding(0, dp(6), 0, 0);
         c.addView(p);
@@ -522,8 +531,8 @@ public class SkiActivity extends Activity {
     }
 
     private String stateLabel(String state) {
-        if (SkiRecorderService.STATE_DESCENT.equals(state)) return "⛷ 활주 중";
-        if (SkiRecorderService.STATE_LIFT.equals(state)) return "🚡 리프트 이동";
+        if (SkiRecorderService.STATE_DESCENT.equals(state)) return "활주 중";
+        if (SkiRecorderService.STATE_LIFT.equals(state)) return "리프트 이동";
         if (SkiRecorderService.STATE_STOPPED.equals(state)) return "● 정지";
         return "GPS 움직임 판별 중";
     }
@@ -536,22 +545,22 @@ public class SkiActivity extends Activity {
     }
 
     private Button choiceButton(String label, boolean selected, View.OnClickListener click) {
-        Button b = new Button(this); b.setAllCaps(false); b.setText(label); b.setTextColor(TEXT); b.setTextSize(13); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(rounded(selected ? PRIMARY : CARD2, 14, selected ? 0 : 1, 0xFF35445F)); b.setOnClickListener(click); return b;
+        Button b = new Button(this); b.setAllCaps(false); b.setText(label); b.setTextColor(selected ? Color.WHITE : TEXT); b.setTextSize(13); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setBackground(rounded(selected ? PRIMARY2 : CARD2, 16, selected ? 0 : 1, 0xFFFFD7E3)); b.setOnClickListener(click); return b;
     }
 
     private Button actionButton(String label, boolean primary, View.OnClickListener click) {
         Button b = new Button(this); b.setAllCaps(false); b.setText(label); b.setTextColor(Color.WHITE); b.setTextSize(14); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(rounded(primary ? PRIMARY : 0xFF33425B, 16, 0, 0)); b.setOnClickListener(click); return b;
+        b.setBackground(rounded(primary ? PRIMARY2 : 0xFFE75B6D, 18, 0, 0)); b.setOnClickListener(click); return b;
     }
 
     private Button ghostButton(String label, View.OnClickListener click) {
         Button b = new Button(this); b.setAllCaps(false); b.setText(label); b.setTextColor(TEXT); b.setTextSize(12);
-        b.setBackground(rounded(CARD2, 13, 1, 0xFF35445F)); b.setOnClickListener(click); return b;
+        b.setBackground(rounded(CARD2, 16, 1, 0xFFFFD7E3)); b.setOnClickListener(click); return b;
     }
 
     private LinearLayout card() {
-        LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(16), dp(15), dp(16), dp(15)); c.setBackground(rounded(CARD, 18, 0, 0)); return c;
+        LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(16), dp(15), dp(16), dp(15)); c.setBackground(rounded(CARD, 22, 1, 0xFFFFE3EC)); return c;
     }
 
     private TextView text(String value, int sp, int color, boolean bold) {

@@ -76,7 +76,7 @@ public final class YamoneBackHeader {
 
     private static boolean pink(Activity activity) {
         return "pink".equals(activity.getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
     }
 
     private static GradientDrawable round(Activity activity, int fill, int radiusDp, int strokeDp, int strokeColor) {

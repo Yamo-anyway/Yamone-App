@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -24,15 +25,15 @@ public class SkiWaitTimesActivity extends Activity {
     public static final String EXTRA_RESORT_KEY = "resort_key";
     public static final String EXTRA_RESORT_NAME = "resort_name";
 
-    private static final int BG = 0xFF0B1324;
-    private static final int CARD = 0xFF16243B;
-    private static final int CARD2 = 0xFF111C31;
-    private static final int TEXT = 0xFFF5F7FF;
-    private static final int MUTED = 0xFF9DA9BF;
-    private static final int PRIMARY = 0xFF6D72FF;
-    private static final int PRIMARY2 = 0xFF8B8FFF;
-    private static final int SUCCESS = 0xFF61D6A8;
-    private static final int WARNING = 0xFFFFC56D;
+    private static final int BG = 0xFFFFF7FA;
+    private static final int CARD = 0xFFFFFFFF;
+    private static final int CARD2 = 0xFFFFEEF3;
+    private static final int TEXT = 0xFF4B2633;
+    private static final int MUTED = 0xFF9A7180;
+    private static final int PRIMARY = 0xFFFF769F;
+    private static final int PRIMARY2 = 0xFFE94778;
+    private static final int SUCCESS = 0xFF36A57D;
+    private static final int WARNING = 0xFFE9A642;
 
     private String resortKey;
     private String resortName;
@@ -44,6 +45,11 @@ public class SkiWaitTimesActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 23) {
+            int flags = getWindow().getDecorView().getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }
         resortKey = getIntent().getStringExtra(EXTRA_RESORT_KEY);
         resortName = getIntent().getStringExtra(EXTRA_RESORT_NAME);
         if (resortKey == null) resortKey = "";
@@ -93,8 +99,8 @@ public class SkiWaitTimesActivity extends Activity {
 
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
-        Button mode = ghostButton(mapMode ? "☷ 목록으로 보기" : "🗺 지도로 보기", v -> { mapMode = !mapMode; render(); });
-        Button refresh = ghostButton(loading ? "불러오는 중…" : "↻ 새로고침", v -> refresh());
+        Button mode = ghostButton(mapMode ? "목록으로 보기" : "지도로 보기", v -> { mapMode = !mapMode; render(); });
+        Button refresh = ghostButton(loading ? "불러오는 중…" : "새로고침", v -> refresh());
         refresh.setEnabled(!loading);
         controls.addView(mode, new LinearLayout.LayoutParams(0, dp(48), 1f));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, dp(48), 1f);
@@ -150,7 +156,7 @@ public class SkiWaitTimesActivity extends Activity {
 
     private void buildList(LinearLayout page, JSONArray lifts) {
         LinearLayout card = card();
-        card.addView(text("🚡 리프트", 15, TEXT, true));
+        card.addView(text("리프트", 15, TEXT, true));
         if (lifts.length() == 0) {
             TextView empty = text("등록된 리프트가 없습니다.", 12, MUTED, false);
             empty.setPadding(0, dp(12), 0, dp(8));
@@ -197,7 +203,7 @@ public class SkiWaitTimesActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
         c.setPadding(dp(16), dp(15), dp(16), dp(15));
-        c.setBackground(round(CARD, 18, 0, 0));
+        c.setBackground(round(CARD, 22, 1, 0xFFFFE3EC));
         return c;
     }
 
@@ -205,7 +211,7 @@ public class SkiWaitTimesActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
         c.setPadding(dp(12), dp(10), dp(12), dp(10));
-        c.setBackground(round(CARD2, 13, 1, 0xFF2F405C));
+        c.setBackground(round(CARD2, 16, 1, 0xFFFFD7E3));
         return c;
     }
 
@@ -215,7 +221,7 @@ public class SkiWaitTimesActivity extends Activity {
         b.setText(label);
         b.setTextColor(TEXT);
         b.setTextSize(12);
-        b.setBackground(round(CARD2, 13, 1, 0xFF35445F));
+        b.setBackground(round(CARD2, 16, 1, 0xFFFFD7E3));
         b.setOnClickListener(click);
         return b;
     }

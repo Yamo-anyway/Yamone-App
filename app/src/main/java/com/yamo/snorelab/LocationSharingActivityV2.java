@@ -266,7 +266,7 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
 
     private boolean pink() {
         return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
     }
 
     private int textColor() { return pink() ? 0xFF4B2633 : 0xFF153633; }

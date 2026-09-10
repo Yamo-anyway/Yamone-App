@@ -47,7 +47,7 @@ public final class ActivityProfileChartView extends View {
     public ActivityProfileChartView(Context context) {
         super(context);
         boolean pink = "pink".equals(context.getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
         grid.setColor(pink ? 0x22E94778 : 0x22159A7A);
         grid.setStrokeWidth(dp(1));
         axis.setColor(pink ? 0x449A7180 : 0x44718984);

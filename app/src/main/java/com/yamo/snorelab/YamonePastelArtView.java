@@ -36,7 +36,7 @@ public final class YamonePastelArtView extends View {
         super(context);
         this.mode = mode;
         this.pink = "pink".equals(context.getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
         setLayerType(View.LAYER_TYPE_SOFTWARE, null);
     }
 

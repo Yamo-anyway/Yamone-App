@@ -56,7 +56,7 @@ public class WalkingMapView extends FrameLayout {
         setClickable(false);
         setFocusable(false);
         boolean pink = "pink".equals(context.getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
         int previewBg = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
         int previewText = pink ? 0xFF9A7180 : 0xFF718984;
         String routeColor = pink ? "#FF769F" : "#35C6A6";

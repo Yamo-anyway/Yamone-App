@@ -203,7 +203,7 @@ public final class ActivityDetailStatsEnhancer {
     }
 
     private static boolean pink(Activity a) {
-        return "pink".equals(a.getSharedPreferences(SleepRecorderService.PREFS, 0).getString("yamone_theme", "mint"));
+        return "pink".equals(a.getSharedPreferences(SleepRecorderService.PREFS, 0).getString("yamone_theme", "pink"));
     }
     private static int textColor(Activity a) { return pink(a) ? 0xFF4B2633 : 0xFF153633; }
     private static int muted(Activity a) { return pink(a) ? 0xFF9A7180 : 0xFF718984; }

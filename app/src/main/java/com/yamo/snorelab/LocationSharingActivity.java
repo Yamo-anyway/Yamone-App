@@ -151,7 +151,7 @@ public class LocationSharingActivity extends Activity {
 
     private boolean pink() {
         return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
     }
 
     private void configureSystemBars() {

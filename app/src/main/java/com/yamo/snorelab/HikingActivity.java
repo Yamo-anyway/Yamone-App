@@ -16,6 +16,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -104,9 +105,14 @@ public final class HikingActivity extends Activity {
 
     private void buildReady() {
         LinearLayout hero = card();
-        TextView icon = text("🥾  ⛰️", 38, primary2(), false);
-        icon.setGravity(Gravity.CENTER);
-        hero.addView(icon);
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_activity_hike);
+        icon.setColorFilter(primary2());
+        icon.setPadding(dp(14), dp(14), dp(14), dp(14));
+        icon.setBackground(round(card2(), 30, 0, 0));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(60), dp(60));
+        iconParams.gravity = Gravity.CENTER_HORIZONTAL;
+        hero.addView(icon, iconParams);
         TextView title = text("등산 / 트레킹 기록 준비", 19, textColor(), true);
         title.setGravity(Gravity.CENTER);
         title.setPadding(0, dp(8), 0, dp(5));
@@ -115,7 +121,7 @@ public final class HikingActivity extends Activity {
         desc.setGravity(Gravity.CENTER);
         desc.setPadding(dp(4), 0, dp(4), dp(16));
         hero.addView(desc);
-        Button start = primaryButton("▶  등산 / 트레킹 기록 시작");
+        Button start = primaryButton("등산 / 트레킹 기록 시작");
         start.setOnClickListener(v -> requestStart());
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
         sp.bottomMargin = dp(4);
@@ -156,7 +162,7 @@ public final class HikingActivity extends Activity {
         r3p.topMargin = dp(8);
         live.addView(row3, r3p);
 
-        Button stop = dangerButton("■  등산 / 트레킹 기록 종료");
+        Button stop = dangerButton("등산 / 트레킹 기록 종료");
         stop.setOnClickListener(v -> stopRecording());
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
         bp.topMargin = dp(18);
@@ -174,9 +180,12 @@ public final class HikingActivity extends Activity {
             detailSession = dir;
             render();
         });
-        TextView icon = text("⛰️", 24, primary2(), false);
-        icon.setGravity(Gravity.CENTER);
-        row.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_activity_hike);
+        icon.setColorFilter(primary2());
+        icon.setPadding(dp(10), dp(10), dp(10), dp(10));
+        icon.setBackground(round(card2(), 22, 0, 0));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
         words.setPadding(dp(10), 0, 0, 0);
@@ -186,9 +195,12 @@ public final class HikingActivity extends Activity {
                 meta.optLong("distanceM", 0L) / 1000.0,
                 meta.optLong("ascentM", 0L), format(meta.optLong("durationMs", 0L))), 11, muted(), false));
         row.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView arrow = text("›", 27, primary2(), false);
-        arrow.setGravity(Gravity.CENTER);
-        row.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(46)));
+        ImageView arrow = new ImageView(this);
+        arrow.setImageResource(R.drawable.ic_yamone_chevron_right);
+        arrow.setColorFilter(primary2());
+        arrow.setPadding(dp(9), dp(9), dp(9), dp(9));
+        arrow.setBackground(round(card2(), 18, 0, 0));
+        row.addView(arrow, new LinearLayout.LayoutParams(dp(36), dp(36)));
         return row;
     }
 
@@ -267,7 +279,7 @@ public final class HikingActivity extends Activity {
 
     private void buildPrivacy() {
         LinearLayout privacy = card();
-        privacy.addView(text("🔒 등산 / 트레킹 경로는 내 휴대폰에", 14, textColor(), true));
+        privacy.addView(text("등산 / 트레킹 경로는 내 휴대폰에", 14, textColor(), true));
         TextView desc = text("GPS 경로와 기록은 자동으로 서버에 업로드하지 않습니다.", 11, muted(), false);
         desc.setPadding(0, dp(6), 0, 0);
         privacy.addView(desc);
@@ -392,7 +404,7 @@ public final class HikingActivity extends Activity {
     }
 
     private boolean pink() {
-        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0).getString("yamone_theme", "mint"));
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0).getString("yamone_theme", "pink"));
     }
     private int bg() { return pink() ? 0xFFFFF7FA : 0xFFF7FFFB; }
     private int card2() { return pink() ? 0xFFFFEEF3 : 0xFFF0FAF6; }

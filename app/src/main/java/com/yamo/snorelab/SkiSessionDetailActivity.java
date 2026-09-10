@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
@@ -31,13 +32,13 @@ public class SkiSessionDetailActivity extends Activity {
     public static final String EXTRA_SESSION_PATH = "session_path";
     public static final String EXTRA_JUST_FINISHED = "just_finished";
 
-    private static final int BG = 0xFF0B1324;
-    private static final int CARD = 0xFF16243B;
-    private static final int CARD2 = 0xFF111C31;
-    private static final int TEXT = 0xFFF5F7FF;
-    private static final int MUTED = 0xFF9DA9BF;
-    private static final int PRIMARY2 = 0xFF8B8FFF;
-    private static final int SUCCESS = 0xFF61D6A8;
+    private static final int BG = 0xFFFFF7FA;
+    private static final int CARD = 0xFFFFFFFF;
+    private static final int CARD2 = 0xFFFFEEF3;
+    private static final int TEXT = 0xFF4B2633;
+    private static final int MUTED = 0xFF9A7180;
+    private static final int PRIMARY2 = 0xFFE94778;
+    private static final int SUCCESS = 0xFF36A57D;
 
     private File sessionDir;
 
@@ -45,6 +46,11 @@ public class SkiSessionDetailActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
+        if (Build.VERSION.SDK_INT >= 23) {
+            int flags = getWindow().getDecorView().getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }
         sessionDir = resolveSession(getIntent().getStringExtra(EXTRA_SESSION_PATH));
         if (sessionDir == null) {
             finish();
@@ -81,9 +87,7 @@ public class SkiSessionDetailActivity extends Activity {
         List<WalkingStore.Point> mapPoints = SkiSessionAnalysis.readMapPoints(sessionDir, 1600);
         boolean justFinished = getIntent().getBooleanExtra(EXTRA_JUST_FINISHED, false);
         String sport = "snowboard".equals(meta.optString("sport")) ? "스노보드" : "스키";
-        String icon = "스노보드".equals(sport) ? "🏂" : "⛷";
-
-        page.addView(YamoneBackHeader.create(this, icon + " " + sport + " 기록", null,
+        page.addView(YamoneBackHeader.create(this, sport + " 기록", null,
         BG, TEXT, MUTED, v -> finish()));
 
         if (justFinished) {
@@ -144,7 +148,7 @@ public class SkiSessionDetailActivity extends Activity {
         page.addView(mapCard, cardParams());
 
         LinearLayout runs = card();
-        runs.addView(text("⛷ 활주 기록", 15, TEXT, true));
+        runs.addView(text("활주 기록", 15, TEXT, true));
         if (descents.isEmpty()) {
             TextView empty = text("자동 판별된 활주 구간이 없습니다.", 12, MUTED, false);
             empty.setPadding(0, dp(10), 0, 0);
@@ -166,7 +170,7 @@ public class SkiSessionDetailActivity extends Activity {
         page.addView(runs, cardParams());
 
         LinearLayout liftCard = card();
-        liftCard.addView(text("🚡 리프트 / 대기 기록", 15, TEXT, true));
+        liftCard.addView(text("리프트 / 대기 기록", 15, TEXT, true));
         if (lifts.length() == 0) {
             TextView empty = text("자동 판별된 리프트 이용 기록이 없습니다.", 12, MUTED, false);
             empty.setPadding(0, dp(10), 0, 0);
@@ -182,7 +186,7 @@ public class SkiSessionDetailActivity extends Activity {
                 long rideStart = lift.optLong("rideStartEpochMs", 0);
                 String time = rideStart > 0 ? new SimpleDateFormat("HH:mm", Locale.KOREAN).format(new Date(rideStart)) : "--:--";
                 LinearLayout item = innerCard();
-                item.addView(text("🚡 " + liftName + " · " + time, 13, TEXT, true));
+                item.addView(text(liftName + " · " + time, 13, TEXT, true));
                 item.addView(text("대기 " + formatElapsed(lift.optLong("waitDurationMs", 0))
                         + " · 이동 " + formatElapsed(lift.optLong("rideDurationMs", 0))
                         + " · 상승 " + Math.round(lift.optDouble("ascentM", 0)) + " m", 11, MUTED, false));
@@ -224,7 +228,7 @@ public class SkiSessionDetailActivity extends Activity {
         input.setHint("리프트 이름 입력");
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         input.setPadding(dp(14), 0, dp(14), 0);
-        input.setBackground(round(CARD2, 12, 1, 0xFF35445F));
+        input.setBackground(round(CARD2, 16, 1, 0xFFFFD7E3));
         if (!officialName.isEmpty()) input.setText(officialName);
 
         LinearLayout wrap = new LinearLayout(this);
@@ -325,7 +329,7 @@ public class SkiSessionDetailActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
         c.setPadding(dp(16), dp(15), dp(16), dp(15));
-        c.setBackground(round(CARD, 18, 0, 0));
+        c.setBackground(round(CARD, 22, 1, 0xFFFFE3EC));
         return c;
     }
 
@@ -333,7 +337,7 @@ public class SkiSessionDetailActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
         c.setPadding(dp(12), dp(11), dp(12), dp(11));
-        c.setBackground(round(CARD2, 14, 1, 0xFF2F405C));
+        c.setBackground(round(CARD2, 16, 1, 0xFFFFD7E3));
         return c;
     }
 
@@ -343,7 +347,7 @@ public class SkiSessionDetailActivity extends Activity {
         b.setText(label);
         b.setTextColor(TEXT);
         b.setTextSize(12);
-        b.setBackground(round(CARD2, 12, 1, 0xFF35445F));
+        b.setBackground(round(CARD2, 16, 1, 0xFFFFD7E3));
         b.setOnClickListener(click);
         return b;
     }

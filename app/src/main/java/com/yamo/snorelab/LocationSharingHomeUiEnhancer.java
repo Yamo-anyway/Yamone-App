@@ -228,7 +228,7 @@ public final class LocationSharingHomeUiEnhancer {
 
     private static boolean pink(MainActivity activity) {
         return "pink".equals(activity.getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
     }
 
     private static int textColor(MainActivity a) { return pink(a) ? 0xFF4B2633 : 0xFF153633; }

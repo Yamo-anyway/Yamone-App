@@ -570,7 +570,7 @@ public class MainActivity extends Activity {
             metrics.addView(sleepMetric("확정", confirmed + "건"), confirmedParams);
             hero.addView(metrics);
 
-            TextView open = text("최근 수면 결과 보기  ›", 11, PRIMARY2, true);
+            TextView open = text("최근 수면 결과 보기", 11, PRIMARY2, true);
             open.setGravity(Gravity.RIGHT);
             open.setPadding(0, dp(10), 0, 0);
             hero.addView(open);
@@ -650,8 +650,10 @@ public class MainActivity extends Activity {
         left.addView(summary);
         c.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView arrow = text("›", 26, PRIMARY2, false);
-        arrow.setGravity(Gravity.CENTER);
+        ImageView arrow = new ImageView(this);
+        arrow.setImageResource(R.drawable.ic_yamone_chevron_right);
+        arrow.setColorFilter(PRIMARY2);
+        arrow.setPadding(dp(9), dp(9), dp(9), dp(9));
         arrow.setBackground(round(CARD2, 18, 0, 0));
         c.addView(arrow, new LinearLayout.LayoutParams(dp(36), dp(36)));
         c.setOnClickListener(v -> { detailSession = dir; showSessionDetail(dir); });

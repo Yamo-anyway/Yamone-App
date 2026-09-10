@@ -20,7 +20,7 @@ public class SnoreTimelineView extends View {
     public SnoreTimelineView(Context context) {
         super(context);
         SharedPreferences prefs = context.getSharedPreferences(SleepRecorderService.PREFS, Context.MODE_PRIVATE);
-        boolean pink = "pink".equals(prefs.getString("yamone_theme", "mint"));
+        boolean pink = "pink".equals(prefs.getString("yamone_theme", "pink"));
         base.setColor(pink ? 0xFFFFE5ED : 0xFFDDF3EB);
         event.setColor(pink ? 0xFFFF769F : 0xFF56D1B3);
         strong.setColor(0xFFE75B6D);

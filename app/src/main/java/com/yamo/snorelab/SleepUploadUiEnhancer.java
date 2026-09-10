@@ -217,7 +217,7 @@ public final class SleepUploadUiEnhancer {
 
     private static boolean pink(MainActivity activity) {
         return "pink".equals(activity.getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+                .getString("yamone_theme", "pink"));
     }
 
     private static int primary(MainActivity activity) { return pink(activity) ? 0xFFE94778 : 0xFF159A7A; }
