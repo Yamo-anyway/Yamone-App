@@ -66,6 +66,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     public static final String KEY_PAUSE_STARTED_MS = "pause_started_ms";
     public static final String KEY_PERSISTED_AT_MS = "persisted_at_ms";
     public static final String KEY_SPLITS_JSON = "splits_json";
+    public static final String KEY_LAST_ACCEPTED_FIX_MS = "last_accepted_fix_ms";
 
     private static final String CHANNEL_RECORDING = "walking_recording_v1";
     private static final String CHANNEL_GOAL = "walking_goal_v1";
@@ -123,6 +124,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private float accuracyM = Float.NaN;
     private Location lastAccepted;
     private long lastAcceptedTime;
+    private long lastAcceptedFixWallMs;
     private float lastAcceptedSpeedMps;
     private long lastWrittenTime;
     private int rejectedGpsPoints;
@@ -199,6 +201,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         lastAcceptedSpeedMps = 0f;
         lastAccepted = null;
         lastAcceptedTime = 0;
+        lastAcceptedFixWallMs = 0L;
         lastWrittenTime = 0;
         distanceM = 0;
         movingMs = 0;
@@ -305,14 +308,11 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         if (!recording || paused || loc == null) return;
         float activityAccuracyLimit = isCycling() ? MAX_ACCEPTABLE_ACCURACY_M
                 : (isRunning() || isWalkRun() ? 35f : 30f);
-        if (loc.hasAccuracy() && loc.getAccuracy() > activityAccuracyLimit) {
-            rejectedGpsPoints++;
-            resetMaxSpeedCandidate();
-            return;
-        }
-
-        long now = loc.getTime() > 0 ? loc.getTime() : System.currentTimeMillis();
         accuracyM = loc.hasAccuracy() ? loc.getAccuracy() : Float.NaN;
+        if (loc.hasAccuracy() && loc.getAccuracy() > activityAccuracyLimit) {
+            rejectedGpsPoints++; currentSpeedKmh = 0f; resetMaxSpeedCandidate(); persistRuntime(); return;
+        }
+        long now = loc.getTime() > 0 ? loc.getTime() : System.currentTimeMillis();
         if (loc.hasAltitude()) {
             if (Double.isNaN(altitudeM)) altitudeM = loc.getAltitude();
             else if (!loc.hasAccuracy() || loc.getAccuracy() <= 25f) altitudeM = altitudeM * 0.80 + loc.getAltitude() * 0.20;
@@ -626,6 +626,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private void acceptAnchor(Location loc, long now, float speedMps, boolean writeMovingPoint) {
         lastAccepted = new Location(loc);
         lastAcceptedTime = now;
+        lastAcceptedFixWallMs = System.currentTimeMillis();
         lastAcceptedSpeedMps = Math.max(0f, speedMps);
         WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
                 Double.isNaN(altitudeM) ? 0 : altitudeM, writeMovingPoint ? speedMps : 0f);
@@ -635,6 +636,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private void rebaseStationaryAnchor(Location loc, long now, boolean forceWrite) {
         lastAccepted = new Location(loc);
         lastAcceptedTime = now;
+        lastAcceptedFixWallMs = System.currentTimeMillis();
         lastAcceptedSpeedMps = 0f;
         if (forceWrite || now - lastWrittenTime >= 10_000L) {
             WalkingStore.appendRoute(sessionDir, now, loc.getLatitude(), loc.getLongitude(), accuracyM,
@@ -759,6 +761,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
                 .putLong(KEY_PAUSED_ACCUM_MS, pausedAccumMs)
                 .putLong(KEY_PAUSE_STARTED_MS, pauseStartedMs)
                 .putLong(KEY_PERSISTED_AT_MS, System.currentTimeMillis())
+                .putLong(KEY_LAST_ACCEPTED_FIX_MS, lastAcceptedFixWallMs)
                 .putString(KEY_SPLITS_JSON, WalkingStore.longListToJson(splitsMs).toString())
                 .apply();
     }
@@ -783,7 +786,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
             m.put("goalState", goalState);
             m.put("splitsMs", WalkingStore.longListToJson(splitsMs));
             m.put("locationStorage", "local_only");
-            m.put("gpsFilter", "local_" + activityType + "_v6_shadow");
+            m.put("gpsFilter", "local_" + activityType + "_v7_segmented");
             m.put("rejectedGpsPoints", rejectedGpsPoints);
             m.put("gpsGapResets", gpsGapResets);
             m.put("gpsShadowSegments", gpsShadowSegments);
@@ -846,6 +849,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         maxSpeedKmh = runtime.getFloat(KEY_MAX_SPEED_KMH, 0f);
         altitudeM = runtime.getFloat(KEY_ALTITUDE_M, Float.NaN);
         accuracyM = runtime.getFloat(KEY_ACCURACY_M, Float.NaN);
+        lastAcceptedFixWallMs = runtime.getLong(KEY_LAST_ACCEPTED_FIX_MS, 0L);
         goalDistanceM = runtime.getLong(KEY_GOAL_DISTANCE_M, 0L);
         goalTimeMs = runtime.getLong(KEY_GOAL_TIME_MS, 0L);
         goalState = runtime.getString(KEY_GOAL_STATE, "ACTIVE");

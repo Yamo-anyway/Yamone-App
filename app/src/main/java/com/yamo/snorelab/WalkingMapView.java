@@ -15,14 +15,22 @@ import org.maplibre.android.geometry.LatLng;
 import org.maplibre.android.geometry.LatLngBounds;
 import org.maplibre.android.maps.MapLibreMap;
 import org.maplibre.android.maps.MapView;
+import org.maplibre.android.style.layers.CircleLayer;
 import org.maplibre.android.style.layers.LineLayer;
 import org.maplibre.android.style.sources.GeoJsonSource;
+import org.maplibre.geojson.Feature;
+import org.maplibre.geojson.FeatureCollection;
 import org.maplibre.geojson.LineString;
 import org.maplibre.geojson.Point;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.maplibre.android.style.layers.PropertyFactory.circleColor;
+import static org.maplibre.android.style.layers.PropertyFactory.circleOpacity;
+import static org.maplibre.android.style.layers.PropertyFactory.circleRadius;
+import static org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor;
+import static org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth;
 import static org.maplibre.android.style.layers.PropertyFactory.lineCap;
 import static org.maplibre.android.style.layers.PropertyFactory.lineColor;
 import static org.maplibre.android.style.layers.PropertyFactory.lineJoin;
@@ -34,6 +42,9 @@ public class WalkingMapView extends FrameLayout {
     private static final String STYLE_URI = "https://tiles.openfreemap.org/styles/liberty";
     private static final String SOURCE_ID = "walking-route-source";
     private static final String LAYER_ID = "walking-route-layer";
+    private static final String CURRENT_SOURCE_ID = "walking-current-source";
+    private static final String CURRENT_LAYER_ID = "walking-current-layer";
+    private static final long RENDER_GAP_BREAK_MS = 12_000L;
     private static final int MAX_RENDER_POINTS = 1200;
     private static final double TARGET_MARGIN_RATIO = 0.06;
     private static final double MIN_TARGET_MARGIN_DEG = 0.00020;
@@ -42,6 +53,7 @@ public class WalkingMapView extends FrameLayout {
     private final TextView status;
     private MapLibreMap map;
     private GeoJsonSource routeSource;
+    private GeoJsonSource currentSource;
     private List<WalkingStore.Point> points = new ArrayList<>();
     private boolean started;
     private boolean resumed;
@@ -97,8 +109,9 @@ public class WalkingMapView extends FrameLayout {
                         lineJoin("round")
                 );
                 style.addLayer(routeLayer);
-                styleReady = true;
-                updateRoute();
+                currentSource = new GeoJsonSource(CURRENT_SOURCE_ID); style.addSource(currentSource);
+                CircleLayer currentLayer = new CircleLayer(CURRENT_LAYER_ID, CURRENT_SOURCE_ID).withProperties(circleColor(routeColor), circleRadius(6.5f), circleOpacity(1.0f), circleStrokeColor("#FFFFFF"), circleStrokeWidth(2.5f));
+                style.addLayer(currentLayer); styleReady = true; updateRoute();
             });
         });
     }
@@ -159,9 +172,8 @@ public class WalkingMapView extends FrameLayout {
     }
 
     public void setPoints(List<WalkingStore.Point> value) {
-        points = value == null ? new ArrayList<>() : new ArrayList<>(value);
-        updateEmptyState();
-        updateRoute();
+        if (value == null || value.isEmpty()) { if (points.isEmpty()) updateEmptyState(); return; }
+        points = new ArrayList<>(value); updateEmptyState(); updateRoute();
     }
 
     public void setAnalysisSamples(List<ActivityRouteAnalysis.Sample> samples) {
@@ -204,13 +216,14 @@ public class WalkingMapView extends FrameLayout {
 
     private void updateRoute() {
         if (!styleReady || routeSource == null || map == null || points.isEmpty()) return;
-        List<WalkingStore.Point> visible = renderPoints();
-        ArrayList<Point> geo = new ArrayList<>(visible.size());
-        for (WalkingStore.Point p : visible) geo.add(Point.fromLngLat(p.lon, p.lat));
-        if (geo.size() >= 2) routeSource.setGeoJson(LineString.fromLngLats(geo));
-        else routeSource.setGeoJson(Point.fromLngLat(points.get(0).lon, points.get(0).lat));
+        List<WalkingStore.Point> visible = renderPoints(); ArrayList<Feature> lines = new ArrayList<>(); ArrayList<Point> seg = new ArrayList<>(); WalkingStore.Point prev = null;
+        for (WalkingStore.Point p : visible) { boolean cut = prev != null && p.timeMs - prev.timeMs > RENDER_GAP_BREAK_MS && p.speedMps <= 0.01f; if (cut) { addSegment(lines, seg); seg = new ArrayList<>(); } seg.add(Point.fromLngLat(p.lon, p.lat)); prev = p; }
+        addSegment(lines, seg); routeSource.setGeoJson(FeatureCollection.fromFeatures(lines));
+        if (currentSource != null) { WalkingStore.Point last = visible.get(visible.size()-1); currentSource.setGeoJson(Point.fromLngLat(last.lon, last.lat)); }
         post(this::fitAndConstrainCamera);
     }
+
+    private void addSegment(List<Feature> lines, List<Point> seg) { if (seg != null && seg.size() >= 2) lines.add(Feature.fromGeometry(LineString.fromLngLats(seg))); }
 
     private void fitAndConstrainCamera() {
         if (map == null || points.isEmpty()) return;

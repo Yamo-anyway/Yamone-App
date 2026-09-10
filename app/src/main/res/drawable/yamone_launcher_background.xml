@@ -1,0 +1,1 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item><bitmap android:src="@drawable/yamone_launcher_day_night" android:gravity="fill"/></item></layer-list>

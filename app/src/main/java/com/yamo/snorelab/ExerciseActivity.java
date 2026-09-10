@@ -160,10 +160,23 @@ public class ExerciseActivity extends Activity {
         return header;
     }
 
+    private LinearLayout liveHeader(String title) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(18), dp(8), dp(18), dp(9));
+        header.setBackgroundColor(BG);
+        TextView tv = text(title, 26, TEXT, true);
+        tv.setGravity(Gravity.CENTER_VERTICAL); tv.setIncludeFontPadding(false);
+        header.addView(tv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
+        return header;
+    }
+
     private void showHome() {
         detailOpen = false;
         detailDir = null;
-        setBottomNavVisible(!runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false));
+        boolean recording = runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false);
+        setBottomNavVisible(!recording);
         // Clear stale live-view references before rebuilding the non-recording home.
         // Otherwise the 1-second refresher sees the old liveDistance reference and
         // calls showHome() repeatedly after recording has ended, resetting ScrollView to the top.
@@ -184,7 +197,8 @@ public class ExerciseActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(mainHeader("활동", ""),
+        String liveType = runtime.getString(WalkingRecorderService.KEY_ACTIVITY_TYPE, "walking");
+        shell.addView(recording ? liveHeader(activityLabel(liveType)) : mainHeader("활동", ""),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = page();
@@ -192,7 +206,7 @@ public class ExerciseActivity extends Activity {
         shell.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         content.addView(shell);
 
-        if (runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false)) {
+        if (recording) {
             buildLive(page);
         } else {
             buildStart(page);
@@ -201,12 +215,12 @@ public class ExerciseActivity extends Activity {
             buildRecent(page);
         }
 
-        LinearLayout privacy = card();
-        privacy.addView(text("🔒 위치 기록 원칙", 15, TEXT, true));
-        TextView p = text("GPS 경로와 활동 기록은 휴대폰 내부에만 저장됩니다. 지도 배경을 표시할 때만 OpenFreeMap 지도 타일을 인터넷으로 불러오며, 기록한 GPS 경로를 서버에 업로드하지 않습니다.", 12, MUTED, false);
-        p.setPadding(0, dp(8), 0, 0);
-        privacy.addView(p);
-        page.addView(privacy, cardParams());
+        if (!recording) {
+            LinearLayout privacy = card();
+            privacy.addView(text("🔒 위치 기록 원칙", 15, TEXT, true));
+            TextView p = text("GPS 경로와 활동 기록은 휴대폰 내부에만 저장됩니다. 지도 배경을 표시할 때만 OpenFreeMap 지도 타일을 인터넷으로 불러오며, 기록한 GPS 경로를 서버에 업로드하지 않습니다.", 12, MUTED, false);
+            p.setPadding(0, dp(8), 0, 0); privacy.addView(p); page.addView(privacy, cardParams());
+        }
     }
 
     private void buildStart(LinearLayout page) {
@@ -585,27 +599,27 @@ public class ExerciseActivity extends Activity {
         top.addView(state, new LinearLayout.LayoutParams(dp(100), dp(38)));
         hero.addView(top);
 
-        liveDistance = text("0.00 km", 42, TEXT, true);
-        liveDistance.setGravity(Gravity.CENTER);
-        liveDistance.setPadding(0, dp(5), 0, 0);
-        hero.addView(liveDistance, match(dp(64)));
+        liveDistance = text("0.00 km", 38, TEXT, true);
+        liveDistance.setGravity(Gravity.CENTER); liveDistance.setPadding(0, dp(3), 0, 0);
+        hero.addView(liveDistance, match(dp(56)));
 
         LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
         liveTime = metricValue("00:00");
         livePace = metricValue(cycling ? "0.0 km/h" : "--'--\"/km");
         liveSteps = metricValue(cycling ? "0.0 km/h" : "0");
-        row1.addView(metricBox("전체 시간", liveTime), new LinearLayout.LayoutParams(0, dp(74), 1f));
-        row1.addView(metricBox(cycling ? "평균 속도" : "평균 페이스", livePace), new LinearLayout.LayoutParams(0, dp(74), 1f));
-        row1.addView(metricBox(cycling ? "최고 속도" : "걸음", liveSteps), new LinearLayout.LayoutParams(0, dp(74), 1f));
+        row1.addView(metricBox("전체 시간", liveTime), new LinearLayout.LayoutParams(0, dp(68), 1f));
+        row1.addView(metricBox(cycling ? "평균 속도" : "평균 페이스", livePace), new LinearLayout.LayoutParams(0, dp(68), 1f));
+        row1.addView(metricBox(cycling ? "최고 속도" : "걸음", liveSteps), new LinearLayout.LayoutParams(0, dp(68), 1f));
         hero.addView(row1);
 
         LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
         liveSpeed = metricValue("0.0 km/h"); liveMoving = metricValue("00:00"); liveAltitude = metricValue("-- m");
-        row2.addView(metricBox("현재 속도", liveSpeed), new LinearLayout.LayoutParams(0, dp(70), 1f));
-        row2.addView(metricBox("이동 시간", liveMoving), new LinearLayout.LayoutParams(0, dp(70), 1f));
-        row2.addView(metricBox("GPS 고도", liveAltitude), new LinearLayout.LayoutParams(0, dp(70), 1f));
+        row2.addView(metricBox("현재 속도", liveSpeed), new LinearLayout.LayoutParams(0, dp(64), 1f));
+        row2.addView(metricBox("이동 시간", liveMoving), new LinearLayout.LayoutParams(0, dp(64), 1f));
+        row2.addView(metricBox("GPS 고도", liveAltitude), new LinearLayout.LayoutParams(0, dp(64), 1f));
         hero.addView(row2);
-        liveAccuracy = text("GPS 정확도 --", 11, MUTED, false); liveAccuracy.setGravity(Gravity.CENTER); hero.addView(liveAccuracy);
+        liveAccuracy = text("GPS 위치를 찾는 중…", 10, MUTED, false);
+        liveAccuracy.setGravity(Gravity.CENTER); liveAccuracy.setPadding(0, dp(4), 0, 0); hero.addView(liveAccuracy);
         if (walkrun) {
             liveModeBreakdown = text("자동 구분 준비 중", 12, PRIMARY2, true);
             liveModeBreakdown.setGravity(Gravity.CENTER);
@@ -626,16 +640,17 @@ public class ExerciseActivity extends Activity {
         LinearLayout routeCard = card();
         routeCard.addView(text("이동 경로", 15, TEXT, true));
         liveRoute = new WalkingMapView(this);
-        LinearLayout.LayoutParams rp = match(dp(210)); rp.topMargin = dp(8); routeCard.addView(liveRoute, rp);
+        LinearLayout.LayoutParams rp = match(dp(260)); rp.topMargin = dp(8); routeCard.addView(liveRoute, rp);
         page.addView(routeCard, cardParams());
 
         LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setGravity(Gravity.CENTER_VERTICAL); controls.setPadding(0, dp(2), 0, dp(5));
         boolean paused = runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false);
-        Button pause = ghostButton(paused ? "▶ 계속" : "Ⅱ 일시정지", v -> togglePause());
-        Button stop = actionButton("■ 종료", false, v -> stopExercise());
-        controls.addView(pause, new LinearLayout.LayoutParams(0, dp(54), 1f));
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, dp(54), 1f); sp.leftMargin = dp(10); controls.addView(stop, sp);
-        page.addView(controls, cardParams());
+        View pause = activityControlButton(paused ? R.drawable.ic_activity_control_play : R.drawable.ic_activity_control_pause, paused ? "계속" : "일시정지", false, v -> togglePause());
+        View stop = activityControlButton(R.drawable.ic_activity_control_stop, "종료", true, v -> stopExercise());
+        controls.addView(pause, new LinearLayout.LayoutParams(0, dp(58), 1f));
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, dp(58), 1f); sp.leftMargin = dp(10); controls.addView(stop, sp);
+        LinearLayout.LayoutParams cp = cardParams(); cp.topMargin = dp(2); cp.bottomMargin = dp(20); page.addView(controls, cp);
 
         updateLive();
     }
@@ -654,6 +669,7 @@ public class ExerciseActivity extends Activity {
         float maxSpeed = runtime.getFloat(WalkingRecorderService.KEY_MAX_SPEED_KMH, 0);
         float altitude = runtime.getFloat(WalkingRecorderService.KEY_ALTITUDE_M, Float.NaN);
         float accuracy = runtime.getFloat(WalkingRecorderService.KEY_ACCURACY_M, Float.NaN);
+        long lastFix = runtime.getLong(WalkingRecorderService.KEY_LAST_ACCEPTED_FIX_MS, 0L);
 
         liveDistance.setText(String.format(Locale.KOREAN, "%.2f km", distance / 1000.0));
         liveTime.setText(formatClock(elapsed));
@@ -663,7 +679,12 @@ public class ExerciseActivity extends Activity {
                 : (stepAvailable ? String.format(Locale.KOREAN, "%,d", steps) : "미지원"));
         liveSpeed.setText(String.format(Locale.KOREAN, "%.1f km/h", speed));
         liveAltitude.setText(Float.isNaN(altitude) ? "-- m" : String.format(Locale.KOREAN, "%.0f m", altitude));
-        liveAccuracy.setText(Float.isNaN(accuracy) ? "GPS 정확도 확인 중" : String.format(Locale.KOREAN, "GPS 정확도 ±%.0fm", accuracy));
+        float limit = cycling ? 45f : ("running".equals(type) || "walkrun".equals(type) ? 35f : 30f);
+        long age = lastFix <= 0 ? Long.MAX_VALUE : Math.max(0L, System.currentTimeMillis() - lastFix);
+        if (lastFix <= 0) liveAccuracy.setText("GPS 위치를 찾는 중…");
+        else if (age > 8_000L) liveAccuracy.setText("GPS 신호 확인 중 · 기존 경로 유지");
+        else if (!Float.isNaN(accuracy) && accuracy > limit) liveAccuracy.setText(String.format(Locale.KOREAN, "GPS 신호 약함 · 정확도 ±%.0fm", accuracy));
+        else liveAccuracy.setText(Float.isNaN(accuracy) ? "GPS 정확도 확인 중" : String.format(Locale.KOREAN, "GPS 정확도 ±%.0fm", accuracy));
 
         if (walkrun && liveModeBreakdown != null) {
             long wd = runtime.getLong(WalkingRecorderService.KEY_WALKING_DISTANCE_M, 0);
@@ -693,7 +714,7 @@ public class ExerciseActivity extends Activity {
         }
 
         long now = System.currentTimeMillis();
-        if (liveRoute != null && now - lastRouteReload > 4000) {
+        if (liveRoute != null && now - lastRouteReload > 2000) {
             String path = runtime.getString(WalkingRecorderService.KEY_SESSION_DIR, "");
             if (!path.isEmpty()) liveRoute.setPoints(WalkingStore.readRoute(new File(path), 1000));
             lastRouteReload = now;
@@ -1162,6 +1183,15 @@ public class ExerciseActivity extends Activity {
 
     private TextView text(String s, int sp, int color, boolean bold) { TextView v = new TextView(this); v.setText(s); v.setTextSize(sp); v.setTextColor(color); if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD); v.setLineSpacing(0, 1.08f); return v; }
     private Button actionButton(String s, boolean primary, View.OnClickListener click) { Button b = new Button(this); b.setText(s); b.setAllCaps(false); b.setTextSize(14); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD); b.setTextColor(Color.WHITE); b.setBackground(round(primary ? PRIMARY : 0xFF33425B, 16, 0, 0)); b.setOnClickListener(click); return b; }
+    private View activityControlButton(int iconRes, String label, boolean danger, View.OnClickListener click) {
+        boolean pink = pinkBottomNav(); int fill = pink ? 0xFFFFEEF3 : 0xFFF0FAF6; int border = pink ? 0xFFFFD7E3 : 0xFFD7EFE7;
+        int fg = danger ? 0xFFE75B6D : (pink ? 0xFF4B2633 : 0xFF153633);
+        LinearLayout b = new LinearLayout(this); b.setOrientation(LinearLayout.HORIZONTAL); b.setGravity(Gravity.CENTER); b.setClickable(true); b.setFocusable(true);
+        b.setBackground(round(fill, 16, 1, danger ? 0xFFFFCBD3 : border)); if (Build.VERSION.SDK_INT >= 21) b.setElevation(dp(1.5f));
+        ImageView iv = new ImageView(this); iv.setImageResource(iconRes); iv.setColorFilter(fg); b.addView(iv, new LinearLayout.LayoutParams(dp(21), dp(21)));
+        TextView tv = text(label, 14, fg, true); tv.setGravity(Gravity.CENTER_VERTICAL); tv.setIncludeFontPadding(false);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(28)); lp.leftMargin = dp(8); b.addView(tv, lp); b.setOnClickListener(click); return b;
+    }
     private Button ghostButton(String s, View.OnClickListener click) { Button b = new Button(this); b.setText(s); b.setAllCaps(false); b.setTextSize(13); b.setTextColor(TEXT); b.setBackground(round(CARD2, 13, 1, 0xFF35445F)); b.setOnClickListener(click); return b; }
     private GradientDrawable round(int color, int radiusDp, int strokeDp, int strokeColor) { GradientDrawable g = new GradientDrawable(); g.setColor(color); g.setCornerRadius(dp(radiusDp)); if (strokeDp > 0) g.setStroke(dp(strokeDp), strokeColor); return g; }
     private LinearLayout.LayoutParams cardParams() { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT); p.bottomMargin = dp(12); return p; }
