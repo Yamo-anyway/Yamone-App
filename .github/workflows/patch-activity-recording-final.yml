@@ -1,0 +1,27 @@
+name: Apply Yamone activity recording final hardening
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-activity-recording-final.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply activity recording hardening
+        run: python3 .github/scripts/patch_activity_recording_final.py
+      - name: Commit changes
+        run: |
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab
+          git commit -m 'Finalize activity recording recovery and GPS resilience'
+          git push
