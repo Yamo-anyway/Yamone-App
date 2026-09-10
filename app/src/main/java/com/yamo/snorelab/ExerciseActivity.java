@@ -102,9 +102,10 @@ public class ExerciseActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (detailOpen) { detailOpen = false; detailDir = null; showHome(); return; }
-        super.onBackPressed();
-    }
+    if (detailOpen) { detailOpen = false; detailDir = null; showHome(); return; }
+    startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "home"));
+    finish();
+}
 
     private void buildRoot() {
         LinearLayout root = new LinearLayout(this);
@@ -499,16 +500,8 @@ public class ExerciseActivity extends Activity {
     }
 
     private View backHeader(String title) {
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView back = text("‹", 34, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> showHome());
-        top.addView(back, new LinearLayout.LayoutParams(dp(42), dp(52)));
-        top.addView(text(title, 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(52), 1f));
-        return top;
-    }
+    return YamoneBackHeader.create(this, title, null, BG, TEXT, MUTED, v -> showHome());
+}
 
     private void addActivityStartCard(LinearLayout page, String type, String icon, String label, String example) {
         boolean cycling = "cycling".equals(type);
@@ -817,9 +810,10 @@ public class ExerciseActivity extends Activity {
         boolean cycling = "cycling".equals(type);
         boolean walkrun = "walkrun".equals(type);
 
-        LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView back = text("‹", 34, TEXT, false); back.setGravity(Gravity.CENTER); back.setOnClickListener(v -> { detailOpen = false; showHome(); }); top.addView(back, new LinearLayout.LayoutParams(dp(42), dp(50)));
-        top.addView(text(justFinished ? icon + " " + label + " 완료" : icon + " " + label + " 기록", 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(50), 1f)); page.addView(top);
+        page.addView(YamoneBackHeader.create(this,
+        justFinished ? icon + " " + label + " 완료" : icon + " " + label + " 기록",
+        null, BG, TEXT, MUTED,
+        v -> { detailOpen = false; showHome(); }));
 
         if (justFinished) {
             LinearLayout completed = card();

@@ -87,19 +87,9 @@ public class SkiWaitTimesActivity extends Activity {
         scroll.addView(page, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         setContentView(scroll);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView back = text("‹", 34, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> finish());
-        header.addView(back, new LinearLayout.LayoutParams(dp(42), dp(52)));
-        LinearLayout titles = new LinearLayout(this);
-        titles.setOrientation(LinearLayout.VERTICAL);
-        titles.addView(text("현재 예상 대기시간", 22, TEXT, true));
-        titles.addView(text(resortName.isEmpty() ? "현재 스키장" : resortName, 12, MUTED, false));
-        header.addView(titles, new LinearLayout.LayoutParams(0, dp(58), 1f));
-        page.addView(header);
+        page.addView(YamoneBackHeader.create(this, "현재 예상 대기시간",
+        resortName.isEmpty() ? "현재 스키장" : resortName,
+        BG, TEXT, MUTED, v -> finish()));
 
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);

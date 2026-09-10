@@ -740,26 +740,13 @@ public class LocationSharingActivity extends Activity {
     }
 
     private LinearLayout header(String title, String subtitle) {
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(dp(10), dp(5), dp(18), dp(5));
-        top.setBackgroundColor(BG);
-        TextView back = text("‹", 34, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> {
-            if ("room_form".equals(currentPage)) showLanding();
-            else finish();
-        });
-        top.addView(back, new LinearLayout.LayoutParams(dp(48), dp(54)));
-        LinearLayout titles = new LinearLayout(this);
-        titles.setOrientation(LinearLayout.VERTICAL);
-        titles.setGravity(Gravity.CENTER_VERTICAL);
-        titles.addView(text(title, 22, TEXT, true));
-        if (subtitle != null && !subtitle.isEmpty()) titles.addView(text(subtitle, 11, MUTED, false));
-        top.addView(titles, new LinearLayout.LayoutParams(0, dp(54), 1f));
-        return top;
-    }
+    LinearLayout header = YamoneBackHeader.create(this, title, subtitle, BG, TEXT, MUTED, v -> {
+        if ("room_form".equals(currentPage)) showLanding();
+        else finish();
+    });
+    header.setPadding(dp(10), dp(5), dp(18), dp(5));
+    return header;
+}
 
     private LinearLayout bodyPage() {
         LinearLayout page = new LinearLayout(this);

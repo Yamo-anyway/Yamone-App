@@ -83,15 +83,8 @@ public class SkiSessionDetailActivity extends Activity {
         String sport = "snowboard".equals(meta.optString("sport")) ? "스노보드" : "스키";
         String icon = "스노보드".equals(sport) ? "🏂" : "⛷";
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView back = text("‹", 34, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> finish());
-        header.addView(back, new LinearLayout.LayoutParams(dp(42), dp(52)));
-        header.addView(text(icon + " " + sport + " 기록", 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(52), 1f));
-        page.addView(header);
+        page.addView(YamoneBackHeader.create(this, icon + " " + sport + " 기록", null,
+        BG, TEXT, MUTED, v -> finish()));
 
         if (justFinished) {
             LinearLayout done = card();

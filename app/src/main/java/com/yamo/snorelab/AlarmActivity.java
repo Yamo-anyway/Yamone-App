@@ -183,26 +183,10 @@ public class AlarmActivity extends Activity {
     }
 
     private LinearLayout fixedBackHeader(String title, String subtitle) {
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(12), dp(7), dp(18), dp(8));
-        header.setBackgroundColor(BG);
-        TextView back = text("‹", 34, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> showList());
-        header.addView(back, new LinearLayout.LayoutParams(dp(48), dp(56)));
-        LinearLayout words = new LinearLayout(this);
-        words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(text(title, 22, TEXT, true));
-        if (subtitle != null && !subtitle.isEmpty()) {
-            TextView sub = text(subtitle, 11, MUTED, false);
-            sub.setPadding(0, dp(2), 0, 0);
-            words.addView(sub);
-        }
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(56), 1f));
-        return header;
-    }
+    LinearLayout header = YamoneBackHeader.create(this, title, subtitle, BG, TEXT, MUTED, v -> showList());
+    header.setPadding(dp(12), dp(7), dp(18), dp(8));
+    return header;
+}
 
     private LinearLayout bodyPage() {
         LinearLayout p = new LinearLayout(this);

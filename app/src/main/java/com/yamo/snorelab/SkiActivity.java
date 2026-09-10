@@ -127,20 +127,8 @@ public class SkiActivity extends Activity {
     }
 
     private View header() {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView back = text("‹", 34, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> finish());
-        row.addView(back, new LinearLayout.LayoutParams(dp(42), dp(52)));
-        LinearLayout titleWrap = new LinearLayout(this);
-        titleWrap.setOrientation(LinearLayout.VERTICAL);
-        titleWrap.addView(text("스키 / 스노보드", 22, TEXT, true));
-        titleWrap.addView(text("오늘의 설원을 기록해요", 12, MUTED, false));
-        row.addView(titleWrap, new LinearLayout.LayoutParams(0, dp(58), 1f));
-        return row;
-    }
+    return YamoneBackHeader.create(this, "스키 / 스노보드", "오늘의 설원을 기록해요", BG, TEXT, MUTED, v -> finish());
+}
 
     private void buildSportCard() {
         LinearLayout c = card();

@@ -84,16 +84,10 @@ public class LocationSharingTimeActivity extends Activity {
         root.setBackgroundColor(BG);
         applyInsets(root);
 
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(dp(10), dp(5), dp(18), dp(5));
-        TextView back = text("‹", 34, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> finish());
-        top.addView(back, new LinearLayout.LayoutParams(dp(48), dp(54)));
-        top.addView(text("공유 시간 연장", 22, TEXT, true), new LinearLayout.LayoutParams(0, dp(54), 1f));
-        root.addView(top);
+        LinearLayout top = YamoneBackHeader.create(this, "공유 시간 연장", null,
+        BG, TEXT, MUTED, v -> finish());
+    top.setPadding(dp(10), dp(5), dp(18), dp(5));
+    root.addView(top);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);

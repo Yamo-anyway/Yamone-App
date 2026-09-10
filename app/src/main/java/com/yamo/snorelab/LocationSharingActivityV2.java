@@ -75,7 +75,7 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
 
     private void fixLandingBack(View root) {
         TextView title = findExact(root, "위치 공유");
-        TextView back = findExact(root, "‹");
+        TextView back = findExact(root, "←");
         if (title != null && back != null) back.setOnClickListener(v -> finish());
     }
 

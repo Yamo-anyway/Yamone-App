@@ -99,20 +99,8 @@ public final class HikingActivity extends Activity {
     }
 
     private View header(String title, String subtitle, View.OnClickListener backClick) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView back = text("‹", 34, textColor(), false);
-        back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(backClick);
-        row.addView(back, new LinearLayout.LayoutParams(dp(42), dp(54)));
-        LinearLayout words = new LinearLayout(this);
-        words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(text(title, 23, textColor(), true));
-        words.addView(text(subtitle, 12, muted(), false));
-        row.addView(words, new LinearLayout.LayoutParams(0, dp(58), 1f));
-        return row;
-    }
+    return YamoneBackHeader.create(this, title, subtitle, bg(), textColor(), muted(), backClick);
+}
 
     private void buildReady() {
         LinearLayout hero = card();
