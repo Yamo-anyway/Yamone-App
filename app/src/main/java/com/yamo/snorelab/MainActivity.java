@@ -259,10 +259,7 @@ public class MainActivity extends Activity {
         words.setOrientation(LinearLayout.VERTICAL);
         words.setGravity(Gravity.CENTER_VERTICAL);
         words.addView(text(title, 26, TEXT, true));
-        TextView sub = text(subtitle, 12, MUTED, false);
-        sub.setPadding(0, dp(2), 0, 0);
-        words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(54), 1f));
         View gear = YamoneSettingsButton.create(this, v -> { settingsReturnScreen = screen; showSettings(); });
         header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return header;
@@ -291,7 +288,7 @@ public class MainActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedHeader("홈", "좋은 하루예요! 오늘도 빛나는 당신을 응원해요 💕"),
+        shell.addView(fixedHeader("홈", ""),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);
@@ -348,18 +345,13 @@ public class MainActivity extends Activity {
         hero.addView(metrics);
         page.addView(hero, cardParams());
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button activity = actionButton("♡  활동 시작", true, v -> startActivity(new Intent(this, LocationExerciseActivity.class)));
-        Button sleep = ghostButton("☾  수면 기록", v -> showSleep());
-        actions.addView(activity, new LinearLayout.LayoutParams(0, dp(52), 1f));
-        LinearLayout.LayoutParams sleepParams = new LinearLayout.LayoutParams(0, dp(52), 1f);
-        sleepParams.leftMargin = dp(8);
-        actions.addView(sleep, sleepParams);
-        LinearLayout.LayoutParams actionRowParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        actionRowParams.bottomMargin = dp(12);
-        page.addView(actions, actionRowParams);
+        String locationLabel = LocationSharingStateStore.isActive(this)
+                ? "위치 공유 중 · 방 보기" : "위치 공유";
+        Button locationSharing = actionButton(locationLabel, true,
+                v -> startActivity(new Intent(this, LocationSharingActivityV2.class)));
+        LinearLayout.LayoutParams locationParams = match(dp(54));
+        locationParams.bottomMargin = dp(12);
+        page.addView(locationSharing, locationParams);
 
         TextView note = text("작은 습관이 특별한 하루를 만들어요 ♡", 12, PRIMARY2, true);
         note.setGravity(Gravity.CENTER);
@@ -475,7 +467,7 @@ public class MainActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedHeader("수면", "잘 자는 것이, 더 좋은 나를 만들어요. 💕"),
+        shell.addView(fixedHeader("수면", ""),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);

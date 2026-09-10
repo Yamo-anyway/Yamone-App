@@ -170,10 +170,7 @@ public class AlarmActivity extends Activity {
         words.setOrientation(LinearLayout.VERTICAL);
         words.setGravity(Gravity.CENTER_VERTICAL);
         words.addView(text(title, 26, TEXT, true));
-        TextView sub = text(subtitle, 12, MUTED, false);
-        sub.setPadding(0, dp(2), 0, 0);
-        words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(54), 1f));
         View gear = YamoneSettingsButton.create(this, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "settings").putExtra("settings_return", "alarm")); finish(); });
         header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return header;
@@ -201,7 +198,7 @@ public class AlarmActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedHeader("알람", "잊지 말고, 챙겨요! 좋은 습관이 좋은 하루를 만들어요 💕"), matchWrap());
+        shell.addView(fixedHeader("알람", ""), matchWrap());
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = bodyPage();

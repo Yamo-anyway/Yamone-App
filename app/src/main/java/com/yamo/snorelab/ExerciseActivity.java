@@ -148,10 +148,7 @@ public class ExerciseActivity extends Activity {
         words.setOrientation(LinearLayout.VERTICAL);
         words.setGravity(Gravity.CENTER_VERTICAL);
         words.addView(text(title, 26, TEXT, true));
-        TextView sub = text(subtitle, 12, MUTED, false);
-        sub.setPadding(0, dp(2), 0, 0);
-        words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(54), 1f));
         View gear = YamoneSettingsButton.create(this, v -> { Intent intent = new Intent(this, MainActivity.class).putExtra("start_screen", "settings").putExtra("settings_return", "activity"); startActivity(intent); finish(); });
         header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return header;
@@ -180,7 +177,7 @@ public class ExerciseActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(mainHeader("활동", "오늘도 움직여요! 작은 움직임이 큰 변화를 만들어요 💕"),
+        shell.addView(mainHeader("활동", ""),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = page();
