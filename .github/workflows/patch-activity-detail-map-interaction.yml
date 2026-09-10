@@ -1,0 +1,53 @@
+name: Enable completed activity map interaction
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-activity-detail-map-interaction.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enable interaction only on completed activity maps
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          exercise = Path('app/src/main/java/com/yamo/snorelab/ExerciseActivity.java')
+          s = exercise.read_text()
+          old = 'WalkingMapView rv = new WalkingMapView(this); rv.setPoints(WalkingStore.readRoute(dir, 1200));'
+          new = 'WalkingMapView rv = new WalkingMapView(this); rv.setInteractive(true); rv.setPoints(WalkingStore.readRoute(dir, 1200));'
+          if old not in s:
+              raise SystemExit('exercise detail map pattern not found')
+          s = s.replace(old, new, 1)
+          exercise.write_text(s)
+
+          hiking = Path('app/src/main/java/com/yamo/snorelab/HikingActivity.java')
+          s = hiking.read_text()
+          old = '''            WalkingMapView map = new WalkingMapView(this);\n            map.setAnalysisSamples(analysis.samples);'''
+          new = '''            WalkingMapView map = new WalkingMapView(this);\n            map.setInteractive(true);\n            map.setAnalysisSamples(analysis.samples);'''
+          if old not in s:
+              raise SystemExit('hiking detail map pattern not found')
+          s = s.replace(old, new, 1)
+          hiking.write_text(s)
+          PY
+      - name: Verify
+        run: |
+          grep -q 'rv.setInteractive(true)' app/src/main/java/com/yamo/snorelab/ExerciseActivity.java
+          grep -q 'map.setInteractive(true)' app/src/main/java/com/yamo/snorelab/HikingActivity.java
+      - name: Commit
+        run: |
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab/ExerciseActivity.java app/src/main/java/com/yamo/snorelab/HikingActivity.java
+          git commit -m 'Enable interaction on completed activity maps only'
+          git push
