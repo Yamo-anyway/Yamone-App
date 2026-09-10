@@ -152,16 +152,7 @@ public class ExerciseActivity extends Activity {
         sub.setPadding(0, dp(2), 0, 0);
         words.addView(sub);
         header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
-
-        TextView gear = text("⚙", 21, PRIMARY2, false);
-        gear.setGravity(Gravity.CENTER);
-        gear.setBackground(round(CARD, 24, 1, 0xFF35445F));
-        gear.setOnClickListener(v -> {
-            Intent intent = new Intent(this, MainActivity.class)
-                    .putExtra("start_screen", "settings")
-                    .putExtra("settings_return", "activity");
-            startActivity(intent);
-        });
+        View gear = YamoneSettingsButton.create(this, v -> { Intent intent = new Intent(this, MainActivity.class).putExtra("start_screen", "settings").putExtra("settings_return", "activity"); startActivity(intent); });
         header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return header;
     }

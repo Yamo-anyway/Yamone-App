@@ -263,11 +263,7 @@ public class MainActivity extends Activity {
         sub.setPadding(0, dp(2), 0, 0);
         words.addView(sub);
         header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
-
-        TextView gear = text("⚙", 21, PRIMARY2, false);
-        gear.setGravity(Gravity.CENTER);
-        gear.setBackground(round(CARD, 24, 1, 0xFFFFD7E3));
-        gear.setOnClickListener(v -> { settingsReturnScreen = screen; showSettings(); });
+        View gear = YamoneSettingsButton.create(this, v -> { settingsReturnScreen = screen; showSettings(); });
         header.addView(gear, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return header;
     }
