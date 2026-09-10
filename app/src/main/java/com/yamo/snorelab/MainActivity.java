@@ -736,7 +736,7 @@ public class MainActivity extends Activity {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setBackgroundColor(BG);
-        shell.addView(fixedBackHeader("설정", "야모네의 테마와 기록 환경을 편하게 조절해요.", v -> returnFromSettings()),
+        shell.addView(fixedBackHeader("설정", "내게 편한 야모네로 맞춰보세요. 💕", v -> returnFromSettings()),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);
@@ -745,14 +745,14 @@ public class MainActivity extends Activity {
         shell.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         content.addView(shell);
 
-        LinearLayout theme = card(); theme.addView(text("테마", 15, TEXT, true));
-        LinearLayout themeRow = new LinearLayout(this); themeRow.setOrientation(LinearLayout.HORIZONTAL); themeRow.setPadding(0, dp(10), 0, 0);
-        Button mint = choiceButton("🌿  민트", !pinkTheme(), v -> setThemeAndRefresh("mint"));
-        Button pink = choiceButton("🌸  핑크", pinkTheme(), v -> setThemeAndRefresh("pink"));
+        LinearLayout theme = card(); theme.addView(text("화면 테마", 16, TEXT, true)); TextView themeHelp = text("야모네의 전체 분위기를 선택해요.", 11, MUTED, false); themeHelp.setPadding(0, dp(4), 0, 0); theme.addView(themeHelp);
+        LinearLayout themeRow = new LinearLayout(this); themeRow.setOrientation(LinearLayout.HORIZONTAL); themeRow.setPadding(0, dp(14), 0, 0);
+        Button mint = choiceButton("민트", !pinkTheme(), v -> setThemeAndRefresh("mint"));
+        Button pink = choiceButton("핑크", pinkTheme(), v -> setThemeAndRefresh("pink"));
         themeRow.addView(mint, new LinearLayout.LayoutParams(0, dp(54), 1f)); LinearLayout.LayoutParams tpp = new LinearLayout.LayoutParams(0, dp(54), 1f); tpp.leftMargin = dp(10); themeRow.addView(pink, tpp); theme.addView(themeRow); page.addView(theme, cardParams());
 
         LinearLayout measure = card();
-        measure.addView(text("마이크 설정", 15, TEXT, true));
+        measure.addView(text("수면 감지", 16, TEXT, true));
         TextView sensitivityHelp = text("민감도가 낮으면 큰·뚜렷한 소리만 후보로 잡고, 높이면 작은 소리까지 더 많이 잡습니다. 너무 높으면 코골이가 아닌 소리도 후보가 늘 수 있어요.", 11, MUTED, false);
         sensitivityHelp.setPadding(0, dp(5), 0, dp(12));
         measure.addView(sensitivityHelp);
@@ -809,7 +809,7 @@ public class MainActivity extends Activity {
         measure.addView(settingSwitch("코골이 후보 음원 저장", "후보 앞 3초를 포함한 WAV 구간 저장", "save_candidate_clips", true));
         page.addView(measure, cardParams());
 
-        LinearLayout storage = card(); storage.addView(text("녹음 보관 기간", 15, TEXT, true));
+        LinearLayout storage = card(); storage.addView(text("기록 보관", 16, TEXT, true)); TextView storageHelp = text("수면 녹음과 분석 기록의 보관 기간을 정해요.", 11, MUTED, false); storageHelp.setPadding(0, dp(4), 0, 0); storage.addView(storageHelp);
         int[] vals = {7, 30, 90, 0}; String[] labs = {"7일", "30일", "90일", "계속"}; int current = prefs.getInt("retention_days", 30);
         LinearLayout chips = new LinearLayout(this); chips.setOrientation(LinearLayout.HORIZONTAL); chips.setPadding(0, dp(10), 0, dp(8));
         for (int i = 0; i < vals.length; i++) { final int val = vals[i]; Button b = choiceButton(labs[i], current == val, v -> { prefs.edit().putInt("retention_days", val).apply(); showSettings(); }); LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1f); if (i > 0) cp.leftMargin = dp(6); chips.addView(b, cp); }
@@ -817,13 +817,13 @@ public class MainActivity extends Activity {
         storage.addView(text("현재 앱 데이터  " + humanBytes(SessionStore.folderSize(SessionStore.sessionsRoot(this))), 11, MUTED, false));
         LinearLayout.LayoutParams wp = match(dp(44)); wp.topMargin = dp(10); Button wipe = ghostButton("전체 수면 데이터 삭제", v -> confirm("전체 데이터를 삭제할까요?", "모든 수면 녹음과 분석 기록이 삭제됩니다.", () -> { SessionStore.deleteAll(this); showSettings(); })); wipe.setTextColor(DANGER); storage.addView(wipe, wp); page.addView(storage, cardParams());
 
-        LinearLayout privacy = card(); privacy.addView(text("개인정보 보호", 15, TEXT, true));
+        LinearLayout privacy = card(); privacy.addView(text("개인정보", 16, TEXT, true)); TextView privacyHelp = text("기록은 사용자가 선택하지 않으면 외부로 보내지 않아요.", 11, PRIMARY2, true); privacyHelp.setPadding(0, dp(4), 0, dp(2)); privacy.addView(privacyHelp);
         privacy.addView(checkLine("수면 기록과 녹음은 앱 내부 저장소에 저장됩니다."));
         privacy.addView(checkLine("수면 기록을 자체 서버로 자동 업로드하지 않습니다."));
         privacy.addView(checkLine("지도 등 다른 기능의 인터넷 통신과 수면 데이터는 분리합니다."));
         page.addView(privacy, cardParams());
 
-        LinearLayout dev = card(); dev.addView(text("개발자 검증", 15, TEXT, true)); dev.addView(kv("판정 엔진", SnoreDetector.VERSION)); dev.addView(kv("분석", "16 kHz / mono")); dev.addView(kv("전체 녹음", "AAC-LC 32 kbps")); dev.addView(kv("후보 음원", "PCM16 WAV")); page.addView(dev, cardParams());
+        LinearLayout dev = card(); dev.addView(text("개발자 검증", 16, TEXT, true)); TextView devHelp = text("분석 엔진과 저장 형식을 확인하는 정보예요.", 11, MUTED, false); devHelp.setPadding(0, dp(4), 0, dp(2)); dev.addView(devHelp); dev.addView(kv("판정 엔진", SnoreDetector.VERSION)); dev.addView(kv("분석", "16 kHz / mono")); dev.addView(kv("전체 녹음", "AAC-LC 32 kbps")); dev.addView(kv("후보 음원", "PCM16 WAV")); page.addView(dev, cardParams());
     }
 
     private void returnFromSettings() {
