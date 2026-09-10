@@ -3,11 +3,13 @@ package com.yamo.snorelab;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import org.maplibre.android.MapLibre;
+import org.maplibre.android.camera.CameraPosition;
 import org.maplibre.android.camera.CameraUpdateFactory;
 import org.maplibre.android.geometry.LatLng;
 import org.maplibre.android.geometry.LatLngBounds;
@@ -28,13 +30,22 @@ import static org.maplibre.android.style.layers.PropertyFactory.lineOpacity;
 import static org.maplibre.android.style.layers.PropertyFactory.lineWidth;
 
 /**
- * Fixed route preview used by walking/running/cycling and hiking summaries.
- * The map is intentionally non-interactive: it only shows the recorded route bounds.
+ * Lightweight route map used by activity screens.
+ *
+ * Performance rules:
+ * - The stored route is never changed, but only up to MAX_RENDER_POINTS are sent to the map renderer.
+ * - Only pan + pinch zoom are enabled. Rotation/tilt/quick-zoom are kept off.
+ * - The furthest zoom-out is the zoom that fits the recorded activity route.
+ * - Camera targets are constrained to the recorded route bounds with a very small margin.
+ * - One-finger vertical movement is yielded to the parent ScrollView; horizontal drag and pinch stay on the map.
  */
 public class WalkingMapView extends FrameLayout {
     private static final String STYLE_URI = "https://tiles.openfreemap.org/styles/liberty";
     private static final String SOURCE_ID = "walking-route-source";
     private static final String LAYER_ID = "walking-route-layer";
+    private static final int MAX_RENDER_POINTS = 1200;
+    private static final double TARGET_MARGIN_RATIO = 0.06;
+    private static final double MIN_TARGET_MARGIN_DEG = 0.00020;
 
     private final MapView mapView;
     private final TextView status;
@@ -45,6 +56,8 @@ public class WalkingMapView extends FrameLayout {
     private boolean resumed;
     private boolean destroyed;
     private boolean styleReady;
+    private float touchDownX;
+    private float touchDownY;
 
     public WalkingMapView(Context context) {
         super(context);
@@ -61,12 +74,10 @@ public class WalkingMapView extends FrameLayout {
         mapView = new MapView(context);
         mapView.onCreate(null);
         mapView.setAlpha(0f);
-        mapView.setClickable(false);
-        mapView.setFocusable(false);
-        // This is a snapshot-like preview. Disabling input guarantees that vertical swipes
-        // belong to the parent ScrollView even when the gesture begins over the map.
-        mapView.setEnabled(false);
-        mapView.setOnTouchListener((v, event) -> false);
+        mapView.setClickable(true);
+        mapView.setFocusable(true);
+        mapView.setEnabled(true);
+        installScrollFriendlyTouchHandling();
         addView(mapView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -86,6 +97,13 @@ public class WalkingMapView extends FrameLayout {
             map = value;
             try {
                 map.getUiSettings().setAllGesturesEnabled(false);
+                map.getUiSettings().setScrollGesturesEnabled(true);
+                map.getUiSettings().setZoomGesturesEnabled(true);
+                map.getUiSettings().setRotateGesturesEnabled(false);
+                map.getUiSettings().setTiltGesturesEnabled(false);
+                map.getUiSettings().setDoubleTapGesturesEnabled(false);
+                map.getUiSettings().setQuickZoomGesturesEnabled(false);
+                map.getUiSettings().setAllVelocityAnimationsEnabled(false);
                 map.getUiSettings().setCompassEnabled(false);
             } catch (Exception ignored) {}
             map.setStyle(STYLE_URI, style -> {
@@ -102,6 +120,32 @@ public class WalkingMapView extends FrameLayout {
                 styleReady = true;
                 updateRoute();
             });
+        });
+    }
+
+    private void installScrollFriendlyTouchHandling() {
+        mapView.setOnTouchListener((v, event) -> {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                touchDownX = event.getX();
+                touchDownY = event.getY();
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+            } else if (action == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 2) {
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+            } else if (action == MotionEvent.ACTION_MOVE) {
+                if (event.getPointerCount() >= 2) {
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                } else {
+                    float dx = Math.abs(event.getX() - touchDownX);
+                    float dy = Math.abs(event.getY() - touchDownY);
+                    // Vertical one-finger motion remains page scrolling. Horizontal motion pans the map.
+                    boolean mapGesture = dx > dp(6) && dx > dy * 1.15f;
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(mapGesture);
+                }
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return false;
         });
     }
 
@@ -133,37 +177,96 @@ public class WalkingMapView extends FrameLayout {
         }
     }
 
+    private List<WalkingStore.Point> renderPoints() {
+        if (points.size() <= MAX_RENDER_POINTS) return points;
+        ArrayList<WalkingStore.Point> reduced = new ArrayList<>(MAX_RENDER_POINTS);
+        double step = (points.size() - 1.0) / (MAX_RENDER_POINTS - 1.0);
+        int lastIndex = -1;
+        for (int i = 0; i < MAX_RENDER_POINTS - 1; i++) {
+            int index = Math.min(points.size() - 1, (int) Math.round(i * step));
+            if (index != lastIndex) {
+                reduced.add(points.get(index));
+                lastIndex = index;
+            }
+        }
+        if (lastIndex != points.size() - 1) reduced.add(points.get(points.size() - 1));
+        return reduced;
+    }
+
     private void updateRoute() {
         if (!styleReady || routeSource == null || map == null || points.isEmpty()) return;
-        ArrayList<Point> geo = new ArrayList<>();
-        LatLngBounds.Builder bounds = new LatLngBounds.Builder();
-        for (WalkingStore.Point p : points) {
-            geo.add(Point.fromLngLat(p.lon, p.lat));
-            bounds.include(new LatLng(p.lat, p.lon));
-        }
+
+        List<WalkingStore.Point> visible = renderPoints();
+        ArrayList<Point> geo = new ArrayList<>(visible.size());
+        for (WalkingStore.Point p : visible) geo.add(Point.fromLngLat(p.lon, p.lat));
         if (geo.size() >= 2) routeSource.setGeoJson(LineString.fromLngLats(geo));
         else routeSource.setGeoJson(Point.fromLngLat(points.get(0).lon, points.get(0).lat));
 
-        post(() -> {
-            if (map == null || points.isEmpty()) return;
-            try {
-                WalkingStore.Point last = points.get(points.size() - 1);
-                if (points.size() == 1) {
-                    map.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                            new LatLng(last.lat, last.lon), 16.0));
-                } else {
-                    map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds.build(), dp(26)));
+        post(() -> fitAndConstrainCamera());
+    }
+
+    private void fitAndConstrainCamera() {
+        if (map == null || points.isEmpty()) return;
+        try {
+            WalkingStore.Point last = points.get(points.size() - 1);
+            if (points.size() == 1) {
+                LatLng target = new LatLng(last.lat, last.lon);
+                map.setMinZoomPreference(16.0);
+                map.setLatLngBoundsForCameraTarget(singlePointBounds(last.lat, last.lon));
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(target, 16.0));
+            } else {
+                double minLat = Double.POSITIVE_INFINITY;
+                double maxLat = Double.NEGATIVE_INFINITY;
+                double minLon = Double.POSITIVE_INFINITY;
+                double maxLon = Double.NEGATIVE_INFINITY;
+                LatLngBounds.Builder routeBuilder = new LatLngBounds.Builder();
+                for (WalkingStore.Point p : points) {
+                    routeBuilder.include(new LatLng(p.lat, p.lon));
+                    minLat = Math.min(minLat, p.lat);
+                    maxLat = Math.max(maxLat, p.lat);
+                    minLon = Math.min(minLon, p.lon);
+                    maxLon = Math.max(maxLon, p.lon);
                 }
-                mapView.postDelayed(() -> {
-                    mapView.setAlpha(1f);
-                    status.setVisibility(GONE);
-                }, 80L);
-            } catch (Exception ignored) {
-                status.setText("이동 경로를 표시하지 못했어요.");
-                status.setVisibility(VISIBLE);
-                mapView.setAlpha(0f);
+                LatLngBounds routeBounds = routeBuilder.build();
+                int pad = dp(26);
+                CameraPosition fit = map.getCameraForLatLngBounds(
+                        routeBounds, new int[]{pad, pad, pad, pad});
+                if (fit != null) {
+                    // This is the maximum permitted zoom-out: the full activity already fits here.
+                    map.setMinZoomPreference(fit.zoom);
+                }
+                map.setLatLngBoundsForCameraTarget(expandedTargetBounds(minLat, maxLat, minLon, maxLon));
+                map.moveCamera(CameraUpdateFactory.newLatLngBounds(routeBounds, pad));
             }
-        });
+
+            mapView.postDelayed(() -> {
+                mapView.setAlpha(1f);
+                status.setVisibility(GONE);
+            }, 60L);
+        } catch (Exception ignored) {
+            status.setText("이동 경로를 표시하지 못했어요.");
+            status.setVisibility(VISIBLE);
+            mapView.setAlpha(0f);
+        }
+    }
+
+    private LatLngBounds expandedTargetBounds(double minLat, double maxLat, double minLon, double maxLon) {
+        double latSpan = Math.max(0.0, maxLat - minLat);
+        double lonSpan = Math.max(0.0, maxLon - minLon);
+        double latMargin = Math.max(MIN_TARGET_MARGIN_DEG, latSpan * TARGET_MARGIN_RATIO);
+        double lonMargin = Math.max(MIN_TARGET_MARGIN_DEG, lonSpan * TARGET_MARGIN_RATIO);
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        builder.include(new LatLng(Math.max(-85.0, minLat - latMargin), Math.max(-180.0, minLon - lonMargin)));
+        builder.include(new LatLng(Math.min(85.0, maxLat + latMargin), Math.min(180.0, maxLon + lonMargin)));
+        return builder.build();
+    }
+
+    private LatLngBounds singlePointBounds(double lat, double lon) {
+        double margin = 0.003;
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        builder.include(new LatLng(Math.max(-85.0, lat - margin), Math.max(-180.0, lon - margin)));
+        builder.include(new LatLng(Math.min(85.0, lat + margin), Math.min(180.0, lon + margin)));
+        return builder.build();
     }
 
     @Override protected void onAttachedToWindow() {
