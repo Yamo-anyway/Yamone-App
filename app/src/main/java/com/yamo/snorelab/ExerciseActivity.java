@@ -120,10 +120,10 @@ public class ExerciseActivity extends Activity {
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
         nav.setBackgroundColor(0xFFFFFFFF);
         if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(6));
-        nav.addView(navItem("⌂\n홈", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "home")); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("🏃\n활동", PRIMARY2, v -> { detailOpen = false; showHome(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("⏰\n알람", MUTED, v -> { startActivity(new Intent(this, AlarmActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("☾\n수면", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "sleep")); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(navItem("⌂\n홈", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "home")); finish(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(navItem("🏃\n활동", PRIMARY2, v -> { detailOpen = false; showHome(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(navItem("⏰\n알람", MUTED, v -> { startActivity(new Intent(this, AlarmActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(navItem("☾\n수면", MUTED, v -> { startActivity(new Intent(this, MainActivity.class).putExtra("start_screen", "sleep")); finish(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         if (Build.VERSION.SDK_INT >= 21) {
@@ -151,7 +151,7 @@ public class ExerciseActivity extends Activity {
         TextView sub = text(subtitle, 12, MUTED, false);
         sub.setPadding(0, dp(2), 0, 0);
         words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
 
         TextView gear = text("⚙", 21, PRIMARY2, false);
         gear.setGravity(Gravity.CENTER);
@@ -1145,7 +1145,16 @@ public class ExerciseActivity extends Activity {
 
     private LinearLayout page() { LinearLayout p = new LinearLayout(this); p.setOrientation(LinearLayout.VERTICAL); p.setPadding(dp(18), dp(18), dp(18), dp(30)); p.setBackgroundColor(BG); return p; }
     private LinearLayout card() { LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); v.setPadding(dp(16), dp(15), dp(16), dp(15)); v.setBackground(round(CARD, 18, 0, 0)); return v; }
-    private TextView navItem(String label, int color, View.OnClickListener click) { TextView v = text(label, 12, color, true); v.setGravity(Gravity.CENTER); if (color == PRIMARY2) v.setBackground(round(CARD2, 19, 0, 0)); v.setOnClickListener(click); return v; }
+    private TextView navItem(String label, int color, View.OnClickListener click) {
+        int icon = label.contains("활동") ? R.drawable.ic_nav_activity
+                : label.contains("알람") ? R.drawable.ic_nav_alarm
+                : label.contains("수면") ? R.drawable.ic_nav_sleep
+                : R.drawable.ic_nav_home;
+        String clean = label.contains("활동") ? "활동"
+                : label.contains("알람") ? "알람"
+                : label.contains("수면") ? "수면" : "홈";
+        return YamoneBottomNav.create(this, icon, clean, color == PRIMARY2, PRIMARY2, MUTED, CARD2, click);
+    }
     private TextView text(String s, int sp, int color, boolean bold) { TextView v = new TextView(this); v.setText(s); v.setTextSize(sp); v.setTextColor(color); if (bold) v.setTypeface(Typeface.DEFAULT, Typeface.BOLD); v.setLineSpacing(0, 1.08f); return v; }
     private Button actionButton(String s, boolean primary, View.OnClickListener click) { Button b = new Button(this); b.setText(s); b.setAllCaps(false); b.setTextSize(14); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD); b.setTextColor(Color.WHITE); b.setBackground(round(primary ? PRIMARY : 0xFF33425B, 16, 0, 0)); b.setOnClickListener(click); return b; }
     private Button ghostButton(String s, View.OnClickListener click) { Button b = new Button(this); b.setText(s); b.setAllCaps(false); b.setTextSize(13); b.setTextColor(TEXT); b.setBackground(round(CARD2, 13, 1, 0xFF35445F)); b.setOnClickListener(click); return b; }

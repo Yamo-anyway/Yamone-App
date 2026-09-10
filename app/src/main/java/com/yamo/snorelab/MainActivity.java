@@ -201,10 +201,10 @@ public class MainActivity extends Activity {
         alarmNav = navItem("⏰\n알람", false, v -> startActivity(new Intent(this, AlarmActivity.class)));
         sleepNav = navItem("☾\n수면", true, v -> { detailSession = null; showSleep(); });
 
-        nav.addView(homeNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(activityNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(alarmNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(sleepNav, new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(homeNav, new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(activityNav, new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(alarmNav, new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(sleepNav, new LinearLayout.LayoutParams(0, dp(62), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -227,16 +227,18 @@ public class MainActivity extends Activity {
     }
 
     private TextView navItem(String label, boolean selected, View.OnClickListener click) {
-        TextView v = text(label, 12, selected ? PRIMARY2 : MUTED, true);
-        v.setGravity(Gravity.CENTER);
-        v.setOnClickListener(click);
-        return v;
+        int icon = label.contains("활동") ? R.drawable.ic_nav_activity
+                : label.contains("알람") ? R.drawable.ic_nav_alarm
+                : label.contains("수면") ? R.drawable.ic_nav_sleep
+                : R.drawable.ic_nav_home;
+        String clean = label.contains("활동") ? "활동"
+                : label.contains("알람") ? "알람"
+                : label.contains("수면") ? "수면" : "홈";
+        return YamoneBottomNav.create(this, icon, clean, selected, PRIMARY2, MUTED, CARD2, click);
     }
 
     private void styleNav(TextView item, boolean selected) {
-        if (item == null) return;
-        item.setTextColor(selected ? PRIMARY2 : MUTED);
-        item.setBackground(selected ? round(CARD2, 19, 0, 0) : null);
+        YamoneBottomNav.apply(this, item, selected, PRIMARY2, MUTED, CARD2);
     }
 
     private void updateNav() {
@@ -260,7 +262,7 @@ public class MainActivity extends Activity {
         TextView sub = text(subtitle, 12, MUTED, false);
         sub.setPadding(0, dp(2), 0, 0);
         words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
 
         TextView gear = text("⚙", 21, PRIMARY2, false);
         gear.setGravity(Gravity.CENTER);

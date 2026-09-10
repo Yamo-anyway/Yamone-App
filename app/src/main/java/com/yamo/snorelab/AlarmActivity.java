@@ -128,10 +128,10 @@ public class AlarmActivity extends Activity {
         nav.setPadding(dp(8), dp(7), dp(8), dp(8));
         nav.setBackgroundColor(CARD);
         if (Build.VERSION.SDK_INT >= 21) nav.setElevation(dp(6));
-        nav.addView(navItem("⌂\n홈", false, v -> goMain("home")), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("🏃\n활동", false, v -> { startActivity(new Intent(this, LocationExerciseActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("⏰\n알람", true, v -> showList()), new LinearLayout.LayoutParams(0, dp(60), 1f));
-        nav.addView(navItem("☾\n수면", false, v -> goMain("sleep")), new LinearLayout.LayoutParams(0, dp(60), 1f));
+        nav.addView(navItem("⌂\n홈", false, v -> goMain("home")), new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(navItem("🏃\n활동", false, v -> { startActivity(new Intent(this, LocationExerciseActivity.class)); finish(); }), new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(navItem("⏰\n알람", true, v -> showList()), new LinearLayout.LayoutParams(0, dp(62), 1f));
+        nav.addView(navItem("☾\n수면", false, v -> goMain("sleep")), new LinearLayout.LayoutParams(0, dp(62), 1f));
         root.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         if (Build.VERSION.SDK_INT >= 21) {
@@ -173,7 +173,7 @@ public class AlarmActivity extends Activity {
         TextView sub = text(subtitle, 12, MUTED, false);
         sub.setPadding(0, dp(2), 0, 0);
         words.addView(sub);
-        header.addView(words, new LinearLayout.LayoutParams(0, dp(60), 1f));
+        header.addView(words, new LinearLayout.LayoutParams(0, dp(62), 1f));
 
         TextView gear = text("⚙", 21, PRIMARY2, false);
         gear.setGravity(Gravity.CENTER);
@@ -926,11 +926,14 @@ public class AlarmActivity extends Activity {
     }
 
     private TextView navItem(String label, boolean selected, View.OnClickListener listener) {
-        TextView v = text(label, 12, selected ? PRIMARY2 : MUTED, true);
-        v.setGravity(Gravity.CENTER);
-        if (selected) v.setBackground(rounded(CARD2, 19, 0, 0));
-        v.setOnClickListener(listener);
-        return v;
+        int icon = label.contains("활동") ? R.drawable.ic_nav_activity
+                : label.contains("알람") ? R.drawable.ic_nav_alarm
+                : label.contains("수면") ? R.drawable.ic_nav_sleep
+                : R.drawable.ic_nav_home;
+        String clean = label.contains("활동") ? "활동"
+                : label.contains("알람") ? "알람"
+                : label.contains("수면") ? "수면" : "홈";
+        return YamoneBottomNav.create(this, icon, clean, selected, PRIMARY2, MUTED, CARD2, listener);
     }
 
     private GradientDrawable rounded(int fill, float radiusDp, int strokeDp, int strokeColor) {
