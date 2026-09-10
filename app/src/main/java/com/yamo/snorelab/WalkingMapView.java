@@ -1,10 +1,8 @@
 package com.yamo.snorelab;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
@@ -63,7 +61,9 @@ public class WalkingMapView extends FrameLayout {
         mapView.setAlpha(0f); // Never flash the default/world camera before route fitting.
         mapView.setClickable(false);
         mapView.setFocusable(false);
-        mapView.setOnTouchListener((v, event) -> true); // snapshot-like: no drag/zoom/rotate.
+        // Gestures are disabled, but touches must bubble to the parent ScrollView so
+        // the activity detail can always scroll even when the gesture begins on the map.
+        mapView.setOnTouchListener((v, event) -> false);
         addView(mapView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -129,10 +129,8 @@ public class WalkingMapView extends FrameLayout {
                     map.moveCamera(CameraUpdateFactory.newLatLngZoom(
                             new LatLng(last.lat, last.lon), 16.0));
                 } else {
-                    // Fit only the user's recorded route with a small visual margin.
                     map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds.build(), dp(26)));
                 }
-                // Reveal only after the route camera is already fitted.
                 mapView.postDelayed(() -> {
                     mapView.setAlpha(1f);
                     status.setVisibility(GONE);
