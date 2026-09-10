@@ -59,12 +59,15 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
     }
 
     private void renameActivityCopy(View root) {
+        // Update the overview subtitle before changing the individual ski entry text.
+        TextView subtitle = findContaining(root, "걷기/러닝 · 자전거 · 스키/스노우보드");
+        if (subtitle == null) subtitle = findContaining(root, "걷기/러닝 · 자전거 · 스키/스노보드");
+        if (subtitle != null) subtitle.setText("걷기/러닝 · 자전거 · 등산/트레킹 · 스키/스노보드");
+
         TextView oldSki = findContaining(root, "스키 / 스노우보드");
         if (oldSki != null) {
             oldSki.setText(oldSki.getText().toString().replace("스키 / 스노우보드", "스키 / 스노보드"));
         }
-        TextView subtitle = findContaining(root, "걷기/러닝 · 자전거 · 스키/스노우보드");
-        if (subtitle != null) subtitle.setText("걷기/러닝 · 자전거 · 등산/트레킹 · 스키/스노보드");
     }
 
     private void attachSkiEntry(View root) {
