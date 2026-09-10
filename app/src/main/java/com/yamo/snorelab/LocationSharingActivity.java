@@ -84,6 +84,12 @@ public class LocationSharingActivity extends Activity {
     private TextView activeNetworkHint;
     private LinearLayout participantList;
     private LocationSharingMapView sharingMap;
+    private TextView statusNormal;
+    private TextView statusContact;
+    private TextView statusHelp;
+    private TextView statusEmergency;
+    private TextView activeStatusHint;
+    private String currentSelfStatus = "normal";
 
     private final Runnable activePoller = new Runnable() {
         @Override public void run() {
@@ -492,6 +498,34 @@ public class LocationSharingActivity extends Activity {
         status.addView(activeNetworkHint);
         page.addView(status, cardParams());
 
+        LinearLayout myStatus = card();
+        myStatus.addView(text("내 상태", 15, TEXT, true));
+        activeStatusHint = text("도움 필요·긴급 상태는 다른 참여자의 다음 확인 시 기기 알림으로 알려줘요.", 11, MUTED, false);
+        activeStatusHint.setPadding(0, dp(4), 0, dp(10));
+        myStatus.addView(activeStatusHint);
+
+        LinearLayout statusRow1 = new LinearLayout(this);
+        statusRow1.setOrientation(LinearLayout.HORIZONTAL);
+        statusNormal = statusChoice("normal", "정상");
+        statusContact = statusChoice("contact", "연락 요청");
+        statusRow1.addView(statusNormal, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        LinearLayout.LayoutParams contactParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        contactParams.leftMargin = dp(8);
+        statusRow1.addView(statusContact, contactParams);
+        myStatus.addView(statusRow1);
+
+        LinearLayout statusRow2 = new LinearLayout(this);
+        statusRow2.setOrientation(LinearLayout.HORIZONTAL);
+        statusRow2.setPadding(0, dp(8), 0, 0);
+        statusHelp = statusChoice("help", "도움 필요");
+        statusEmergency = statusChoice("emergency", "긴급");
+        statusRow2.addView(statusHelp, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        LinearLayout.LayoutParams emergencyParams = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        emergencyParams.leftMargin = dp(8);
+        statusRow2.addView(statusEmergency, emergencyParams);
+        myStatus.addView(statusRow2);
+        page.addView(myStatus, cardParams());
+
         sharingMap = new LocationSharingMapView(this);
         sharingMap.setBackground(round(CARD2, 22, 1, BORDER));
         LinearLayout.LayoutParams mapParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(390));
@@ -562,6 +596,8 @@ public class LocationSharingActivity extends Activity {
         activeRoomTitle.setText(roomName);
         activeRemaining.setText("공유 중 · 남은 시간 " + remainingText(shareUntil));
         activeInfo.setText(String.format(Locale.KOREAN, "참여 %d명 · 내 위치 %s 간격 공유", members.length(), intervalLabel(interval)));
+        currentSelfStatus = self == null ? "normal" : self.optString("user_status", "normal");
+        styleSelfStatus();
         if (sharingMap != null) sharingMap.setMembers(members);
         renderParticipants(members);
     }
@@ -579,6 +615,8 @@ public class LocationSharingActivity extends Activity {
             boolean self = member.optBoolean("is_self", false);
             String nickname = member.optString("nickname", "사용자");
             String state = member.optString("connection_state", "waiting");
+            String userStatus = member.optString("user_status", "normal");
+            String statusUpdatedAt = member.optString("status_updated_at", "");
             String lastLocationAt = member.optString("last_location_at", "");
 
             LinearLayout row = new LinearLayout(this);
@@ -589,7 +627,7 @@ public class LocationSharingActivity extends Activity {
 
             ImageView avatar = new ImageView(this);
             avatar.setImageResource(R.drawable.ic_location_person);
-            avatar.setColorFilter(self ? PRIMARY2 : ("connected".equals(state) ? SUCCESS : MUTED));
+            avatar.setColorFilter(userStatusColor(userStatus, self, state));
             avatar.setPadding(dp(9), dp(9), dp(9), dp(9));
             avatar.setBackground(round(self ? 0xFFFFE2EB : CARD, 20, 1, BORDER));
             row.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
@@ -602,15 +640,123 @@ public class LocationSharingActivity extends Activity {
                     "connected".equals(state) ? SUCCESS : ("waiting".equals(state) ? MUTED : WARNING), false);
             detail.setPadding(0, dp(2), 0, 0);
             words.addView(detail);
+            if (!"normal".equals(userStatus)) {
+                String statusAge = ageText(statusUpdatedAt);
+                TextView userState = text(userStatusLabel(userStatus)
+                        + (statusAge.isEmpty() ? "" : " · " + statusAge), 11, userStatusColor(userStatus, self, state), true);
+                userState.setPadding(0, dp(3), 0, 0);
+                words.addView(userState);
+            }
             row.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-            TextView dot = text("●", 14, "connected".equals(state) ? SUCCESS : MUTED, true);
-            row.addView(dot);
+            TextView badge = text("normal".equals(userStatus) ? "●" : userStatusShortLabel(userStatus),
+                    "normal".equals(userStatus) ? 14 : 10, userStatusColor(userStatus, self, state), true);
+            badge.setGravity(Gravity.CENTER);
+            if (!"normal".equals(userStatus)) {
+                badge.setPadding(dp(8), 0, dp(8), 0);
+                badge.setBackground(round(userStatusBackground(userStatus), 12, 1, userStatusColor(userStatus, self, state)));
+            }
+            row.addView(badge, new LinearLayout.LayoutParams(
+                    "normal".equals(userStatus) ? dp(24) : ViewGroup.LayoutParams.WRAP_CONTENT, dp(28)));
 
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             if (i > 0) rp.topMargin = dp(7);
             participantList.addView(row, rp);
         }
+    }
+
+    private TextView statusChoice(String key, String label) {
+        TextView chip = text(label, 12, TEXT, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setOnClickListener(v -> requestStatusChange(key));
+        return chip;
+    }
+
+    private void requestStatusChange(String status) {
+        if (status == null || status.equals(currentSelfStatus)) return;
+        if ("help".equals(status) || "emergency".equals(status)) {
+            String label = userStatusLabel(status);
+            new AlertDialog.Builder(this)
+                    .setTitle(label + " 상태로 바꿀까요?")
+                    .setMessage("같은 방 참여자가 다음 상태 확인을 할 때 야모네가 기기 알림과 진동으로 알려줄 수 있어요.")
+                    .setNegativeButton("취소", null)
+                    .setPositiveButton("상태 변경", (dialog, which) -> commitStatusChange(status))
+                    .show();
+            return;
+        }
+        commitStatusChange(status);
+    }
+
+    private void commitStatusChange(String status) {
+        if (activeStatusHint != null) {
+            activeStatusHint.setText("상태 변경 중…");
+            activeStatusHint.setTextColor(MUTED);
+        }
+        LocationSharingApi.setStatus(this, status, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                runOnUiThread(() -> {
+                    applySnapshot(data);
+                    if (activeStatusHint != null) {
+                        activeStatusHint.setText("도움 필요·긴급 상태는 다른 참여자의 다음 확인 시 기기 알림으로 알려줘요.");
+                        activeStatusHint.setTextColor(MUTED);
+                    }
+                });
+            }
+            @Override public void onFailure(String message) {
+                runOnUiThread(() -> {
+                    if (activeStatusHint != null) {
+                        activeStatusHint.setText("상태를 변경하지 못했어요. 다시 시도해 주세요.");
+                        activeStatusHint.setTextColor(WARNING);
+                    }
+                    toast(message);
+                });
+            }
+        });
+    }
+
+    private void styleSelfStatus() {
+        styleStatusChoice(statusNormal, "normal");
+        styleStatusChoice(statusContact, "contact");
+        styleStatusChoice(statusHelp, "help");
+        styleStatusChoice(statusEmergency, "emergency");
+    }
+
+    private void styleStatusChoice(TextView chip, String status) {
+        if (chip == null) return;
+        boolean selected = status.equals(currentSelfStatus);
+        int color = userStatusColor(status, true, "connected");
+        chip.setTextColor(selected && "emergency".equals(status) ? Color.WHITE : (selected ? color : TEXT));
+        int fill = selected ? userStatusBackground(status) : CARD2;
+        if (selected && "emergency".equals(status)) fill = DANGER_TEXT;
+        chip.setBackground(round(fill, 15, 1, selected ? color : BORDER));
+    }
+
+    private int userStatusColor(String status, boolean self, String connectionState) {
+        if ("emergency".equals(status)) return DANGER_TEXT;
+        if ("help".equals(status)) return 0xFFE45A6A;
+        if ("contact".equals(status)) return 0xFFD98A20;
+        return self ? PRIMARY2 : ("connected".equals(connectionState) ? SUCCESS : MUTED);
+    }
+
+    private int userStatusBackground(String status) {
+        if ("emergency".equals(status)) return 0xFFFFE4EA;
+        if ("help".equals(status)) return 0xFFFFF0F3;
+        if ("contact".equals(status)) return 0xFFFFF6E7;
+        return CARD2;
+    }
+
+    private String userStatusLabel(String status) {
+        if ("emergency".equals(status)) return "긴급";
+        if ("help".equals(status)) return "도움 필요";
+        if ("contact".equals(status)) return "연락 요청";
+        return "정상";
+    }
+
+    private String userStatusShortLabel(String status) {
+        if ("emergency".equals(status)) return "긴급";
+        if ("help".equals(status)) return "도움";
+        if ("contact".equals(status)) return "연락";
+        return "정상";
     }
 
     private String connectionText(String state, String lastLocationAt) {
@@ -659,8 +805,13 @@ public class LocationSharingActivity extends Activity {
 
     private void ensureSharingService() {
         if (!activeScreen) return;
-        if (hasLocationPermission()) LocationSharingService.start(this);
-        else if (!askedActivePermission) {
+        if (hasLocationPermission()) {
+            LocationSharingService.start(this);
+            if (!hasNotificationPermission() && !askedActivePermission) {
+                askedActivePermission = true;
+                requestSharePermissions();
+            }
+        } else if (!askedActivePermission) {
             askedActivePermission = true;
             requestSharePermissions();
         }
@@ -716,6 +867,11 @@ public class LocationSharingActivity extends Activity {
     private boolean hasLocationPermission() {
         return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                 || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasNotificationPermission() {
+        return Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
     }
 
     private JSONObject findSelf(JSONArray members) {

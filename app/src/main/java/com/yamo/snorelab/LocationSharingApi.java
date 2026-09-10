@@ -107,6 +107,13 @@ public final class LocationSharingApi {
         rpcMutationAsync(context, "location_set_interval", args, callback);
     }
 
+    public static void setStatus(Context context, String status, JsonCallback callback) {
+        JSONObject args = new JSONObject();
+        try { args.put("p_status", status); }
+        catch (Exception e) { callback.onFailure("상태값을 준비하지 못했습니다."); return; }
+        rpcMutationAsync(context, "location_set_status", args, callback);
+    }
+
     public static void extend(Context context, int minutes, JsonCallback callback) {
         JSONObject args = new JSONObject();
         try { args.put("p_add_minutes", minutes); }
@@ -208,6 +215,7 @@ public final class LocationSharingApi {
         if (lower.contains("invalid_update_interval")) return "공유 간격은 1분, 3분, 5분 중에서 선택해 주세요.";
         if (lower.contains("invalid_room_name")) return "방 이름을 2~40자로 입력해 주세요.";
         if (lower.contains("invalid_nickname")) return "닉네임을 1~24자로 입력해 주세요.";
+        if (lower.contains("invalid_user_status")) return "사용할 수 없는 위치공유 상태입니다.";
         if (lower.contains("not_in_location_room")) return "현재 참여 중인 위치 공유 방이 없습니다.";
         if (lower.contains("authentication_required")) return "서버 인증이 필요합니다.";
         return "위치 공유 처리 중 오류가 발생했습니다.";

@@ -40,6 +40,7 @@ public final class LocationSharingService extends Service {
     private static final long WARNING_BEFORE_MS = 5L * 60L * 1000L;
     private static final long EXPIRY_CHECK_MS = 15_000L;
     private static final long MIN_NETWORK_INTERVAL_MS = 60_000L;
+    private static final long STATUS_POLL_MS = 60_000L;
     private static final long INITIAL_FIX_MIN_TIME_MS = 1_000L;
     private static final long INITIAL_REPORT_RETRY_MS = 3_000L;
     private static final long RECENT_LAST_KNOWN_MS = 30_000L;
@@ -60,6 +61,7 @@ public final class LocationSharingService extends Service {
     private boolean warningShown;
     private boolean leaveInFlight;
     private boolean initialFixPending;
+    private boolean statusPollInFlight;
     private long lastReportAttemptAt;
 
     private final Runnable reporter = new Runnable() {
@@ -90,6 +92,14 @@ public final class LocationSharingService extends Service {
                 cancelWarning();
             }
             handler.postDelayed(this, EXPIRY_CHECK_MS);
+        }
+    };
+
+    private final Runnable statusPoller = new Runnable() {
+        @Override public void run() {
+            if (!configured) return;
+            pollStatusSnapshot();
+            handler.postDelayed(this, STATUS_POLL_MS);
         }
     };
 
@@ -150,6 +160,7 @@ public final class LocationSharingService extends Service {
     private void applyConfiguration(JSONObject data) {
         if (!data.optBoolean("active", false)) {
             LocationSharingStateStore.clear(this);
+            LocationStatusAlert.clear(this);
             cancelWarning();
             stopSelf();
             return;
@@ -168,6 +179,7 @@ public final class LocationSharingService extends Service {
         }
         if (self == null) {
             LocationSharingStateStore.clear(this);
+            LocationStatusAlert.clear(this);
             cancelWarning();
             stopSelf();
             return;
@@ -182,6 +194,7 @@ public final class LocationSharingService extends Service {
         configured = true;
         leaveInFlight = false;
         LocationSharingStateStore.update(this, roomName, shareUntil, intervalSeconds, memberCount);
+        LocationStatusAlert.inspect(this, data);
 
         long remaining = shareUntilMs <= 0 ? Long.MAX_VALUE : shareUntilMs - System.currentTimeMillis();
         if (remaining <= 0) {
@@ -199,6 +212,34 @@ public final class LocationSharingService extends Service {
         handler.postDelayed(reporter, Math.max(MIN_NETWORK_INTERVAL_MS, intervalSeconds * 1000L));
         handler.removeCallbacks(expiryChecker);
         handler.post(expiryChecker);
+        handler.removeCallbacks(statusPoller);
+        handler.postDelayed(statusPoller, STATUS_POLL_MS);
+    }
+
+    private void pollStatusSnapshot() {
+        if (!configured || statusPollInFlight) return;
+        statusPollInFlight = true;
+        LocationSharingApi.snapshotFresh(this, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                handler.post(() -> {
+                    statusPollInFlight = false;
+                    if (!configured) return;
+                    if (!data.optBoolean("active", false)) {
+                        LocationSharingStateStore.clear(LocationSharingService.this);
+                        LocationStatusAlert.clear(LocationSharingService.this);
+                        cancelWarning();
+                        stopSelf();
+                        return;
+                    }
+                    JSONArray freshMembers = data.optJSONArray("members");
+                    memberCount = freshMembers == null ? memberCount : freshMembers.length();
+                    LocationStatusAlert.inspect(LocationSharingService.this, data);
+                });
+            }
+            @Override public void onFailure(String message) {
+                handler.post(() -> statusPollInFlight = false);
+            }
+        });
     }
 
     private void startLocationUpdates() {
@@ -352,6 +393,7 @@ public final class LocationSharingService extends Service {
         leaveInFlight = true;
         handler.removeCallbacks(reporter);
         handler.removeCallbacks(expiryChecker);
+        handler.removeCallbacks(statusPoller);
         stopLocationUpdates();
         cancelWarning();
         updateNotification("위치 공유 종료 요청 중…");
@@ -382,6 +424,7 @@ public final class LocationSharingService extends Service {
     private void finishUserRequestedStop() {
         leaveInFlight = false;
         LocationSharingStateStore.clear(this);
+        LocationStatusAlert.clear(this);
         postEndedNotification("위치 공유를 종료했습니다.");
         stopSelf();
     }
@@ -392,6 +435,7 @@ public final class LocationSharingService extends Service {
         leaveInFlight = true;
         handler.removeCallbacks(reporter);
         handler.removeCallbacks(expiryChecker);
+        handler.removeCallbacks(statusPoller);
         stopLocationUpdates();
         cancelWarning();
 
@@ -408,6 +452,7 @@ public final class LocationSharingService extends Service {
     private void finishExpiredStop() {
         leaveInFlight = false;
         LocationSharingStateStore.clear(this);
+        LocationStatusAlert.clear(this);
         postEndedNotification("설정한 공유 시간이 끝나 위치 공유가 자동 종료되었습니다.");
         stopSelf();
     }
@@ -428,6 +473,7 @@ public final class LocationSharingService extends Service {
     }
 
     private void createChannels() {
+        LocationStatusAlert.createChannel(this);
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null) return;

@@ -114,14 +114,15 @@ public final class LocationSharingMapView extends FrameLayout {
             boolean self = member.optBoolean("is_self", false);
             String nickname = member.optString("nickname", self ? "나" : "사용자");
             String state = member.optString("connection_state", "waiting");
+            String userStatus = member.optString("user_status", "normal");
             LatLng point = new LatLng(lat, lon);
             positions.add(point);
             if (self) selfLatLng = point;
 
             String markerText = self ? "나 · " + nickname : nickname;
 
-            Icon icon = IconFactory.getInstance(getContext()).fromBitmap(markerBitmap(markerText, self, state));
-            String snippet = stateLabel(state);
+            Icon icon = IconFactory.getInstance(getContext()).fromBitmap(markerBitmap(markerText, self, state, userStatus));
+            String snippet = stateLabel(state) + statusSuffix(userStatus);
             map.addMarker(new MarkerOptions()
                     .position(point)
                     .title(nickname)
@@ -169,7 +170,7 @@ public final class LocationSharingMapView extends FrameLayout {
         map.animateCamera(CameraUpdateFactory.newLatLngZoom(selfLatLng, 16.0), 420);
     }
 
-    private Bitmap markerBitmap(String label, boolean self, String state) {
+    private Bitmap markerBitmap(String label, boolean self, String state, String userStatus) {
         float density = getResources().getDisplayMetrics().density;
         Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
@@ -182,7 +183,16 @@ public final class LocationSharingMapView extends FrameLayout {
 
         int background;
         int foreground;
-        if (self) {
+        if ("emergency".equals(userStatus)) {
+            background = 0xF2E75B6D;
+            foreground = Color.WHITE;
+        } else if ("help".equals(userStatus)) {
+            background = 0xF8FFF0F3;
+            foreground = 0xFFE45A6A;
+        } else if ("contact".equals(userStatus)) {
+            background = 0xF8FFF6E7;
+            foreground = 0xFFD98A20;
+        } else if (self) {
             background = 0xF2E94778;
             foreground = Color.WHITE;
         } else if ("disconnected".equals(state) || "location_stale".equals(state)) {
@@ -213,6 +223,13 @@ public final class LocationSharingMapView extends FrameLayout {
         float y = height / 2f - (fm.ascent + fm.descent) / 2f;
         canvas.drawText(label, dp(11), y, textPaint);
         return bitmap;
+    }
+
+    private String statusSuffix(String status) {
+        if ("emergency".equals(status)) return " · 긴급";
+        if ("help".equals(status)) return " · 도움 필요";
+        if ("contact".equals(status)) return " · 연락 요청";
+        return "";
     }
 
     private String stateLabel(String state) {
