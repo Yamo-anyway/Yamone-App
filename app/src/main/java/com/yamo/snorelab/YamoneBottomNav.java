@@ -2,6 +2,7 @@ package com.yamo.snorelab;
 
 import android.app.Activity;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
@@ -42,9 +43,14 @@ public final class YamoneBottomNav {
             item.setCompoundDrawables(null, icon, null, null);
         }
 
-        item.setBackground(selected
-                ? YamoneBackHeader.rounded(selectedBg, dp(activity, 18))
-                : null);
+        item.setBackground(selected ? rounded(selectedBg, dp(activity, 18)) : null);
+    }
+
+    private static GradientDrawable rounded(int fill, int radiusPx) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(fill);
+        d.setCornerRadius(radiusPx);
+        return d;
     }
 
     private static int dp(Activity activity, float value) {
