@@ -48,6 +48,8 @@ public class WalkingMapView extends FrameLayout {
 
     public WalkingMapView(Context context) {
         super(context);
+        setClickable(false);
+        setFocusable(false);
         boolean pink = "pink".equals(context.getSharedPreferences(SleepRecorderService.PREFS, 0)
                 .getString("yamone_theme", "mint"));
         int previewBg = pink ? 0xFFFFEEF3 : 0xFFF0FAF6;
@@ -61,8 +63,9 @@ public class WalkingMapView extends FrameLayout {
         mapView.setAlpha(0f);
         mapView.setClickable(false);
         mapView.setFocusable(false);
-        // Gestures are disabled, but touches must bubble to the parent ScrollView so
-        // the activity detail can always scroll even when the gesture begins on the map.
+        // This is a snapshot-like preview. Disabling input guarantees that vertical swipes
+        // belong to the parent ScrollView even when the gesture begins over the map.
+        mapView.setEnabled(false);
         mapView.setOnTouchListener((v, event) -> false);
         addView(mapView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -74,6 +77,8 @@ public class WalkingMapView extends FrameLayout {
         status.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         status.setGravity(Gravity.CENTER);
         status.setBackgroundColor(previewBg);
+        status.setClickable(false);
+        status.setFocusable(false);
         addView(status, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
