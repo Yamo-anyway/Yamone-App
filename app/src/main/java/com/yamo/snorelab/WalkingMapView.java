@@ -28,7 +28,7 @@ import static org.maplibre.android.style.layers.PropertyFactory.lineOpacity;
 import static org.maplibre.android.style.layers.PropertyFactory.lineWidth;
 
 /**
- * Fixed route preview used by walking/running/cycling and ski summaries.
+ * Fixed route preview used by walking/running/cycling and hiking summaries.
  * The map is intentionally non-interactive: it only shows the recorded route bounds.
  */
 public class WalkingMapView extends FrameLayout {
@@ -58,7 +58,7 @@ public class WalkingMapView extends FrameLayout {
         MapLibre.getInstance(context.getApplicationContext());
         mapView = new MapView(context);
         mapView.onCreate(null);
-        mapView.setAlpha(0f); // Never flash the default/world camera before route fitting.
+        mapView.setAlpha(0f);
         mapView.setClickable(false);
         mapView.setFocusable(false);
         // Gestures are disabled, but touches must bubble to the parent ScrollView so
@@ -102,12 +102,30 @@ public class WalkingMapView extends FrameLayout {
 
     public void setPoints(List<WalkingStore.Point> value) {
         points = value == null ? new ArrayList<>() : new ArrayList<>(value);
+        updateEmptyState();
+        updateRoute();
+    }
+
+    public void setAnalysisSamples(List<ActivityRouteAnalysis.Sample> samples) {
+        ArrayList<WalkingStore.Point> converted = new ArrayList<>();
+        if (samples != null) {
+            for (ActivityRouteAnalysis.Sample s : samples) {
+                converted.add(new WalkingStore.Point(s.timeMs, s.lat, s.lon, s.accuracyM,
+                        s.altitudeValid ? s.altitudeM : 0.0,
+                        s.speedValid ? s.speedKmh / 3.6f : 0f));
+            }
+        }
+        points = converted;
+        updateEmptyState();
+        updateRoute();
+    }
+
+    private void updateEmptyState() {
         if (points.isEmpty()) {
             status.setText("표시할 이동 경로가 없어요.");
             status.setVisibility(VISIBLE);
             mapView.setAlpha(0f);
         }
-        updateRoute();
     }
 
     private void updateRoute() {
