@@ -94,13 +94,25 @@ public class LocationSharingActivity extends Activity {
     private TextView statusHelp;
     private TextView statusEmergency;
     private TextView activeStatusHint;
+    private TextView nextStatusCheck;
+    private long nextStatusCheckAtMs;
     private String currentSelfStatus = "normal";
 
     private final Runnable activePoller = new Runnable() {
         @Override public void run() {
             if (!activeScreen) return;
             refreshActiveSnapshot();
+            nextStatusCheckAtMs = System.currentTimeMillis() + ACTIVE_POLL_MS;
+            updateStatusCountdownText();
             handler.postDelayed(this, ACTIVE_POLL_MS);
+        }
+    };
+
+    private final Runnable statusCountdown = new Runnable() {
+        @Override public void run() {
+            if (!activeScreen) return;
+            updateStatusCountdownText();
+            handler.postDelayed(this, 1_000L);
         }
     };
 
@@ -122,6 +134,7 @@ public class LocationSharingActivity extends Activity {
 
     @Override protected void onPause() {
         handler.removeCallbacks(activePoller);
+        handler.removeCallbacks(statusCountdown);
         super.onPause();
     }
 
@@ -486,6 +499,7 @@ public class LocationSharingActivity extends Activity {
         activeInfo = null;
         activeNetworkHint = null;
         activeStatusHint = null;
+        nextStatusCheck = null;
 
         LinearLayout root = rootShell();
         root.addView(header("위치 공유", ""));
@@ -530,7 +544,21 @@ public class LocationSharingActivity extends Activity {
 
         LinearLayout myStatus = card();
         myStatus.setPadding(dp(12), dp(10), dp(12), dp(10));
-        myStatus.addView(text("내 상태", 13, TEXT, true));
+
+        LinearLayout statusHeader = new LinearLayout(this);
+        statusHeader.setOrientation(LinearLayout.HORIZONTAL);
+        statusHeader.setGravity(Gravity.CENTER_VERTICAL);
+        TextView statusTitle = text("내 상태", 13, TEXT, true);
+        statusTitle.setIncludeFontPadding(false);
+        statusHeader.addView(statusTitle, new LinearLayout.LayoutParams(
+                0, dp(24), 1f));
+        nextStatusCheck = text("다음 상태 확인 60초", 10, MUTED, true);
+        nextStatusCheck.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        nextStatusCheck.setSingleLine(true);
+        nextStatusCheck.setIncludeFontPadding(false);
+        statusHeader.addView(nextStatusCheck, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(24)));
+        myStatus.addView(statusHeader);
 
         LinearLayout statusRow = new LinearLayout(this);
         statusRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -929,7 +957,19 @@ public class LocationSharingActivity extends Activity {
 
     private void scheduleActivePolling() {
         handler.removeCallbacks(activePoller);
-        if (activeScreen) handler.postDelayed(activePoller, ACTIVE_POLL_MS);
+        handler.removeCallbacks(statusCountdown);
+        if (!activeScreen) return;
+        nextStatusCheckAtMs = System.currentTimeMillis() + ACTIVE_POLL_MS;
+        updateStatusCountdownText();
+        handler.postDelayed(activePoller, ACTIVE_POLL_MS);
+        handler.postDelayed(statusCountdown, 1_000L);
+    }
+
+    private void updateStatusCountdownText() {
+        if (nextStatusCheck == null) return;
+        long remainingMs = Math.max(0L, nextStatusCheckAtMs - System.currentTimeMillis());
+        long seconds = (remainingMs + 999L) / 1_000L;
+        nextStatusCheck.setText("다음 상태 확인 " + seconds + "초");
     }
 
     private void ensureSharingService() {
