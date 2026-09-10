@@ -31,7 +31,6 @@ import org.json.JSONObject;
 public class LocationSharingActivityV2 extends LocationSharingActivity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private static final String ART_TAG = "yamone_location_scene_art_v4";
-    private boolean immediateReportAttempted;
 
     private final Runnable polishLoop = new Runnable() {
         @Override public void run() {
@@ -70,10 +69,8 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
         fixLandingBack(root);
         replaceLandingIllustration(root);
         replaceStopAction(root);
-        replaceNicknameAction(root);
         polishParticipantLocationLabels(root);
         polishBottomSpacing(root);
-        maybeSendImmediateLocation(root);
     }
 
     private void fixLandingBack(View root) {
@@ -100,10 +97,6 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
         if (stop != null) stop.setOnClickListener(v -> showYamoneStopDialog());
     }
 
-    private void replaceNicknameAction(View root) {
-        TextView button = findExact(root, "내 닉네임 변경");
-        if (button != null) button.setOnClickListener(v -> showYamoneNicknameDialog());
-    }
 
     private void polishParticipantLocationLabels(View view) {
         if (view instanceof TextView) {
@@ -147,7 +140,6 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
                     parent.getPaddingRight(), Math.max(parent.getPaddingBottom(), dp(18)));
         }
         addBottomMargin(findExact(root, "중복 확인"), 8);
-        addBottomMargin(findExact(root, "내 닉네임 변경"), 10);
         addBottomMargin(findExact(root, "⏱  공유 시간 연장하기"), 12);
         addBottomMargin(findExact(root, "▣  위치 공유 중단하기"), 22);
     }
@@ -162,128 +154,9 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
         }
     }
 
-    private void maybeSendImmediateLocation(View root) {
-        if (immediateReportAttempted) return;
-        if (findExact(root, "▣  위치 공유 중단하기") == null) return;
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
-        immediateReportAttempted = true;
 
-        LocationManager manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        if (manager == null) return;
-        Location best = null;
-        try {
-            Location gps = manager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            Location network = manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            best = newer(gps, network);
-        } catch (SecurityException ignored) {}
-        if (best != null) reportLocationQuietly(best);
 
-        try {
-            String provider = manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-                    ? LocationManager.GPS_PROVIDER : LocationManager.NETWORK_PROVIDER;
-            manager.requestSingleUpdate(provider, this::reportLocationQuietly, Looper.getMainLooper());
-        } catch (Exception ignored) {}
-    }
 
-    private Location newer(Location a, Location b) {
-        if (a == null) return b;
-        if (b == null) return a;
-        return a.getTime() >= b.getTime() ? a : b;
-    }
-
-    private void reportLocationQuietly(Location location) {
-        if (location == null) return;
-        Float accuracy = location.hasAccuracy() ? location.getAccuracy() : null;
-        LocationSharingApi.report(this, location.getLatitude(), location.getLongitude(), accuracy,
-                new LocationSharingApi.JsonCallback() {
-                    @Override public void onSuccess(JSONObject data) { LocationSharingUiBus.notifyChanged(); }
-                    @Override public void onFailure(String message) { }
-                });
-    }
-
-    private void showYamoneNicknameDialog() {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(22), dp(20), dp(22), dp(20));
-        card.setBackground(round(Color.WHITE, 24, 0, 0));
-
-        TextView icon = text("🌸", 34, primary2(), false);
-        icon.setGravity(Gravity.CENTER);
-        card.addView(icon, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
-
-        TextView title = text("내 닉네임 변경", 18, textColor(), true);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(0, dp(4), 0, dp(5));
-        card.addView(title);
-        TextView desc = text("이 방에서 보일 이름을 입력해 주세요.", 12, muted(), false);
-        desc.setGravity(Gravity.CENTER);
-        desc.setPadding(0, 0, 0, dp(14));
-        card.addView(desc);
-
-        EditText input = new EditText(this);
-        input.setSingleLine(true);
-        input.setTextSize(14);
-        input.setTextColor(textColor());
-        input.setHintTextColor(muted());
-        input.setHint("새 닉네임");
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(24)});
-        input.setPadding(dp(14), 0, dp(14), 0);
-        input.setBackground(round(card2(), 16, 1, border()));
-        card.addView(input, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
-
-        TextView save = text("변경하기", 14, Color.WHITE, true);
-        save.setGravity(Gravity.CENTER);
-        save.setBackground(round(primary(), 17, 0, 0));
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        sp.topMargin = dp(14);
-        card.addView(save, sp);
-
-        TextView cancel = text("취소", 14, primary2(), true);
-        cancel.setGravity(Gravity.CENTER);
-        cancel.setBackground(round(card2(), 17, 1, border()));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        cp.topMargin = dp(9);
-        cp.bottomMargin = dp(2);
-        card.addView(cancel, cp);
-
-        save.setOnClickListener(v -> {
-            String nickname = input.getText().toString().trim();
-            if (nickname.isEmpty()) {
-                Toast.makeText(this, "닉네임을 입력해 주세요.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            save.setEnabled(false);
-            save.setText("변경 중…");
-            LocationSharingApi.updateNickname(this, nickname, new LocationSharingApi.JsonCallback() {
-                @Override public void onSuccess(JSONObject data) {
-                    runOnUiThread(() -> {
-                        dialog.dismiss();
-                        Toast.makeText(LocationSharingActivityV2.this, "닉네임을 변경했습니다.", Toast.LENGTH_SHORT).show();
-                        recreate();
-                    });
-                }
-                @Override public void onFailure(String message) {
-                    runOnUiThread(() -> {
-                        save.setEnabled(true);
-                        save.setText("변경하기");
-                        Toast.makeText(LocationSharingActivityV2.this, message, Toast.LENGTH_SHORT).show();
-                    });
-                }
-            });
-        });
-        cancel.setOnClickListener(v -> dialog.dismiss());
-
-        dialog.setContentView(card);
-        styleDialog(dialog, 0.86f);
-        dialog.show();
-        styleDialog(dialog, 0.86f);
-        input.requestFocus();
-    }
 
     private void showYamoneStopDialog() {
         Dialog dialog = new Dialog(this);
@@ -321,7 +194,6 @@ public class LocationSharingActivityV2 extends LocationSharingActivity {
                         LocationSharingService.stop(LocationSharingActivityV2.this);
                         dialog.dismiss();
                         Toast.makeText(LocationSharingActivityV2.this, "위치 공유를 종료했습니다.", Toast.LENGTH_SHORT).show();
-                        immediateReportAttempted = false;
                         recreate();
                     });
                 }
