@@ -10,8 +10,8 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 27
-        versionName '0.3.24-vector-navigation-ui'
+        versionCode 28
+        versionName '0.3.25-home-dashboard'
         manifestPlaceholders = [appLabel: '야모네']
     }
 
