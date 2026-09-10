@@ -17,6 +17,7 @@ import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -62,7 +63,11 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
         PRIMARY2 = pink ? 0xFFE94778 : 0xFF159A7A;
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        if (Build.VERSION.SDK_INT >= 23) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        if (Build.VERSION.SDK_INT >= 23) {
+            int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            getWindow().getDecorView().setSystemUiVisibility(flags);
+        }
 
         alarmId = getIntent().getLongExtra("alarm_id", -1L);
         item = AlarmStore.find(this, alarmId);
@@ -114,6 +119,16 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
         mcp.topMargin = dp(18);
         root.addView(mainCard, mcp);
 
+        ImageView alarmIcon = new ImageView(this);
+        alarmIcon.setImageResource(R.drawable.ic_nav_alarm);
+        alarmIcon.setColorFilter(PRIMARY2);
+        alarmIcon.setPadding(dp(14), dp(14), dp(14), dp(14));
+        alarmIcon.setBackground(round(CARD2, 28));
+        LinearLayout.LayoutParams alarmIconParams = new LinearLayout.LayoutParams(dp(56), dp(56));
+        alarmIconParams.gravity = Gravity.CENTER_HORIZONTAL;
+        alarmIconParams.bottomMargin = dp(12);
+        mainCard.addView(alarmIcon, alarmIconParams);
+
         TextView time = text(String.format(Locale.KOREAN, "%02d:%02d", item.hour, item.minute), 64, TEXT, true);
         time.setGravity(Gravity.CENTER);
         mainCard.addView(time, matchWrap());
@@ -123,10 +138,25 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
         label.setPadding(dp(8), dp(8), dp(8), dp(12));
         mainCard.addView(label, matchWrap());
 
-        String method = "TTS".equals(item.alertMode) ? "🗣  텍스트 읽기" : "🔔  알람음";
-        TextView methodView = text(method + (item.vibrate ? "  ·  진동" : ""), 14, PRIMARY2, true);
-        methodView.setGravity(Gravity.CENTER);
-        mainCard.addView(methodView, matchWrap());
+        String method = "TTS".equals(item.alertMode) ? "텍스트 읽기" : "알람음";
+        LinearLayout methodRow = new LinearLayout(this);
+        methodRow.setOrientation(LinearLayout.HORIZONTAL);
+        methodRow.setGravity(Gravity.CENTER);
+        methodRow.setPadding(dp(12), dp(8), dp(12), dp(8));
+        methodRow.setBackground(round(CARD2, 18));
+        ImageView methodIcon = new ImageView(this);
+        methodIcon.setImageResource("TTS".equals(item.alertMode) ? R.drawable.ic_alarm_speech : R.drawable.ic_nav_alarm);
+        methodIcon.setColorFilter(PRIMARY2);
+        methodIcon.setPadding(dp(4), dp(4), dp(4), dp(4));
+        methodRow.addView(methodIcon, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        TextView methodView = text(method + (item.vibrate ? " · 진동" : ""), 13, PRIMARY2, true);
+        LinearLayout.LayoutParams methodTextParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(28));
+        methodTextParams.leftMargin = dp(4);
+        methodView.setGravity(Gravity.CENTER_VERTICAL);
+        methodRow.addView(methodView, methodTextParams);
+        LinearLayout.LayoutParams methodParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        methodParams.gravity = Gravity.CENTER_HORIZONTAL;
+        mainCard.addView(methodRow, methodParams);
 
         if ("TTS".equals(item.alertMode) && item.speechText != null && !item.speechText.trim().isEmpty()) {
             TextView speech = text("“" + item.speechText.trim() + "”", 14, MUTED, false);
@@ -149,7 +179,16 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
             shakeCard.setGravity(Gravity.CENTER_HORIZONTAL);
             shakeCard.setPadding(dp(18), dp(18), dp(18), dp(18));
             shakeCard.setBackground(round(CARD2, 22));
-            TextView title = text("📱  흔들어서 종료", 16, TEXT, true);
+            ImageView shakeIcon = new ImageView(this);
+            shakeIcon.setImageResource(R.drawable.ic_alarm_shake);
+            shakeIcon.setColorFilter(PRIMARY2);
+            shakeIcon.setPadding(dp(9), dp(9), dp(9), dp(9));
+            shakeIcon.setBackground(round(CARD, 23));
+            LinearLayout.LayoutParams shakeIconParams = new LinearLayout.LayoutParams(dp(46), dp(46));
+            shakeIconParams.gravity = Gravity.CENTER_HORIZONTAL;
+            shakeIconParams.bottomMargin = dp(7);
+            shakeCard.addView(shakeIcon, shakeIconParams);
+            TextView title = text("흔들어서 종료", 16, TEXT, true);
             title.setGravity(Gravity.CENTER);
             shakeCard.addView(title, matchWrap());
             shakeProgress = text("0 / " + item.shakeCount + "회", 28, PRIMARY2, true);
@@ -164,12 +203,12 @@ public class AlarmRingActivity extends Activity implements SensorEventListener {
             root.addView(shakeCard, scp);
         }
 
-        Button snooze = button("😴  " + item.snoozeMinutes + "분 후 다시", CARD2, TEXT);
+        Button snooze = button(item.snoozeMinutes + "분 후 다시", CARD2, PRIMARY2);
         snooze.setOnClickListener(v -> snooze());
         root.addView(snooze, match(dp(58)));
 
         if (!item.shakeToStop) {
-            Button stop = button("■  알람 종료", PRIMARY, pinkTextColor());
+            Button stop = button("알람 종료", PRIMARY2, 0xFFFFFFFF);
             LinearLayout.LayoutParams sp = match(dp(64));
             sp.topMargin = dp(12);
             root.addView(stop, sp);

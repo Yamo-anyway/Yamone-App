@@ -49,7 +49,7 @@ public final class LocationSharingMapView extends FrameLayout {
 
     public LocationSharingMapView(Context context) {
         super(context);
-        setBackgroundColor(0xFF101B2D);
+        setBackgroundColor(0xFFFFF7FA);
 
         MapLibre.getInstance(context.getApplicationContext());
         mapView = new MapView(context);
@@ -60,24 +60,24 @@ public final class LocationSharingMapView extends FrameLayout {
 
         status = new TextView(context);
         status.setText("지도 불러오는 중…");
-        status.setTextColor(Color.WHITE);
+        status.setTextColor(0xFF9A7180);
         status.setTextSize(12);
         status.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         status.setGravity(Gravity.CENTER);
-        status.setBackgroundColor(0x990B1324);
+        status.setBackgroundColor(0xEEFFF7FA);
         FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(38));
         sp.gravity = Gravity.TOP;
         addView(status, sp);
 
         myLocationButton = new TextView(context);
-        myLocationButton.setText("◎ 내 위치");
-        myLocationButton.setTextColor(Color.WHITE);
+        myLocationButton.setText("내 위치");
+        myLocationButton.setTextColor(0xFFE94778);
         myLocationButton.setTextSize(12);
         myLocationButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         myLocationButton.setGravity(Gravity.CENTER);
         myLocationButton.setPadding(dp(10), 0, dp(10), 0);
-        myLocationButton.setBackground(round(0xE616243B, 13, 1, 0xFF7180A1));
+        myLocationButton.setBackground(round(0xF8FFFFFF, 16, 1, 0xFFFFD7E3));
         myLocationButton.setOnClickListener(v -> moveToSelf());
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(92), dp(40));
         bp.gravity = Gravity.END | Gravity.BOTTOM;
@@ -118,11 +118,7 @@ public final class LocationSharingMapView extends FrameLayout {
             positions.add(point);
             if (self) selfLatLng = point;
 
-            String markerText;
-            if (self) markerText = "● 나 · " + nickname;
-            else if ("disconnected".equals(state) || "location_stale".equals(state)) markerText = "⚠ " + nickname;
-            else if ("waiting".equals(state)) markerText = "… " + nickname;
-            else markerText = "● " + nickname;
+            String markerText = self ? "나 · " + nickname : nickname;
 
             Icon icon = IconFactory.getInstance(getContext()).fromBitmap(markerBitmap(markerText, self, state));
             String snippet = stateLabel(state);
@@ -187,23 +183,30 @@ public final class LocationSharingMapView extends FrameLayout {
         int background;
         int foreground;
         if (self) {
-            background = 0xEE4E55D8;
+            background = 0xF2E94778;
             foreground = Color.WHITE;
         } else if ("disconnected".equals(state) || "location_stale".equals(state)) {
-            background = 0xEE482534;
-            foreground = 0xFFFFC0CB;
+            background = 0xF8FFF0F3;
+            foreground = 0xFFE75B6D;
         } else if ("waiting".equals(state)) {
-            background = 0xEE2A3448;
-            foreground = 0xFFCBD3E3;
+            background = 0xF8FFF7FA;
+            foreground = 0xFF9A7180;
         } else {
-            background = 0xEE16243B;
-            foreground = Color.WHITE;
+            background = 0xF8FFFFFF;
+            foreground = 0xFF4B2633;
         }
 
         Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
         bg.setColor(background);
         RectF rect = new RectF(0, 0, width, height);
-        canvas.drawRoundRect(rect, dp(12), dp(12), bg);
+        canvas.drawRoundRect(rect, dp(14), dp(14), bg);
+        if (!self) {
+            Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
+            border.setStyle(Paint.Style.STROKE);
+            border.setStrokeWidth(Math.max(1f, density));
+            border.setColor(0xFFFFD7E3);
+            canvas.drawRoundRect(rect, dp(14), dp(14), border);
+        }
 
         textPaint.setColor(foreground);
         Paint.FontMetrics fm = textPaint.getFontMetrics();
