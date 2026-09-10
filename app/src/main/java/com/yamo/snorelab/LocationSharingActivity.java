@@ -241,15 +241,15 @@ public class LocationSharingActivity extends Activity {
         illustration.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(138)));
         page.addView(illustration);
 
-        LinearLayout create = locationMenuCard(R.drawable.ic_location_group, "방 만들기", "새로운 방을 만들어 친구를 초대해요", true);
+        LinearLayout create = locationMenuCard(R.drawable.ic_location_group, "방 만들기", "", true);
         create.setOnClickListener(v -> showRoomForm(true));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(78));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64));
         cp.topMargin = dp(16);
         page.addView(create, cp);
 
-        LinearLayout join = locationMenuCard(R.drawable.ic_location_group, "방 참여하기", "친구가 만든 방에 참여해요", false);
+        LinearLayout join = locationMenuCard(R.drawable.ic_location_group, "방 참여하기", "", false);
         join.setOnClickListener(v -> showRoomForm(false));
-        LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(78));
+        LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64));
         jp.topMargin = dp(10);
         page.addView(join, jp);
 
@@ -484,6 +484,7 @@ public class LocationSharingActivity extends Activity {
         activeStatusHint = null;
 
         LinearLayout root = rootShell();
+        root.addView(header("위치 공유", ""));
 
         // The map is the fixed top section. Only the controls/list below it scroll.
         sharingMap = new LocationSharingMapView(this);
@@ -959,9 +960,11 @@ public class LocationSharingActivity extends Activity {
         words.setOrientation(LinearLayout.VERTICAL);
         words.setPadding(dp(12), 0, dp(8), 0);
         words.addView(text(title, 15, TEXT, true));
-        TextView sub = text(subtitle, 11, MUTED, false);
-        sub.setPadding(0, dp(3), 0, 0);
-        words.addView(sub);
+        if (subtitle != null && !subtitle.trim().isEmpty()) {
+            TextView sub = text(subtitle, 11, MUTED, false);
+            sub.setPadding(0, dp(3), 0, 0);
+            words.addView(sub);
+        }
         card.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         ImageView arrow = new ImageView(this);

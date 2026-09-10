@@ -135,6 +135,7 @@ public class MainActivity extends Activity {
         lastSleepRecordingUiState = null;
         handler.removeCallbacks(refresher);
         if ("sleep".equals(screen) && detailSession == null) showSleep();
+        else if ("home".equals(screen)) showHome();
         handler.post(refresher);
     }
     @Override protected void onPause() { handler.removeCallbacks(refresher); super.onPause(); }
@@ -346,7 +347,7 @@ public class MainActivity extends Activity {
         page.addView(hero, cardParams());
 
         String locationLabel = LocationSharingStateStore.isActive(this)
-                ? "위치 공유 중 · 방 보기" : "위치 공유";
+                ? "위치 공유 중" : "위치 공유";
         Button locationSharing = actionButton(locationLabel, true,
                 v -> startActivity(new Intent(this, LocationSharingActivityV2.class)));
         LinearLayout.LayoutParams locationParams = match(dp(54));
