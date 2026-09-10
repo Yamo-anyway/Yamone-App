@@ -5,10 +5,10 @@
         <item name="android:statusBarColor">#F7FFFB</item>
         <item name="android:navigationBarColor">#F7FFFB</item>
         <item name="android:windowBackground">#F7FFFB</item>
-        <item name="android:windowAnimationStyle">@style/Animation.SnoreLab.NoTransition</item>
+        <item name="android:windowAnimationStyle">@style/YamoneNoTransitionAnimation</item>
     </style>
 
-    <style name="Animation.SnoreLab.NoTransition">
+    <style name="YamoneNoTransitionAnimation">
         <item name="android:activityOpenEnterAnimation">@null</item>
         <item name="android:activityOpenExitAnimation">@null</item>
         <item name="android:activityCloseEnterAnimation">@null</item>
