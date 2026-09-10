@@ -29,16 +29,17 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/** Simple local-first hiking recorder screen. */
+/** Local-first hiking/trekking recorder and detail screen. */
 public final class HikingActivity extends Activity {
     private static final int REQ_LOCATION = 5601;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SharedPreferences runtime;
     private LinearLayout page;
+    private File detailSession;
 
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
-            render();
+            if (runtime != null && runtime.getBoolean(HikingRecorderService.KEY_RECORDING, false)) render();
             handler.postDelayed(this, 1000L);
         }
     };
@@ -62,6 +63,15 @@ public final class HikingActivity extends Activity {
         super.onPause();
     }
 
+    @Override public void onBackPressed() {
+        if (detailSession != null) {
+            detailSession = null;
+            render();
+            return;
+        }
+        super.onBackPressed();
+    }
+
     private void buildRoot() {
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(bg());
@@ -77,24 +87,29 @@ public final class HikingActivity extends Activity {
     private void render() {
         if (page == null) return;
         page.removeAllViews();
-        page.addView(header());
-        if (runtime.getBoolean(HikingRecorderService.KEY_RECORDING, false)) buildLive();
-        else buildReady();
-        buildPrivacy();
+        if (detailSession != null) {
+            buildDetail(detailSession);
+        } else {
+            page.addView(header("등산 / 트레킹", "산길과 트레일을 야모네와 기록해요", v -> finish()));
+            if (runtime.getBoolean(HikingRecorderService.KEY_RECORDING, false)) buildLive();
+            else buildReady();
+            buildPrivacy();
+        }
+        ActivitySystemBarUiEnhancer.apply(this);
     }
 
-    private View header() {
+    private View header(String title, String subtitle, View.OnClickListener backClick) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         TextView back = text("‹", 34, textColor(), false);
         back.setGravity(Gravity.CENTER);
-        back.setOnClickListener(v -> finish());
+        back.setOnClickListener(backClick);
         row.addView(back, new LinearLayout.LayoutParams(dp(42), dp(54)));
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(text("등산", 23, textColor(), true));
-        words.addView(text("산길도 야모네와 가볍게 기록해요", 12, muted(), false));
+        words.addView(text(title, 23, textColor(), true));
+        words.addView(text(subtitle, 12, muted(), false));
         row.addView(words, new LinearLayout.LayoutParams(0, dp(58), 1f));
         return row;
     }
@@ -104,15 +119,15 @@ public final class HikingActivity extends Activity {
         TextView icon = text("🥾  ⛰️", 38, primary2(), false);
         icon.setGravity(Gravity.CENTER);
         hero.addView(icon);
-        TextView title = text("등산 기록 준비 완료", 19, textColor(), true);
+        TextView title = text("등산 / 트레킹 기록 준비", 19, textColor(), true);
         title.setGravity(Gravity.CENTER);
         title.setPadding(0, dp(8), 0, dp(5));
         hero.addView(title);
-        TextView desc = text("거리 · 시간 · 현재 고도 · 최고/최저 고도 · 누적 상승고도와 GPS 이동 경로를 휴대폰에 저장합니다.", 12, muted(), false);
+        TextView desc = text("거리 · 시간 · 고도 · 누적 상승고도와 GPS 이동 경로를 휴대폰에 저장합니다.", 12, muted(), false);
         desc.setGravity(Gravity.CENTER);
         desc.setPadding(dp(4), 0, dp(4), dp(16));
         hero.addView(desc);
-        Button start = primaryButton("▶  등산 기록 시작");
+        Button start = primaryButton("▶  등산 / 트레킹 기록 시작");
         start.setOnClickListener(v -> requestStart());
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
         sp.bottomMargin = dp(4);
@@ -121,10 +136,10 @@ public final class HikingActivity extends Activity {
 
         List<File> sessions = HikingStore.listSessions(this);
         if (!sessions.isEmpty()) {
-            TextView recent = text("최근 등산 기록", 16, textColor(), true);
+            TextView recent = text("최근 등산 / 트레킹 기록", 16, textColor(), true);
             recent.setPadding(0, dp(10), 0, dp(8));
             page.addView(recent);
-            for (int i = 0; i < Math.min(4, sessions.size()); i++) page.addView(recordRow(sessions.get(i)), cardParams());
+            for (int i = 0; i < Math.min(8, sessions.size()); i++) page.addView(recordRow(sessions.get(i)), cardParams());
         }
     }
 
@@ -138,31 +153,22 @@ public final class HikingActivity extends Activity {
         float accuracy = runtime.getFloat(HikingRecorderService.KEY_ACCURACY_M, Float.NaN);
 
         LinearLayout live = card();
-        TextView status = text("● 등산 기록 중", 16, primary2(), true);
-        live.addView(status);
+        live.addView(text("● 등산 / 트레킹 기록 중", 16, primary2(), true));
         TextView distanceView = text(String.format(Locale.KOREAN, "%.2f km", distance / 1000.0), 38, textColor(), true);
         distanceView.setGravity(Gravity.CENTER);
         distanceView.setPadding(0, dp(10), 0, dp(8));
         live.addView(distanceView);
-
-        LinearLayout row1 = metricRow(
-                "활동시간", format(duration),
-                "누적 상승", ascent + " m");
-        live.addView(row1);
-        LinearLayout row2 = metricRow(
-                "현재 고도", floatText(altitude, "m"),
-                "최고 고도", floatText(maxAlt, "m"));
+        live.addView(metricRow("활동시간", format(duration), "누적 상승", ascent + " m"));
+        LinearLayout row2 = metricRow("현재 고도", floatText(altitude, "m"), "최고 고도", floatText(maxAlt, "m"));
         LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         r2p.topMargin = dp(8);
         live.addView(row2, r2p);
-        LinearLayout row3 = metricRow(
-                "최저 고도", floatText(minAlt, "m"),
-                "GPS 정확도", floatText(accuracy, "m"));
+        LinearLayout row3 = metricRow("최저 고도", floatText(minAlt, "m"), "GPS 정확도", floatText(accuracy, "m"));
         LinearLayout.LayoutParams r3p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         r3p.topMargin = dp(8);
         live.addView(row3, r3p);
 
-        Button stop = dangerButton("■  등산 기록 종료");
+        Button stop = dangerButton("■  등산 / 트레킹 기록 종료");
         stop.setOnClickListener(v -> stopRecording());
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
         bp.topMargin = dp(18);
@@ -176,6 +182,10 @@ public final class HikingActivity extends Activity {
         LinearLayout row = card();
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setOnClickListener(v -> {
+            detailSession = dir;
+            render();
+        });
         TextView icon = text("⛰️", 24, primary2(), false);
         icon.setGravity(Gravity.CENTER);
         row.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
@@ -188,13 +198,88 @@ public final class HikingActivity extends Activity {
                 meta.optLong("distanceM", 0L) / 1000.0,
                 meta.optLong("ascentM", 0L), format(meta.optLong("durationMs", 0L))), 11, muted(), false));
         row.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView arrow = text("›", 27, primary2(), false);
+        arrow.setGravity(Gravity.CENTER);
+        row.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(46)));
         return row;
+    }
+
+    private void buildDetail(File dir) {
+        JSONObject meta = HikingStore.readMeta(dir);
+        page.addView(header("등산 / 트레킹 기록", "경로와 고도 변화를 확인해요", v -> {
+            detailSession = null;
+            render();
+        }));
+        long start = meta.optLong("startEpochMs", 0L);
+        TextView date = text(new SimpleDateFormat("yyyy년 M월 d일 (E) HH:mm", Locale.KOREAN).format(new Date(start)), 12, muted(), false);
+        date.setPadding(0, 0, 0, dp(10));
+        page.addView(date);
+
+        long distance = meta.optLong("distanceM", 0L);
+        long duration = meta.optLong("durationMs", 0L);
+        ActivityRouteAnalysis.Result analysis = ActivityRouteAnalysis.analyze(dir, "hiking");
+
+        LinearLayout summary = card();
+        summary.addView(text(String.format(Locale.KOREAN, "%.2f km", distance / 1000.0), 36, textColor(), true));
+        summary.addView(kv("활동 시간", format(duration)));
+        summary.addView(kv("누적 상승", meter(analysis.hasAltitude ? analysis.ascentM : meta.optDouble("ascentM", 0))));
+        if (analysis.hasAltitude) {
+            summary.addView(kv("누적 하강", meter(analysis.descentM)));
+            summary.addView(kv("최고 / 최저 고도", meter(analysis.maxAltitudeM) + " / " + meter(analysis.minAltitudeM)));
+        }
+        summary.addView(kv("GPS 품질", analysis.gpsQualityPercent + "%"));
+        page.addView(summary, cardParams());
+
+        if (!analysis.samples.isEmpty()) {
+            LinearLayout route = card();
+            route.addView(text("이동 경로", 15, textColor(), true));
+            WalkingMapView map = new WalkingMapView(this);
+            map.setAnalysisSamples(analysis.samples);
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(230));
+            mp.topMargin = dp(8);
+            route.addView(map, mp);
+            page.addView(route, cardParams());
+        }
+
+        if (analysis.hasAltitude) {
+            LinearLayout elevation = card();
+            elevation.addView(text("고도 변화", 15, textColor(), true));
+            TextView sub = text("활동 전체 시간에 따른 고도 변화", 11, muted(), false);
+            sub.setPadding(0, dp(4), 0, dp(4));
+            elevation.addView(sub);
+            ActivityProfileChartView chart = new ActivityProfileChartView(this);
+            chart.setData(analysis, ActivityProfileChartView.MODE_ALTITUDE);
+            elevation.addView(chart, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(185)));
+            elevation.addView(metricRow("최고 고도", meter(analysis.maxAltitudeM), "최저 고도", meter(analysis.minAltitudeM)));
+            LinearLayout r2 = metricRow("누적 상승", meter(analysis.ascentM), "누적 하강", meter(analysis.descentM));
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            p.topMargin = dp(8);
+            elevation.addView(r2, p);
+            page.addView(elevation, cardParams());
+        }
+
+        if (analysis.hasSpeed) {
+            LinearLayout speed = card();
+            speed.addView(text("이동 속도 변화", 15, textColor(), true));
+            ActivityProfileChartView chart = new ActivityProfileChartView(this);
+            chart.setData(analysis, ActivityProfileChartView.MODE_SPEED);
+            speed.addView(chart, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(165)));
+            speed.addView(metricRow("평균 기록 속도", String.format(Locale.KOREAN, "%.1f km/h", analysis.averageSpeedKmh),
+                    "최고 유효 속도", String.format(Locale.KOREAN, "%.1f km/h", analysis.maxSpeedKmh)));
+            page.addView(speed, cardParams());
+        }
+    }
+
+    private TextView kv(String label, String value) {
+        TextView view = text(label + "    " + value, 13, textColor(), false);
+        view.setPadding(0, dp(8), 0, 0);
+        return view;
     }
 
     private void buildPrivacy() {
         LinearLayout privacy = card();
-        privacy.addView(text("🔒 등산 경로는 내 휴대폰에", 14, textColor(), true));
-        TextView desc = text("등산 GPS 경로와 기록은 자동으로 서버에 업로드하지 않습니다.", 11, muted(), false);
+        privacy.addView(text("🔒 등산 / 트레킹 경로는 내 휴대폰에", 14, textColor(), true));
+        TextView desc = text("GPS 경로와 기록은 자동으로 서버에 업로드하지 않습니다.", 11, muted(), false);
         desc.setPadding(0, dp(6), 0, 0);
         privacy.addView(desc);
         page.addView(privacy, cardParams());
@@ -213,25 +298,30 @@ public final class HikingActivity extends Activity {
         Intent intent = new Intent(this, HikingRecorderService.class).setAction(HikingRecorderService.ACTION_START);
         try {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent); else startService(intent);
-            Toast.makeText(this, "등산 기록을 시작합니다.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "등산 / 트레킹 기록을 시작합니다.", Toast.LENGTH_SHORT).show();
             handler.postDelayed(this::render, 400L);
         } catch (Exception e) {
-            Toast.makeText(this, "등산 기록을 시작하지 못했습니다.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "기록을 시작하지 못했습니다.", Toast.LENGTH_SHORT).show();
         }
     }
 
     private void stopRecording() {
+        String path = runtime.getString(HikingRecorderService.KEY_SESSION_DIR, "");
         startService(new Intent(this, HikingRecorderService.class).setAction(HikingRecorderService.ACTION_STOP));
-        Toast.makeText(this, "등산 기록을 저장합니다.", Toast.LENGTH_SHORT).show();
-        handler.postDelayed(this::render, 500L);
+        Toast.makeText(this, "등산 / 트레킹 기록을 저장합니다.", Toast.LENGTH_SHORT).show();
+        handler.postDelayed(() -> {
+            if (!path.isEmpty()) {
+                File saved = new File(path);
+                if (saved.isDirectory() && "complete".equals(HikingStore.readMeta(saved).optString("status"))) detailSession = saved;
+            }
+            render();
+        }, 650L);
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_LOCATION && (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)) {
-            startRecording();
-        }
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)) startRecording();
     }
 
     private LinearLayout metricRow(String l1, String v1, String l2, String v2) {
@@ -249,7 +339,7 @@ public final class HikingActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setBackground(round(card2(), 16, 1, border()));
-        TextView v = text(value, 16, textColor(), true);
+        TextView v = text(value, 15, textColor(), true);
         v.setGravity(Gravity.CENTER);
         box.addView(v);
         TextView l = text(label, 10, muted(), false);
@@ -313,8 +403,7 @@ public final class HikingActivity extends Activity {
     }
 
     private boolean pink() {
-        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0)
-                .getString("yamone_theme", "mint"));
+        return "pink".equals(getSharedPreferences(SleepRecorderService.PREFS, 0).getString("yamone_theme", "mint"));
     }
     private int bg() { return pink() ? 0xFFFFF7FA : 0xFFF7FFFB; }
     private int card2() { return pink() ? 0xFFFFEEF3 : 0xFFF0FAF6; }
@@ -332,6 +421,10 @@ public final class HikingActivity extends Activity {
 
     private static String floatText(float value, String unit) {
         return Float.isNaN(value) ? "-" : String.format(Locale.KOREAN, "%.0f %s", value, unit);
+    }
+
+    private static String meter(double value) {
+        return Double.isNaN(value) ? "-" : String.format(Locale.KOREAN, "%.0f m", value);
     }
 
     private int dp(float value) {
