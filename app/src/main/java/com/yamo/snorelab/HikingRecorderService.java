@@ -69,10 +69,14 @@ public final class HikingRecorderService extends Service {
     private double gpsShadowDistanceM;
     private long gpsShadowDurationMs;
     private File sessionDir;
+    private boolean gpsRegistered;
+    private boolean networkRegistered;
+    private long lastProviderRefreshAt;
 
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
             if (!recording) return;
+            if (System.currentTimeMillis() - lastProviderRefreshAt >= 30_000L) refreshLocationProviderRegistrations();
             persist();
             updateNotification();
             handler.postDelayed(this, 1000L);
@@ -86,11 +90,13 @@ public final class HikingRecorderService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null) return START_NOT_STICKY;
-        String action = intent.getAction();
-        if (ACTION_START.equals(action)) startRecording();
+        String action = intent == null ? null : intent.getAction();
+        if (action == null) {
+            if (runtime.getBoolean(KEY_RECORDING, false)) recoverRecordingAfterProcessRestart();
+            else stopSelf();
+        } else if (ACTION_START.equals(action)) startRecording();
         else if (ACTION_STOP.equals(action)) stopRecording();
-        return START_NOT_STICKY;
+        return recording ? START_STICKY : START_NOT_STICKY;
     }
 
     private void startRecording() {
@@ -130,19 +136,43 @@ public final class HikingRecorderService extends Service {
     }
 
     private void startLocation() {
+        stopLocation();
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (locationManager == null || !hasLocationPermission()) return;
         locationListener = this::onLocation;
+        gpsRegistered = false;
+        networkRegistered = false;
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f,
                         locationListener, Looper.getMainLooper());
+                gpsRegistered = true;
             }
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 3f,
                         locationListener, Looper.getMainLooper());
+                networkRegistered = true;
             }
         } catch (SecurityException ignored) {}
+        lastProviderRefreshAt = System.currentTimeMillis();
+    }
+
+    private void refreshLocationProviderRegistrations() {
+        lastProviderRefreshAt = System.currentTimeMillis();
+        if (!recording || !hasLocationPermission()) return;
+        LocationManager manager = locationManager;
+        if (manager == null) { startLocation(); return; }
+        boolean gpsEnabled = false, networkEnabled = false;
+        try { gpsEnabled = manager.isProviderEnabled(LocationManager.GPS_PROVIDER); } catch (Exception ignored) {}
+        try { networkEnabled = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER); } catch (Exception ignored) {}
+        if (!gpsEnabled) gpsRegistered = false;
+        if (!networkEnabled) networkRegistered = false;
+        if ((gpsEnabled && !gpsRegistered) || (networkEnabled && !networkRegistered)) {
+            lastLocation = null;
+            lastLocationTime = 0L;
+            lastSpeedMps = 0f;
+            startLocation();
+        }
     }
 
     private void onLocation(Location loc) {
@@ -275,6 +305,37 @@ public final class HikingRecorderService extends Service {
         } catch (Exception ignored) {}
     }
 
+    private void recoverRecordingAfterProcessRestart() {
+        if (recording || !runtime.getBoolean(KEY_RECORDING, false)) return;
+        if (!hasLocationPermission()) { stopSelf(); return; }
+        String path = runtime.getString(KEY_SESSION_DIR, "");
+        sessionDir = path.isEmpty() ? null : new File(path);
+        startMs = runtime.getLong(KEY_START_MS, 0L);
+        distanceM = runtime.getLong(KEY_DISTANCE_M, 0L);
+        ascentM = runtime.getLong(KEY_ASCENT_M, 0L);
+        smoothedAltitude = runtime.getFloat(KEY_ALTITUDE_M, Float.NaN);
+        maxAltitude = runtime.getFloat(KEY_MAX_ALTITUDE_M, Float.NaN);
+        minAltitude = runtime.getFloat(KEY_MIN_ALTITUDE_M, Float.NaN);
+        accuracyM = runtime.getFloat(KEY_ACCURACY_M, Float.NaN);
+        lastAltitude = smoothedAltitude;
+        lastLocation = null;
+        lastLocationTime = 0L;
+        lastSpeedMps = 0f;
+        if (sessionDir == null || !sessionDir.exists() || startMs <= 0L) {
+            runtime.edit().putBoolean(KEY_RECORDING, false).apply();
+            stopSelf();
+            return;
+        }
+        recording = true;
+        Notification notification = buildNotification("등산 기록을 복구했습니다.");
+        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFY, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+        else startForeground(NOTIFY, notification);
+        startLocation();
+        persist();
+        handler.removeCallbacks(ticker);
+        handler.post(ticker);
+    }
+
     private void stopRecording() {
         if (!recording && !runtime.getBoolean(KEY_RECORDING, false)) {
             stopSelf();
@@ -307,6 +368,8 @@ public final class HikingRecorderService extends Service {
         }
         locationListener = null;
         locationManager = null;
+        gpsRegistered = false;
+        networkRegistered = false;
     }
 
     private boolean hasLocationPermission() {

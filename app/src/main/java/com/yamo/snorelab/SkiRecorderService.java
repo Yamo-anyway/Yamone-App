@@ -84,6 +84,9 @@ public class SkiRecorderService extends Service {
     private double lastLat = Double.NaN;
     private double lastLon = Double.NaN;
     private int rejectedGpsPoints;
+    private boolean gpsRegistered;
+    private boolean networkRegistered;
+    private long lastProviderRefreshAt;
 
     private int descentCount;
     private int liftCount;
@@ -115,6 +118,7 @@ public class SkiRecorderService extends Service {
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
             if (!recording) return;
+            if (System.currentTimeMillis() - lastProviderRefreshAt >= 30_000L) refreshLocationProviderRegistrations();
             persistRuntime();
             persistSessionMetrics();
             updateNotification();
@@ -142,10 +146,13 @@ public class SkiRecorderService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null) return START_NOT_STICKY;
-        if (ACTION_START.equals(intent.getAction())) begin(intent);
-        else if (ACTION_STOP.equals(intent.getAction())) finishRecording();
-        return START_NOT_STICKY;
+        String action = intent == null ? null : intent.getAction();
+        if (action == null) {
+            if (runtime.getBoolean(KEY_RECORDING, false)) recoverRecordingAfterProcessRestart();
+            else stopSelf();
+        } else if (ACTION_START.equals(action)) begin(intent);
+        else if (ACTION_STOP.equals(action)) finishRecording();
+        return recording ? START_STICKY : START_NOT_STICKY;
     }
 
     private void begin(Intent intent) {
@@ -213,17 +220,49 @@ public class SkiRecorderService extends Service {
     }
 
     private void startLocation() {
+        stopLocation();
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (locationManager == null) return;
         locationListener = this::onLocationChanged;
+        gpsRegistered = false;
+        networkRegistered = false;
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f, locationListener, Looper.getMainLooper());
+                gpsRegistered = true;
             }
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 3f, locationListener, Looper.getMainLooper());
+                networkRegistered = true;
             }
         } catch (SecurityException ignored) {}
+        lastProviderRefreshAt = System.currentTimeMillis();
+    }
+
+    private void refreshLocationProviderRegistrations() {
+        lastProviderRefreshAt = System.currentTimeMillis();
+        if (!recording || !hasLocationPermission()) return;
+        LocationManager manager = locationManager;
+        if (manager == null) { startLocation(); return; }
+        boolean gpsEnabled = false, networkEnabled = false;
+        try { gpsEnabled = manager.isProviderEnabled(LocationManager.GPS_PROVIDER); } catch (Exception ignored) {}
+        try { networkEnabled = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER); } catch (Exception ignored) {}
+        if (!gpsEnabled) gpsRegistered = false;
+        if (!networkEnabled) networkRegistered = false;
+        if ((gpsEnabled && !gpsRegistered) || (networkEnabled && !networkRegistered)) {
+            lastLoc = null;
+            lastTime = 0L;
+            currentSpeedKmh = 0f;
+            state = STATE_CHECKING;
+            liftCandidate = null;
+            descentCandidate = null;
+            startLocation();
+        }
+    }
+
+    private boolean hasLocationPermission() {
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void onLocationChanged(Location loc) {
@@ -537,6 +576,52 @@ public class SkiRecorderService extends Service {
         activeLiftLastLoc = null;
     }
 
+    private void recoverRecordingAfterProcessRestart() {
+        if (recording || !runtime.getBoolean(KEY_RECORDING, false)) return;
+        if (!hasLocationPermission()) { stopSelf(); return; }
+        sport = runtime.getString(KEY_SPORT, "ski");
+        startMs = runtime.getLong(KEY_START_MS, 0L);
+        String path = runtime.getString(KEY_SESSION_DIR, "");
+        sessionDir = path.isEmpty() ? null : new File(path);
+        maxSpeedKmh = runtime.getFloat(KEY_MAX_SPEED_KMH, 0f);
+        smoothedAltitude = runtime.getFloat(KEY_ALTITUDE_M, Float.NaN);
+        accuracyM = runtime.getFloat(KEY_ACCURACY_M, Float.NaN);
+        descentCount = runtime.getInt(KEY_DESCENT_COUNT, 0);
+        liftCount = runtime.getInt(KEY_LIFT_COUNT, 0);
+        descentDistanceM = runtime.getLong(KEY_DESCENT_DISTANCE_M, 0L);
+        descentVerticalM = runtime.getLong(KEY_DESCENT_VERTICAL_M, 0L);
+        liftTimeMs = runtime.getLong(KEY_LIFT_TIME_MS, 0L);
+        waitTimeMs = runtime.getLong(KEY_WAIT_TIME_MS, 0L);
+        lastLat = runtime.contains(KEY_LAT) ? runtime.getFloat(KEY_LAT, Float.NaN) : Double.NaN;
+        lastLon = runtime.contains(KEY_LON) ? runtime.getFloat(KEY_LON, Float.NaN) : Double.NaN;
+        if (sessionDir == null || !sessionDir.exists() || startMs <= 0L) {
+            clearRuntime();
+            stopSelf();
+            return;
+        }
+        recording = true;
+        state = STATE_CHECKING;
+        lastLoc = null;
+        lastTime = 0L;
+        currentSpeedKmh = 0f;
+        slowStartMs = 0L;
+        slowAnchor = null;
+        waitCandidateStartMs = 0L;
+        waitCandidateAnchor = null;
+        liftCandidate = null;
+        descentCandidate = null;
+        resortDetectInFlight = false;
+        clearActiveLift();
+        Notification n = buildNotification("스키 기록을 복구했습니다.");
+        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFY_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+        else startForeground(NOTIFY_ID, n);
+        startLocation();
+        persistRuntime();
+        persistSessionMetrics();
+        handler.removeCallbacks(ticker);
+        handler.post(ticker);
+    }
+
     private void finishRecording() {
         if (!recording && !runtime.getBoolean(KEY_RECORDING, false)) {
             stopSelf();
@@ -570,6 +655,8 @@ public class SkiRecorderService extends Service {
         }
         locationListener = null;
         locationManager = null;
+        gpsRegistered = false;
+        networkRegistered = false;
     }
 
     private void persistRuntime() {
@@ -648,9 +735,9 @@ public class SkiRecorderService extends Service {
     private void updateNotification() {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (nm == null || !recording) return;
-        String label = STATE_DESCENT.equals(state) ? "⛷ 활주 중"
-                : STATE_LIFT.equals(state) ? "🚡 리프트 이동"
-                : STATE_STOPPED.equals(state) ? "● 정지"
+        String label = STATE_DESCENT.equals(state) ? "활주 중"
+                : STATE_LIFT.equals(state) ? "리프트 이동"
+                : STATE_STOPPED.equals(state) ? "정지"
                 : "GPS 움직임 판별 중";
         nm.notify(NOTIFY_ID, buildNotification(String.format(Locale.KOREAN, "%s · %.1f km/h", label, currentSpeedKmh)));
     }

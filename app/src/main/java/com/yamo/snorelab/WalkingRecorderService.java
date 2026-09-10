@@ -25,6 +25,7 @@ import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -61,6 +62,10 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     public static final String KEY_RUNNING_DISTANCE_M = "running_distance_m";
     public static final String KEY_WALKING_MOVING_MS = "walking_moving_ms";
     public static final String KEY_RUNNING_MOVING_MS = "running_moving_ms";
+    public static final String KEY_PAUSED_ACCUM_MS = "paused_accum_ms";
+    public static final String KEY_PAUSE_STARTED_MS = "pause_started_ms";
+    public static final String KEY_PERSISTED_AT_MS = "persisted_at_ms";
+    public static final String KEY_SPLITS_JSON = "splits_json";
 
     private static final String CHANNEL_RECORDING = "walking_recording_v1";
     private static final String CHANNEL_GOAL = "walking_goal_v1";
@@ -127,6 +132,9 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private long gpsShadowDurationMs;
     private int stationaryGpsDiscards;
     private File sessionDir;
+    private boolean gpsRegistered;
+    private boolean networkRegistered;
+    private long lastProviderRefreshAt;
     private long goalDistanceM;
     private long goalTimeMs;
     private String goalState = "ACTIVE";
@@ -138,6 +146,8 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
             if (!recording) return;
+            long now = System.currentTimeMillis();
+            if (now - lastProviderRefreshAt >= 30_000L) refreshLocationProviderRegistrations();
             persistRuntime();
             checkGoal();
             updateForegroundNotification();
@@ -152,13 +162,15 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null) return START_NOT_STICKY;
-        String action = intent.getAction();
-        if (ACTION_START.equals(action)) begin(intent);
+        String action = intent == null ? null : intent.getAction();
+        if (action == null) {
+            if (runtime.getBoolean(KEY_RECORDING, false)) recoverRecordingAfterProcessRestart();
+            else stopSelf();
+        } else if (ACTION_START.equals(action)) begin(intent);
         else if (ACTION_PAUSE.equals(action)) pauseRecording();
         else if (ACTION_RESUME.equals(action)) resumeRecording();
         else if (ACTION_STOP.equals(action)) finishRecording();
-        return START_NOT_STICKY;
+        return recording ? START_STICKY : START_NOT_STICKY;
     }
 
     private void begin(Intent intent) {
@@ -233,17 +245,49 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     }
 
     private void startLocation() {
+        stopLocationOnly();
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (locationManager == null) return;
         locationListener = this::onLocationChanged;
+        gpsRegistered = false;
+        networkRegistered = false;
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f, locationListener, Looper.getMainLooper());
+                gpsRegistered = true;
             }
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 3f, locationListener, Looper.getMainLooper());
+                networkRegistered = true;
             }
         } catch (SecurityException ignored) {}
+        lastProviderRefreshAt = System.currentTimeMillis();
+    }
+
+    private void refreshLocationProviderRegistrations() {
+        lastProviderRefreshAt = System.currentTimeMillis();
+        if (!recording || !hasLocationPermission()) return;
+        LocationManager manager = locationManager;
+        if (manager == null) {
+            startLocation();
+            return;
+        }
+        boolean gpsEnabled = false, networkEnabled = false;
+        try { gpsEnabled = manager.isProviderEnabled(LocationManager.GPS_PROVIDER); } catch (Exception ignored) {}
+        try { networkEnabled = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER); } catch (Exception ignored) {}
+        if (!gpsEnabled) gpsRegistered = false;
+        if (!networkEnabled) networkRegistered = false;
+        if ((gpsEnabled && !gpsRegistered) || (networkEnabled && !networkRegistered)) {
+            lastAccepted = null;
+            lastAcceptedTime = 0L;
+            lastAcceptedSpeedMps = 0f;
+            startLocation();
+        }
+    }
+
+    private boolean hasLocationPermission() {
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void startSteps() {
@@ -604,7 +648,7 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     @Override public void onSensorChanged(SensorEvent event) {
         if (isCycling() || !recording || event == null || event.sensor == null || event.sensor.getType() != Sensor.TYPE_STEP_COUNTER) return;
         float current = event.values.length > 0 ? event.values[0] : 0f;
-        if (stepBase < 0) stepBase = current;
+        if (stepBase < 0) stepBase = current - steps;
         long previousSteps = steps;
         steps = Math.max(0, Math.round(current - stepBase));
         if (steps > previousSteps) lastStepDetectedMs = System.currentTimeMillis();
@@ -711,6 +755,10 @@ public class WalkingRecorderService extends Service implements SensorEventListen
                 .putLong(KEY_GOAL_DISTANCE_M, goalDistanceM)
                 .putLong(KEY_GOAL_TIME_MS, goalTimeMs)
                 .putString(KEY_GOAL_STATE, goalState)
+                .putLong(KEY_PAUSED_ACCUM_MS, pausedAccumMs)
+                .putLong(KEY_PAUSE_STARTED_MS, pauseStartedMs)
+                .putLong(KEY_PERSISTED_AT_MS, System.currentTimeMillis())
+                .putString(KEY_SPLITS_JSON, WalkingStore.longListToJson(splitsMs).toString())
                 .apply();
     }
 
@@ -784,6 +832,10 @@ public class WalkingRecorderService extends Service implements SensorEventListen
     }
 
     private void restorePersistedSessionForStop() {
+        restorePersistedState();
+    }
+
+    private void restorePersistedState() {
         activityType = runtime.getString(KEY_ACTIVITY_TYPE, "walking");
         startMs = runtime.getLong(KEY_START_MS, 0L);
         movingMs = runtime.getLong(KEY_MOVING_MS, 0L);
@@ -797,32 +849,81 @@ public class WalkingRecorderService extends Service implements SensorEventListen
         goalTimeMs = runtime.getLong(KEY_GOAL_TIME_MS, 0L);
         goalState = runtime.getString(KEY_GOAL_STATE, "ACTIVE");
         autoMotionMode = runtime.getString(KEY_AUTO_MOTION_MODE, "walking");
+        pendingAutoMotionMode = autoMotionMode;
         walkingDistanceM = runtime.getLong(KEY_WALKING_DISTANCE_M, 0L);
         runningDistanceM = runtime.getLong(KEY_RUNNING_DISTANCE_M, 0L);
         walkingMovingMs = runtime.getLong(KEY_WALKING_MOVING_MS, 0L);
         runningMovingMs = runtime.getLong(KEY_RUNNING_MOVING_MS, 0L);
         paused = runtime.getBoolean(KEY_PAUSED, false);
+        pausedAccumMs = runtime.getLong(KEY_PAUSED_ACCUM_MS, -1L);
+        pauseStartedMs = runtime.getLong(KEY_PAUSE_STARTED_MS, 0L);
+        if (pausedAccumMs < 0L) {
+            long persistedElapsed = runtime.getLong(KEY_ELAPSED_MS, 0L);
+            long persistedAt = runtime.getLong(KEY_PERSISTED_AT_MS, System.currentTimeMillis());
+            pausedAccumMs = Math.max(0L, persistedAt - startMs - persistedElapsed);
+            if (paused && pauseStartedMs <= 0L) pauseStartedMs = persistedAt;
+        }
         String path = runtime.getString(KEY_SESSION_DIR, "");
         sessionDir = path.isEmpty() ? null : new File(path);
+        splitsMs.clear();
+        try {
+            JSONArray values = new JSONArray(runtime.getString(KEY_SPLITS_JSON, "[]"));
+            for (int i = 0; i < values.length(); i++) splitsMs.add(Math.max(0L, values.optLong(i, 0L)));
+        } catch (Exception ignored) {}
+        long splitTotal = 0L;
+        for (Long value : splitsMs) splitTotal += value == null ? 0L : Math.max(0L, value);
+        lastSplitMovingMs = Math.min(movingMs, splitTotal);
+        nextSplitM = Math.max(1000L, ((long) Math.floor(distanceM / 1000.0) + 1L) * 1000L);
+        lastAccepted = null;
+        lastAcceptedTime = 0L;
+        lastAcceptedSpeedMps = 0f;
+        lastStepDetectedMs = 0L;
+        currentSpeedKmh = 0f;
+        stepBase = -1f;
+        resetAutoPending();
+        resetMaxSpeedCandidate();
+    }
 
-        long persistedElapsed = runtime.getLong(KEY_ELAPSED_MS, 0L);
-        if (startMs > 0L && persistedElapsed >= 0L) {
-            pausedAccumMs = Math.max(0L, endOfPersistedWindow() - startMs - persistedElapsed);
+    private void recoverRecordingAfterProcessRestart() {
+        if (recording || !runtime.getBoolean(KEY_RECORDING, false)) return;
+        if (!hasLocationPermission()) {
+            stopSelf();
+            return;
         }
-        pauseStartedMs = 0L;
+        restorePersistedState();
+        if (sessionDir == null || !sessionDir.exists() || startMs <= 0L) {
+            runtime.edit().putBoolean(KEY_RECORDING, false).putBoolean(KEY_PAUSED, false).apply();
+            stopSelf();
+            return;
+        }
+        recording = true;
+        Notification n = buildRecordingNotification(activityLabel() + (paused ? " 기록 일시정지" : " 기록 복구 중"));
+        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFY_RECORDING, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+        else startForeground(NOTIFY_RECORDING, n);
+        startLocation();
+        if (!isCycling()) startSteps();
+        persistRuntime();
+        handler.removeCallbacks(ticker);
+        handler.post(ticker);
     }
 
-    private long endOfPersistedWindow() {
-        return System.currentTimeMillis();
-    }
-
-    private void stopSensors() {
+    private void stopLocationOnly() {
         if (locationManager != null && locationListener != null) {
             try { locationManager.removeUpdates(locationListener); } catch (Exception ignored) {}
         }
+        locationListener = null;
+        locationManager = null;
+        gpsRegistered = false;
+        networkRegistered = false;
+    }
+
+    private void stopSensors() {
+        stopLocationOnly();
         if (sensorManager != null) {
             try { sensorManager.unregisterListener(this); } catch (Exception ignored) {}
         }
+        sensorManager = null;
+        stepCounter = null;
     }
 
     private void createChannels() {

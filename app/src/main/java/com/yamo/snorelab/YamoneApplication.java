@@ -11,6 +11,7 @@ import android.os.Bundle;
 /** Installs Yamone UI enhancements and keeps the launcher entry on Home. */
 public class YamoneApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private boolean locationSharingRecoveryAttempted;
+    private boolean activityRecordingRecoveryAttempted;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -42,6 +43,7 @@ public class YamoneApplication extends Application implements Application.Activi
             LocationSharingHomeUiEnhancer.attach(main);
             LocationSharingHomeUiEnhancer.refresh(main);
             recoverLocationSharingIfNeeded(main);
+            recoverActivityRecordingIfNeeded(main);
         }
 
         if (activity instanceof LocationExerciseActivity
@@ -60,6 +62,33 @@ public class YamoneApplication extends Application implements Application.Activi
         boolean hasLocation = activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                 || activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
         if (hasLocation) LocationSharingService.start(activity);
+    }
+
+    private void recoverActivityRecordingIfNeeded(MainActivity activity) {
+        if (activityRecordingRecoveryAttempted) return;
+        activityRecordingRecoveryAttempted = true;
+        boolean hasLocation = activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (!hasLocation) return;
+        if (activity.getSharedPreferences(WalkingRecorderService.PREFS, MODE_PRIVATE)
+                .getBoolean(WalkingRecorderService.KEY_RECORDING, false)) {
+            startRecorder(activity, new Intent(activity, WalkingRecorderService.class));
+        }
+        if (activity.getSharedPreferences(HikingRecorderService.PREFS, MODE_PRIVATE)
+                .getBoolean(HikingRecorderService.KEY_RECORDING, false)) {
+            startRecorder(activity, new Intent(activity, HikingRecorderService.class));
+        }
+        if (activity.getSharedPreferences(SkiRecorderService.PREFS, MODE_PRIVATE)
+                .getBoolean(SkiRecorderService.KEY_RECORDING, false)) {
+            startRecorder(activity, new Intent(activity, SkiRecorderService.class));
+        }
+    }
+
+    private void startRecorder(Activity activity, Intent intent) {
+        try {
+            if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent);
+            else activity.startService(intent);
+        } catch (Exception ignored) {}
     }
 
     @Override public void onActivityDestroyed(Activity activity) {
