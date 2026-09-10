@@ -1,0 +1,27 @@
+name: Apply participant map focus
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-participant-map-focus.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply participant map focus patch
+        run: python3 .github/scripts/patch_participant_map_focus.py
+      - name: Commit changes
+        run: |
+          git config user.name 'Yamone Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/src/main/java/com/yamo/snorelab
+          git commit -m 'Focus location map from participant list'
+          git push
