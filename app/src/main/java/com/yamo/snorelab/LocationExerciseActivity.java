@@ -7,33 +7,55 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /** Adds Yamone activity entries without mixing location-sharing UI into Activity. */
 public class LocationExerciseActivity extends EnhancedExerciseActivity {
     private static final String HIKING_TAG = "yamone_hiking_entry_v2";
+    private boolean enhancementPosted;
+    private final ViewTreeObserver.OnGlobalLayoutListener layoutListener = this::scheduleEnhancements;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        attachEnhancements();
+        getWindow().getDecorView().getViewTreeObserver().addOnGlobalLayoutListener(layoutListener);
+        scheduleEnhancements();
     }
 
     @Override protected void onResume() {
         super.onResume();
-        attachEnhancements();
+        scheduleEnhancements();
     }
 
-    private void attachEnhancements() {
+    @Override protected void onDestroy() {
+        View decor = getWindow().getDecorView();
+        if (decor.getViewTreeObserver().isAlive()) {
+            decor.getViewTreeObserver().removeOnGlobalLayoutListener(layoutListener);
+        }
+        ActivitySystemBarUiEnhancer.detach(this);
+        super.onDestroy();
+    }
+
+    private void scheduleEnhancements() {
+        if (enhancementPosted) return;
+        enhancementPosted = true;
+        View decor = getWindow().getDecorView();
+        decor.post(() -> {
+            enhancementPosted = false;
+            enhanceNow();
+        });
+    }
+
+    private void enhanceNow() {
         View root = findViewById(android.R.id.content);
         if (root == null) return;
-        root.post(() -> {
-            renameActivityCopy(root);
-            attachSkiEntry(root);
-            attachHikingEntry(root);
-            compactActivityEntries(root);
-            ActivitySystemBarUiEnhancer.apply(this);
-        });
+        renameActivityCopy(root);
+        attachSkiEntry(root);
+        attachHikingEntry(root);
+        compactActivityEntries(root);
+        ActivityDetailStatsEnhancer.apply(this);
+        ActivitySystemBarUiEnhancer.apply(this);
     }
 
     private void renameActivityCopy(View root) {
@@ -98,19 +120,23 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         if (title == null) return;
         View card = clickableAncestor(title, root);
         if (!(card instanceof ViewGroup)) return;
-        card.setPadding(dp(16), dp(10), dp(16), dp(10));
+        int wanted = dp(10);
+        if (card.getPaddingTop() != wanted || card.getPaddingBottom() != wanted) {
+            card.setPadding(dp(16), wanted, dp(16), wanted);
+        }
         hideRecordDescription((ViewGroup) card);
         TextView arrow = findText((ViewGroup) card, "›");
         if (arrow != null) {
             ViewGroup.LayoutParams lp = arrow.getLayoutParams();
-            if (lp != null) {
+            if (lp != null && (lp.width != dp(30) || lp.height != dp(40))) {
                 lp.width = dp(30);
                 lp.height = dp(40);
                 arrow.setLayoutParams(lp);
             }
         }
         ViewGroup.LayoutParams cardLp = card.getLayoutParams();
-        if (cardLp instanceof LinearLayout.LayoutParams) {
+        if (cardLp instanceof LinearLayout.LayoutParams
+                && ((LinearLayout.LayoutParams) cardLp).bottomMargin != dp(9)) {
             ((LinearLayout.LayoutParams) cardLp).bottomMargin = dp(9);
             card.setLayoutParams(cardLp);
         }
@@ -122,7 +148,9 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
             if (child instanceof TextView) {
                 CharSequence value = ((TextView) child).getText();
                 String s = value == null ? "" : value.toString();
-                if (s.contains("기록합니다") || s.contains("보여줍니다")) child.setVisibility(View.GONE);
+                if ((s.contains("기록합니다") || s.contains("보여줍니다")) && child.getVisibility() != View.GONE) {
+                    child.setVisibility(View.GONE);
+                }
             } else if (child instanceof ViewGroup) {
                 hideRecordDescription((ViewGroup) child);
             }
@@ -132,7 +160,8 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
     private TextView findClickableContaining(View root, String wanted) {
         if (root instanceof TextView) {
             CharSequence value = ((TextView) root).getText();
-            if (value != null && value.toString().contains(wanted) && clickableAncestor(root, findViewById(android.R.id.content)) != null) {
+            if (value != null && value.toString().contains(wanted)
+                    && clickableAncestor(root, findViewById(android.R.id.content)) != null) {
                 return (TextView) root;
             }
         }
