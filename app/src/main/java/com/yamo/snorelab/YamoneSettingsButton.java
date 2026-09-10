@@ -10,8 +10,12 @@ import android.widget.ImageView;
 public final class YamoneSettingsButton {
     private YamoneSettingsButton() {}
 
-    public static ImageView create(Activity activity, int accentColor, int borderColor,
-                                   View.OnClickListener click) {
+    public static ImageView create(Activity activity, View.OnClickListener click) {
+        boolean pink = "pink".equals(activity.getSharedPreferences(SleepRecorderService.PREFS, 0)
+                .getString("yamone_theme", "pink"));
+        int accentColor = pink ? 0xFFE94778 : 0xFF159A7A;
+        int borderColor = pink ? 0xFFFFD7E3 : 0xFFD7EFE7;
+
         ImageView button = new ImageView(activity);
         button.setImageResource(R.drawable.ic_yamone_settings);
         button.setColorFilter(accentColor);
