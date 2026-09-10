@@ -53,7 +53,6 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         renameActivityCopy(root);
         attachSkiEntry(root);
         attachHikingEntry(root);
-        compactActivityEntries(root);
         ActivityDetailStatsEnhancer.apply(this);
         ActivitySystemBarUiEnhancer.apply(this);
     }
@@ -89,23 +88,10 @@ public class LocationExerciseActivity extends EnhancedExerciseActivity {
         int index = page.indexOfChild(skiCard);
         if (index < 0) return;
 
-        LinearLayout card = new LinearLayout(this);
+        LinearLayout card = YamoneActivityEntry.create(
+                this, R.drawable.ic_activity_hike, "등산 / 트레킹",
+                v -> startActivity(new Intent(this, HikingActivity.class)));
         card.setTag(HIKING_TAG);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(10), dp(16), dp(10));
-        card.setBackground(round(0xFFFFFFFF, 18, 1, border()));
-        card.setOnClickListener(v -> startActivity(new Intent(this, HikingActivity.class)));
-
-        LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("🥾  ⛰️  등산 / 트레킹", 18, textColor(), true);
-        head.addView(title, new LinearLayout.LayoutParams(0, dp(40), 1f));
-        TextView arrow = text("›", 28, primary2(), false);
-        arrow.setGravity(Gravity.CENTER);
-        head.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(40)));
-        card.addView(head);
-
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params.bottomMargin = dp(9);

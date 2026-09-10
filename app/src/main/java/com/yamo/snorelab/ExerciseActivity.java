@@ -271,9 +271,12 @@ public class ExerciseActivity extends Activity {
         today.addView(note);
         page.addView(today, cardParams());
 
-        addCategoryCard(page, "🚶  🏃", "걷기 / 러닝", "걷기·러닝 단일 모드 또는 자동 통합모드로 기록합니다.", v -> showWalkRunMenu());
-        addCategoryCard(page, "🚴", "자전거", "거리와 현재·평균·최고 속도, 이동 경로를 기록합니다.", v -> showCyclingMenu());
-        addCategoryCard(page, "⛷  🏂", "스키 / 스노우보드", "겨울 활동은 지금은 준비된 화면만 보여줍니다.", v -> showSkiPreview());
+        TextView choose = text("활동 선택", 15, TEXT, true);
+        choose.setPadding(dp(2), dp(7), 0, dp(10));
+        page.addView(choose);
+        addCategoryCard(page, "", "걷기 / 러닝", "", v -> showWalkRunMenu());
+        addCategoryCard(page, "", "자전거", "", v -> showCyclingMenu());
+        addCategoryCard(page, "", "스키 / 스노보드", "", v -> showSkiPreview());
     }
 
     private void buildPeriodSummary(LinearLayout page) {
@@ -458,23 +461,16 @@ public class ExerciseActivity extends Activity {
     }
 
     private void addCategoryCard(LinearLayout page, String icon, String title, String desc, View.OnClickListener click) {
-        LinearLayout c = card();
-        LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout words = new LinearLayout(this);
-        words.setOrientation(LinearLayout.VERTICAL);
-        words.addView(text(icon + "  " + title, 18, TEXT, true));
-        TextView d = text(desc, 12, MUTED, false);
-        d.setPadding(0, dp(6), dp(8), 0);
-        words.addView(d);
-        head.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView arrow = text("›", 30, PRIMARY2, false);
-        arrow.setGravity(Gravity.CENTER);
-        head.addView(arrow, new LinearLayout.LayoutParams(dp(34), dp(60)));
-        c.addView(head);
-        c.setOnClickListener(click);
-        page.addView(c, cardParams());
+        int iconRes;
+        if (title.contains("자전거")) iconRes = R.drawable.ic_activity_bike;
+        else if (title.contains("스키")) iconRes = R.drawable.ic_activity_ski;
+        else iconRes = R.drawable.ic_activity_walkrun;
+
+        LinearLayout card = YamoneActivityEntry.create(this, iconRes, title, click);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin = dp(9);
+        page.addView(card, params);
     }
 
     private void showWalkRunMenu() {
