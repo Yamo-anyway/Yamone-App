@@ -85,16 +85,20 @@ public final class LocationSharingApi {
         }, callback::onFailure);
     }
 
+    /** Fresh snapshot used only during the initial location-acquisition window. */
+    public static void snapshotFresh(Context context, JsonCallback callback) {
+        run(() -> {
+            String body = SupabaseAnonymousRpcClient.rpc(context, "location_room_snapshot", new JSONObject());
+            JSONObject data = body.isEmpty() ? new JSONObject() : new JSONObject(body);
+            cacheIfSnapshot(data);
+            callback.onSuccess(data);
+        }, callback::onFailure);
+    }
+
     public static void leave(Context context, JsonCallback callback) {
         rpcMutationAsync(context, "location_leave", new JSONObject(), callback);
     }
 
-    public static void updateNickname(Context context, String nickname, JsonCallback callback) {
-        JSONObject args = new JSONObject();
-        try { args.put("p_nickname", nickname); }
-        catch (Exception e) { callback.onFailure("닉네임을 준비하지 못했습니다."); return; }
-        rpcMutationAsync(context, "location_update_nickname", args, callback);
-    }
 
     public static void setInterval(Context context, int seconds, JsonCallback callback) {
         JSONObject args = new JSONObject();

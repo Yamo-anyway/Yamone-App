@@ -495,11 +495,6 @@ public class LocationSharingActivity extends Activity {
         pHead.setOrientation(LinearLayout.HORIZONTAL);
         pHead.setGravity(Gravity.CENTER_VERTICAL);
         pHead.addView(text("참여자", 15, TEXT, true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        Button nick = tinyButton("내 닉네임 변경");
-        nick.setOnClickListener(v -> showNicknameDialog());
-        LinearLayout.LayoutParams nickParams = new LinearLayout.LayoutParams(dp(122), dp(38));
-        nickParams.bottomMargin = dp(10);
-        pHead.addView(nick, nickParams);
         participants.addView(pHead);
         participantList = new LinearLayout(this);
         participantList.setOrientation(LinearLayout.VERTICAL);
@@ -525,6 +520,7 @@ public class LocationSharingActivity extends Activity {
 
         applySnapshot(initial);
         ensureSharingService();
+        scheduleInitialLocationRefreshes();
         scheduleActivePolling();
     }
 
@@ -629,6 +625,22 @@ public class LocationSharingActivity extends Activity {
         });
     }
 
+    private void scheduleInitialLocationRefreshes() {
+        // Only the first few seconds bypass the participant cache so the first uploaded
+        // position appears promptly. Regular polling remains one minute afterward.
+        handler.postDelayed(this::refreshActiveSnapshotFresh, 1_500L);
+        handler.postDelayed(this::refreshActiveSnapshotFresh, 4_000L);
+        handler.postDelayed(this::refreshActiveSnapshotFresh, 8_000L);
+    }
+
+    private void refreshActiveSnapshotFresh() {
+        if (!activeScreen) return;
+        LocationSharingApi.snapshotFresh(this, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) { runOnUiThread(() -> applySnapshot(data)); }
+            @Override public void onFailure(String message) { }
+        });
+    }
+
     private void scheduleActivePolling() {
         handler.removeCallbacks(activePoller);
         if (activeScreen) handler.postDelayed(activePoller, ACTIVE_POLL_MS);
@@ -641,29 +653,6 @@ public class LocationSharingActivity extends Activity {
             askedActivePermission = true;
             requestSharePermissions();
         }
-    }
-
-    private void showNicknameDialog() {
-        final EditText input = input("새 닉네임", InputType.TYPE_CLASS_TEXT);
-        input.setSingleLine(true);
-        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(24)});
-        new AlertDialog.Builder(this)
-                .setTitle("내 닉네임 변경")
-                .setView(input)
-                .setNegativeButton("취소", null)
-                .setPositiveButton("변경", (d, w) -> {
-                    String nickname = input.getText().toString().trim();
-                    if (nickname.isEmpty()) { toast("닉네임을 입력해 주세요."); return; }
-                    LocationSharingApi.updateNickname(this, nickname, new LocationSharingApi.JsonCallback() {
-                        @Override public void onSuccess(JSONObject data) {
-                            runOnUiThread(() -> {
-                                toast("닉네임을 변경했습니다.");
-                                refreshActiveSnapshot();
-                            });
-                        }
-                        @Override public void onFailure(String message) { runOnUiThread(() -> toast(message)); }
-                    });
-                }).show();
     }
 
     private void leaveRoom() {

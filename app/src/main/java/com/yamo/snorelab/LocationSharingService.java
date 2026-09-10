@@ -40,6 +40,10 @@ public final class LocationSharingService extends Service {
     private static final long WARNING_BEFORE_MS = 5L * 60L * 1000L;
     private static final long EXPIRY_CHECK_MS = 15_000L;
     private static final long MIN_NETWORK_INTERVAL_MS = 60_000L;
+    private static final long INITIAL_FIX_MIN_TIME_MS = 1_000L;
+    private static final long INITIAL_REPORT_RETRY_MS = 3_000L;
+    private static final long RECENT_LAST_KNOWN_MS = 30_000L;
+    private static final float RECENT_LAST_KNOWN_MAX_ACCURACY_M = 100f;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private LocationManager locationManager;
@@ -55,6 +59,8 @@ public final class LocationSharingService extends Service {
     private boolean reportInFlight;
     private boolean warningShown;
     private boolean leaveInFlight;
+    private boolean initialFixPending;
+    private long lastReportAttemptAt;
 
     private final Runnable reporter = new Runnable() {
         @Override public void run() {
@@ -170,6 +176,7 @@ public final class LocationSharingService extends Service {
         roomName = data.optString("room_name", "위치 공유 방");
         memberCount = members == null ? 0 : members.length();
         intervalSeconds = clampInterval(self.optInt("update_interval_seconds", 60));
+        initialFixPending = self.optString("last_location_at", "").trim().isEmpty();
         String shareUntil = self.optString("share_until", "");
         shareUntilMs = parseInstant(shareUntil);
         configured = true;
@@ -200,7 +207,10 @@ public final class LocationSharingService extends Service {
         if (locationManager == null || !hasLocationPermission()) return;
 
         locationListener = this::onLocationChanged;
-        long minTimeMs = Math.max(MIN_NETWORK_INTERVAL_MS, intervalSeconds * 1000L);
+        long minTimeMs = initialFixPending
+                ? INITIAL_FIX_MIN_TIME_MS
+                : Math.max(MIN_NETWORK_INTERVAL_MS, intervalSeconds * 1000L);
+        if (initialFixPending) tryRecentLastKnownLocation();
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(
@@ -221,6 +231,31 @@ public final class LocationSharingService extends Service {
         } catch (SecurityException ignored) {}
     }
 
+    private void tryRecentLastKnownLocation() {
+        Location best = null;
+        String[] providers = {LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER};
+        for (String provider : providers) {
+            try {
+                if (!locationManager.isProviderEnabled(provider)) continue;
+                Location candidate = locationManager.getLastKnownLocation(provider);
+                if (!isRecentUsable(candidate)) continue;
+                if (best == null || candidate.getTime() > best.getTime()
+                        || (candidate.getTime() == best.getTime() && candidate.hasAccuracy()
+                        && (!best.hasAccuracy() || candidate.getAccuracy() < best.getAccuracy()))) {
+                    best = candidate;
+                }
+            } catch (SecurityException | IllegalArgumentException ignored) { }
+        }
+        if (best != null) onLocationChanged(best);
+    }
+
+    private boolean isRecentUsable(Location location) {
+        if (location == null || location.getTime() <= 0) return false;
+        long age = Math.abs(System.currentTimeMillis() - location.getTime());
+        if (age > RECENT_LAST_KNOWN_MS) return false;
+        return !location.hasAccuracy() || location.getAccuracy() <= RECENT_LAST_KNOWN_MAX_ACCURACY_M;
+    }
+
     private void onLocationChanged(Location location) {
         if (location == null) return;
         long locationTime = location.getTime() > 0 ? location.getTime() : System.currentTimeMillis();
@@ -237,6 +272,8 @@ public final class LocationSharingService extends Service {
     private void reportLatestIfNew() {
         if (!configured || reportInFlight || latestLocation == null) return;
         if (latestLocationReceivedAt <= lastReportedLocationReceivedAt) return;
+        long now = System.currentTimeMillis();
+        if (lastReportedLocationReceivedAt == 0 && now - lastReportAttemptAt < INITIAL_REPORT_RETRY_MS) return;
         if (shareUntilMs > 0 && System.currentTimeMillis() >= shareUntilMs) {
             expireAndStop();
             return;
@@ -246,6 +283,8 @@ public final class LocationSharingService extends Service {
         final Location candidate = new Location(latestLocation);
         Float accuracy = candidate.hasAccuracy() ? candidate.getAccuracy() : null;
         reportInFlight = true;
+        lastReportAttemptAt = System.currentTimeMillis();
+        final boolean wasInitialFix = initialFixPending || lastReportedLocationReceivedAt == 0;
         LocationSharingApi.report(
                 this,
                 candidate.getLatitude(),
@@ -256,6 +295,12 @@ public final class LocationSharingService extends Service {
                         handler.post(() -> {
                             reportInFlight = false;
                             lastReportedLocationReceivedAt = Math.max(lastReportedLocationReceivedAt, candidateReceipt);
+                            if (wasInitialFix) {
+                                initialFixPending = false;
+                                LocationSharingApi.invalidateSnapshot();
+                                // Fast location updates are only used until the first successful upload.
+                                startLocationUpdates();
+                            }
                             long serverUntil = parseInstant(data.optString("share_until", ""));
                             if (serverUntil > 0) shareUntilMs = serverUntil;
                             String shareUntil = shareUntilMs > 0 ? Instant.ofEpochMilli(shareUntilMs).toString() : "";
