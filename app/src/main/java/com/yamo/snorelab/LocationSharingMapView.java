@@ -8,8 +8,10 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -17,6 +19,7 @@ import org.json.JSONObject;
 import org.maplibre.android.MapLibre;
 import org.maplibre.android.annotations.Icon;
 import org.maplibre.android.annotations.IconFactory;
+import org.maplibre.android.annotations.Marker;
 import org.maplibre.android.annotations.MarkerOptions;
 import org.maplibre.android.camera.CameraUpdateFactory;
 import org.maplibre.android.geometry.LatLng;
@@ -24,6 +27,8 @@ import org.maplibre.android.geometry.LatLngBounds;
 import org.maplibre.android.maps.MapLibreMap;
 import org.maplibre.android.maps.MapView;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,6 +43,7 @@ public final class LocationSharingMapView extends FrameLayout {
     private final MapView mapView;
     private final TextView status;
     private final TextView myLocationButton;
+    private final TextView allLocationsButton;
     private MapLibreMap map;
     private JSONArray members = new JSONArray();
     private LatLng selfLatLng;
@@ -85,9 +91,26 @@ public final class LocationSharingMapView extends FrameLayout {
         bp.setMargins(0, 0, dp(12), dp(12));
         addView(myLocationButton, bp);
 
+        allLocationsButton = new TextView(context);
+        allLocationsButton.setText("전체보기");
+        allLocationsButton.setTextColor(pink() ? 0xFFE94778 : 0xFF159A7A);
+        allLocationsButton.setTextSize(12);
+        allLocationsButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        allLocationsButton.setGravity(Gravity.CENTER);
+        allLocationsButton.setPadding(dp(10), 0, dp(10), 0);
+        allLocationsButton.setBackground(round(
+                pink() ? 0xF8FFF7FA : 0xF8F7FFFB,
+                16, 1, pink() ? 0xFFFFD7E3 : 0xFFD7EFE7));
+        allLocationsButton.setOnClickListener(v -> moveToAll());
+        FrameLayout.LayoutParams allParams = new FrameLayout.LayoutParams(dp(92), dp(40));
+        allParams.gravity = Gravity.END | Gravity.BOTTOM;
+        allParams.setMargins(0, 0, dp(112), dp(12));
+        addView(allLocationsButton, allParams);
+
         mapView.getMapAsync(value -> {
             map = value;
             map.getUiSettings().setAllGesturesEnabled(true);
+            map.setInfoWindowAdapter(marker -> buildInfoWindow(marker));
             map.setStyle(STYLE_URI, style -> renderMembers());
         });
     }
@@ -123,7 +146,10 @@ public final class LocationSharingMapView extends FrameLayout {
             String markerText = nickname + (self ? " (나)" : "");
             Icon icon = IconFactory.getInstance(getContext())
                     .fromBitmap(markerBitmap(markerText, self, state, userStatus));
-            String snippet = stateLabel(state) + statusSuffix(userStatus);
+            String snippet = userStatus + "\u001F"
+                    + state + "\u001F"
+                    + member.optString("last_location_at", "") + "\u001F"
+                    + (self ? "1" : "0");
             map.addMarker(new MarkerOptions()
                     .position(point)
                     .title(nickname)
@@ -156,6 +182,99 @@ public final class LocationSharingMapView extends FrameLayout {
             for (LatLng point : positions) builder.include(point);
             map.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), dp(46)), 450);
         } catch (Exception ignored) {}
+    }
+
+    public void moveToAll() {
+        if (map == null) return;
+        List<LatLng> positions = new ArrayList<>();
+        for (int i = 0; i < members.length(); i++) {
+            JSONObject member = members.optJSONObject(i);
+            if (member == null || member.isNull("last_lat") || member.isNull("last_lon")) continue;
+            double lat = member.optDouble("last_lat", Double.NaN);
+            double lon = member.optDouble("last_lon", Double.NaN);
+            if (Double.isNaN(lat) || Double.isNaN(lon)) continue;
+            positions.add(new LatLng(lat, lon));
+        }
+        if (positions.isEmpty()) {
+            showTransientStatus("아직 표시할 참여자 위치가 없어요.");
+            return;
+        }
+        fitInitialCamera(positions);
+    }
+
+    private View buildInfoWindow(Marker marker) {
+        String raw = marker == null ? "" : marker.getSnippet();
+        String[] parts = raw == null ? new String[0] : raw.split("\\u001F", -1);
+        String userStatus = parts.length > 0 && !parts[0].isEmpty() ? parts[0] : "normal";
+        String connectionState = parts.length > 1 ? parts[1] : "waiting";
+        String lastLocationAt = parts.length > 2 ? parts[2] : "";
+        boolean self = parts.length > 3 && "1".equals(parts[3]);
+
+        LinearLayout panel = new LinearLayout(getContext());
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(11), dp(14), dp(11));
+        panel.setMinimumWidth(dp(164));
+        panel.setBackground(round(
+                pink() ? 0xFFFFFBFC : 0xFFFBFFFD,
+                18, 1, pink() ? 0xFFFFC7D8 : 0xFFC9E9DF));
+
+        TextView name = new TextView(getContext());
+        name.setText((marker == null ? "사용자" : marker.getTitle()) + (self ? "  (나)" : ""));
+        name.setTextColor(pink() ? 0xFF4B2633 : 0xFF153633);
+        name.setTextSize(14);
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        name.setIncludeFontPadding(false);
+        panel.addView(name, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(24)));
+
+        LinearLayout statusRow = new LinearLayout(getContext());
+        statusRow.setOrientation(LinearLayout.HORIZONTAL);
+        statusRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        View dot = new View(getContext());
+        GradientDrawable dotDrawable = new GradientDrawable();
+        dotDrawable.setShape(GradientDrawable.OVAL);
+        dotDrawable.setColor(LocationStatusPalette.color(userStatus));
+        dot.setBackground(dotDrawable);
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(10), dp(10));
+        dotParams.rightMargin = dp(7);
+        statusRow.addView(dot, dotParams);
+
+        TextView statusText = new TextView(getContext());
+        statusText.setText(LocationStatusPalette.label(userStatus));
+        statusText.setTextColor(LocationStatusPalette.color(userStatus));
+        statusText.setTextSize(11);
+        statusText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        statusText.setIncludeFontPadding(false);
+        statusRow.addView(statusText, new LinearLayout.LayoutParams(
+                0, dp(24), 1f));
+        panel.addView(statusRow);
+
+        String age = ageText(lastLocationAt);
+        String detail = age.isEmpty() ? stateLabel(connectionState)
+                : age + " · " + stateLabel(connectionState);
+        TextView detailText = new TextView(getContext());
+        detailText.setText(detail);
+        detailText.setTextColor(pink() ? 0xFF9A7180 : 0xFF718984);
+        detailText.setTextSize(10);
+        detailText.setIncludeFontPadding(false);
+        panel.addView(detailText, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(22)));
+        return panel;
+    }
+
+    private String ageText(String iso) {
+        if (iso == null || iso.isEmpty()) return "";
+        try {
+            long seconds = Math.max(0L,
+                    (System.currentTimeMillis() - Instant.parse(iso).toEpochMilli()) / 1000L);
+            if (seconds < 60L) return "방금";
+            long minutes = seconds / 60L;
+            if (minutes < 60L) return minutes + "분 전";
+            return (minutes / 60L) + "시간 전";
+        } catch (DateTimeParseException ignored) {
+            return "";
+        }
     }
 
     public void moveToSelf() {

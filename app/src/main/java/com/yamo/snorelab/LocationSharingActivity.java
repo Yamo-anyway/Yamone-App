@@ -94,17 +94,22 @@ public class LocationSharingActivity extends Activity {
     private TextView statusHelp;
     private TextView statusEmergency;
     private TextView activeStatusHint;
+    private TextView participantHeaderTitle;
     private TextView nextStatusCheck;
+    private ImageView manualRefreshButton;
+    private TextView statusSummaryNormal;
+    private TextView statusSummaryContact;
+    private TextView statusSummaryHelp;
+    private TextView statusSummaryEmergency;
     private long nextStatusCheckAtMs;
+    private long manualRefreshUnlockAtMs;
+    private boolean snapshotRefreshInFlight;
     private String currentSelfStatus = "normal";
 
     private final Runnable activePoller = new Runnable() {
         @Override public void run() {
             if (!activeScreen) return;
-            refreshActiveSnapshot();
-            nextStatusCheckAtMs = System.currentTimeMillis() + ACTIVE_POLL_MS;
-            updateStatusCountdownText();
-            handler.postDelayed(this, ACTIVE_POLL_MS);
+            performSnapshotRefresh(false);
         }
     };
 
@@ -499,7 +504,13 @@ public class LocationSharingActivity extends Activity {
         activeInfo = null;
         activeNetworkHint = null;
         activeStatusHint = null;
+        participantHeaderTitle = null;
         nextStatusCheck = null;
+        manualRefreshButton = null;
+        statusSummaryNormal = null;
+        statusSummaryContact = null;
+        statusSummaryHelp = null;
+        statusSummaryEmergency = null;
 
         LinearLayout root = rootShell();
         root.addView(header("위치 공유", ""));
@@ -509,6 +520,10 @@ public class LocationSharingActivity extends Activity {
         sharingMap.setBackground(round(CARD2, 0, 0, 0));
         root.addView(sharingMap, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(360)));
+
+        LinearLayout overallStatus = buildOverallStatusSummary();
+        root.addView(overallStatus, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
 
         ScrollView scroll = new ScrollView(this);
         activeScroll = scroll;
@@ -542,42 +557,52 @@ public class LocationSharingActivity extends Activity {
         timeRow.addView(leave, leaveParams);
         page.addView(timeRow, cardParams());
 
-        LinearLayout myStatus = card();
-        myStatus.setPadding(dp(12), dp(10), dp(12), dp(10));
+        LinearLayout participants = card();
+        participants.setPadding(dp(10), dp(10), dp(10), dp(10));
 
-        LinearLayout statusHeader = new LinearLayout(this);
-        statusHeader.setOrientation(LinearLayout.HORIZONTAL);
-        statusHeader.setGravity(Gravity.CENTER_VERTICAL);
-        TextView statusTitle = text("내 상태", 13, TEXT, true);
-        statusTitle.setIncludeFontPadding(false);
-        statusHeader.addView(statusTitle, new LinearLayout.LayoutParams(
-                0, dp(24), 1f));
-        nextStatusCheck = text("다음 상태 확인 60초", 10, MUTED, true);
+        LinearLayout participantHeader = new LinearLayout(this);
+        participantHeader.setOrientation(LinearLayout.HORIZONTAL);
+        participantHeader.setGravity(Gravity.CENTER_VERTICAL);
+
+        participantHeaderTitle = text("참여자 (0명)", 13, TEXT, true);
+        participantHeaderTitle.setSingleLine(true);
+        participantHeaderTitle.setIncludeFontPadding(false);
+        participantHeader.addView(participantHeaderTitle, new LinearLayout.LayoutParams(
+                0, dp(34), 1f));
+
+        TextView statusChange = text("내 상태 변경", 11, PRIMARY2, true);
+        statusChange.setGravity(Gravity.CENTER);
+        statusChange.setIncludeFontPadding(false);
+        statusChange.setPadding(dp(9), 0, dp(9), 0);
+        statusChange.setBackground(round(CARD2, 15, 1, BORDER));
+        statusChange.setOnClickListener(v -> showStatusPickerDialog());
+        LinearLayout.LayoutParams statusChangeParams = new LinearLayout.LayoutParams(
+                dp(88), dp(32));
+        statusChangeParams.leftMargin = dp(5);
+        participantHeader.addView(statusChange, statusChangeParams);
+
+        nextStatusCheck = text("01:00", 11, MUTED, true);
         nextStatusCheck.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         nextStatusCheck.setSingleLine(true);
         nextStatusCheck.setIncludeFontPadding(false);
-        statusHeader.addView(nextStatusCheck, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(24)));
-        myStatus.addView(statusHeader);
+        LinearLayout.LayoutParams countdownParams = new LinearLayout.LayoutParams(
+                dp(48), dp(32));
+        countdownParams.leftMargin = dp(5);
+        participantHeader.addView(nextStatusCheck, countdownParams);
 
-        LinearLayout statusRow = new LinearLayout(this);
-        statusRow.setOrientation(LinearLayout.HORIZONTAL);
-        statusRow.setGravity(Gravity.CENTER_VERTICAL);
-        statusRow.setPadding(0, dp(7), 0, 0);
-        statusNormal = statusChoice("normal", "정상");
-        statusContact = statusChoice("contact", "연락 요청");
-        statusHelp = statusChoice("help", "도움 필요");
-        statusEmergency = statusChoice("emergency", "긴급");
-        statusRow.addView(statusNormal, new LinearLayout.LayoutParams(0, dp(38), 1f));
-        statusRow.addView(statusContact, new LinearLayout.LayoutParams(0, dp(38), 1.28f));
-        statusRow.addView(statusHelp, new LinearLayout.LayoutParams(0, dp(38), 1.28f));
-        statusRow.addView(statusEmergency, new LinearLayout.LayoutParams(0, dp(38), 1f));
-        myStatus.addView(statusRow);
-        page.addView(myStatus, cardParams());
+        manualRefreshButton = new ImageView(this);
+        manualRefreshButton.setImageResource(R.drawable.ic_location_refresh);
+        manualRefreshButton.setColorFilter(PRIMARY2);
+        manualRefreshButton.setPadding(dp(7), dp(7), dp(7), dp(7));
+        manualRefreshButton.setBackground(round(CARD2, 16, 1, BORDER));
+        manualRefreshButton.setContentDescription("참여자 상태 새로고침");
+        manualRefreshButton.setOnClickListener(v -> performSnapshotRefresh(true));
+        LinearLayout.LayoutParams refreshParams = new LinearLayout.LayoutParams(
+                dp(32), dp(32));
+        refreshParams.leftMargin = dp(4);
+        participantHeader.addView(manualRefreshButton, refreshParams);
 
-        LinearLayout participants = card();
-        participants.setPadding(dp(10), dp(10), dp(10), dp(10));
-        participants.addView(text("참여자", 13, TEXT, true));
+        participants.addView(participantHeader);
         participantList = new LinearLayout(this);
         participantList.setOrientation(LinearLayout.VERTICAL);
         participantList.setPadding(0, dp(6), 0, 0);
@@ -628,8 +653,68 @@ public class LocationSharingActivity extends Activity {
                 "참여 %d명 · 내 위치 %s 간격 공유", members.length(), intervalLabel(interval)));
         currentSelfStatus = self == null ? "normal" : self.optString("user_status", "normal");
         styleSelfStatus();
+        updateOverallStatusSummary(members);
+        if (participantHeaderTitle != null) {
+            participantHeaderTitle.setText("참여자 (" + members.length() + "명)");
+        }
         if (sharingMap != null) sharingMap.setMembers(members);
         renderParticipants(members);
+    }
+
+    private LinearLayout buildOverallStatusSummary() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(6), dp(10), dp(6));
+        row.setBackgroundColor(CARD);
+
+        statusSummaryNormal = overallStatusChip("normal");
+        statusSummaryContact = overallStatusChip("contact");
+        statusSummaryHelp = overallStatusChip("help");
+        statusSummaryEmergency = overallStatusChip("emergency");
+
+        row.addView(statusSummaryNormal, new LinearLayout.LayoutParams(0, dp(40), 1f));
+        row.addView(statusSummaryContact, new LinearLayout.LayoutParams(0, dp(40), 1f));
+        row.addView(statusSummaryHelp, new LinearLayout.LayoutParams(0, dp(40), 1f));
+        row.addView(statusSummaryEmergency, new LinearLayout.LayoutParams(0, dp(40), 1f));
+        return row;
+    }
+
+    private TextView overallStatusChip(String status) {
+        TextView chip = text("", 10, TEXT, true);
+        chip.setGravity(Gravity.CENTER);
+        chip.setSingleLine(true);
+        chip.setIncludeFontPadding(false);
+        chip.setCompoundDrawablePadding(dp(4));
+        GradientDrawable dot = statusDotDrawable(status, false);
+        int size = dp(9);
+        dot.setBounds(0, 0, size, size);
+        chip.setCompoundDrawables(dot, null, null, null);
+        return chip;
+    }
+
+    private void updateOverallStatusSummary(JSONArray members) {
+        int normal = 0;
+        int contact = 0;
+        int help = 0;
+        int emergency = 0;
+        for (int i = 0; i < members.length(); i++) {
+            JSONObject member = members.optJSONObject(i);
+            if (member == null) continue;
+            String status = member.optString("user_status", "normal");
+            if ("emergency".equals(status)) emergency++;
+            else if ("help".equals(status)) help++;
+            else if ("contact".equals(status)) contact++;
+            else normal++;
+        }
+        setOverallStatusText(statusSummaryNormal, "정상", normal);
+        setOverallStatusText(statusSummaryContact, "연락", contact);
+        setOverallStatusText(statusSummaryHelp, "도움", help);
+        setOverallStatusText(statusSummaryEmergency, "긴급", emergency);
+    }
+
+    private void setOverallStatusText(TextView view, String label, int count) {
+        if (view != null) view.setText(label + " (" + count + "명)");
     }
 
     private void renderParticipants(JSONArray members) {
@@ -715,6 +800,106 @@ public class LocationSharingActivity extends Activity {
         return choice;
     }
 
+    private void showStatusPickerDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCancelable(true);
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(20), dp(20), dp(18));
+        panel.setBackground(round(CARD, 26, 1, BORDER));
+
+        TextView title = text("내 상태 변경", 19, TEXT, true);
+        title.setIncludeFontPadding(false);
+        panel.addView(title);
+
+        TextView subtitle = text(
+                "현재 상태는 " + userStatusLabel(currentSelfStatus) + "이에요.",
+                12, MUTED, false);
+        subtitle.setPadding(0, dp(5), 0, dp(14));
+        panel.addView(subtitle);
+
+        addStatusPickerRow(panel, dialog, "normal", "정상");
+        addStatusPickerRow(panel, dialog, "contact", "연락 요청");
+        addStatusPickerRow(panel, dialog, "help", "도움 필요");
+        addStatusPickerRow(panel, dialog, "emergency", "긴급");
+
+        TextView cancel = text("닫기", 13, MUTED, true);
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setIncludeFontPadding(false);
+        cancel.setBackground(round(CARD2, 16, 1, BORDER));
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+        cancelParams.topMargin = dp(14);
+        panel.addView(cancel, cancelParams);
+
+        dialog.setContentView(panel);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams attrs = window.getAttributes();
+            attrs.dimAmount = 0.38f;
+            window.setAttributes(attrs);
+        }
+        dialog.show();
+
+        window = dialog.getWindow();
+        if (window != null) {
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            window.setLayout(Math.min(dp(360), screenWidth - dp(36)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setGravity(Gravity.CENTER);
+        }
+    }
+
+    private void addStatusPickerRow(LinearLayout panel, Dialog dialog, String status, String label) {
+        boolean selected = status.equals(currentSelfStatus);
+        int statusColor = LocationStatusPalette.color(status);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), 0, dp(12), 0);
+        row.setBackground(round(LocationStatusPalette.softColor(status), 17, 1,
+                selected ? statusColor : BORDER));
+
+        View dot = new View(this);
+        dot.setBackground(statusDotDrawable(status, selected));
+        LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(
+                dp(selected ? 14 : 11), dp(selected ? 14 : 11));
+        dotParams.rightMargin = dp(10);
+        row.addView(dot, dotParams);
+
+        TextView name = text(label, 13, selected ? statusColor : TEXT, true);
+        name.setIncludeFontPadding(false);
+        row.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1f));
+
+        TextView state = text(selected ? "현재 상태" : "변경", 10,
+                selected ? statusColor : MUTED, true);
+        state.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        state.setIncludeFontPadding(false);
+        row.addView(state, new LinearLayout.LayoutParams(dp(58), dp(48)));
+
+        if (selected) {
+            row.setEnabled(false);
+            row.setAlpha(0.56f);
+        } else {
+            row.setClickable(true);
+            row.setOnClickListener(v -> {
+                dialog.dismiss();
+                requestStatusChange(status);
+            });
+        }
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        params.topMargin = dp(7);
+        panel.addView(row, params);
+    }
+
     private void requestStatusChange(String status) {
         if (status == null || status.equals(currentSelfStatus)) return;
         if ("help".equals(status) || "emergency".equals(status)) {
@@ -763,7 +948,7 @@ public class LocationSharingActivity extends Activity {
         panel.addView(head);
 
         TextView message = text(
-                "같은 방 참여자가 다음 상태 확인 시\n" + label + " 상태를 볼 수 있어요.",
+                "상태 변경은 서버에 바로 반영되고,\n다른 참여자가 다음 갱신 시 확인할 수 있어요.",
                 14, TEXT, false);
         message.setLineSpacing(dp(3), 1f);
         message.setPadding(0, dp(18), 0, dp(14));
@@ -956,20 +1141,73 @@ public class LocationSharingActivity extends Activity {
     }
 
     private void scheduleActivePolling() {
+        resetRefreshSchedule(10_000L);
+    }
+
+    private void resetRefreshSchedule(long manualLockMs) {
         handler.removeCallbacks(activePoller);
         handler.removeCallbacks(statusCountdown);
         if (!activeScreen) return;
-        nextStatusCheckAtMs = System.currentTimeMillis() + ACTIVE_POLL_MS;
+
+        long now = System.currentTimeMillis();
+        nextStatusCheckAtMs = now + ACTIVE_POLL_MS;
+        manualRefreshUnlockAtMs = now + Math.max(0L, manualLockMs);
         updateStatusCountdownText();
+        updateManualRefreshState();
+
         handler.postDelayed(activePoller, ACTIVE_POLL_MS);
         handler.postDelayed(statusCountdown, 1_000L);
+    }
+
+    private void performSnapshotRefresh(boolean manual) {
+        if (!activeScreen || snapshotRefreshInFlight) return;
+        long now = System.currentTimeMillis();
+        if (manual && now < manualRefreshUnlockAtMs) return;
+
+        snapshotRefreshInFlight = true;
+        resetRefreshSchedule(30_000L);
+
+        LocationSharingApi.snapshotFresh(this, new LocationSharingApi.JsonCallback() {
+            @Override public void onSuccess(JSONObject data) {
+                runOnUiThread(() -> {
+                    snapshotRefreshInFlight = false;
+                    applySnapshot(data);
+                    updateManualRefreshState();
+                });
+            }
+
+            @Override public void onFailure(String message) {
+                runOnUiThread(() -> {
+                    snapshotRefreshInFlight = false;
+                    updateManualRefreshState();
+                    if (activeNetworkHint != null) {
+                        activeNetworkHint.setText("네트워크 연결 대기 중 · 마지막으로 받은 위치를 유지합니다.");
+                        activeNetworkHint.setTextColor(WARNING);
+                    }
+                    toast("최신 상태를 불러오지 못했어요.");
+                });
+            }
+        });
     }
 
     private void updateStatusCountdownText() {
         if (nextStatusCheck == null) return;
         long remainingMs = Math.max(0L, nextStatusCheckAtMs - System.currentTimeMillis());
-        long seconds = (remainingMs + 999L) / 1_000L;
-        nextStatusCheck.setText("다음 상태 확인 " + seconds + "초");
+        long totalSeconds = (remainingMs + 999L) / 1_000L;
+        long minutes = totalSeconds / 60L;
+        long seconds = totalSeconds % 60L;
+        nextStatusCheck.setText(String.format(Locale.KOREAN, "%02d:%02d", minutes, seconds));
+        updateManualRefreshState();
+    }
+
+    private void updateManualRefreshState() {
+        if (manualRefreshButton == null) return;
+        boolean enabled = activeScreen
+                && !snapshotRefreshInFlight
+                && System.currentTimeMillis() >= manualRefreshUnlockAtMs;
+        manualRefreshButton.setEnabled(enabled);
+        manualRefreshButton.setClickable(enabled);
+        manualRefreshButton.setAlpha(enabled ? 1f : 0.32f);
     }
 
     private void ensureSharingService() {
@@ -1097,40 +1335,47 @@ public class LocationSharingActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
-        // 64dp card: 44dp icon + 6dp vertical padding fits without clipping.
-        card.setPadding(dp(14), dp(6), dp(12), dp(6));
+        card.setPadding(dp(12), dp(6), dp(12), dp(6));
         card.setBackground(round(CARD, 22, 1, BORDER));
         if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(primary ? 2 : 1));
 
+        LinearLayout leftSlot = new LinearLayout(this);
+        leftSlot.setGravity(Gravity.CENTER);
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
         icon.setColorFilter(PRIMARY2);
         icon.setPadding(dp(10), dp(10), dp(10), dp(10));
         icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 22, 0, 0));
-        card.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        leftSlot.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        card.addView(leftSlot, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
         LinearLayout words = new LinearLayout(this);
         words.setOrientation(LinearLayout.VERTICAL);
-        words.setGravity(Gravity.CENTER_VERTICAL);
-        words.setPadding(dp(12), 0, dp(8), 0);
+        words.setGravity(Gravity.CENTER);
         TextView titleView = text(title, 15, TEXT, true);
         titleView.setSingleLine(true);
-        titleView.setGravity(Gravity.CENTER_VERTICAL);
+        titleView.setGravity(Gravity.CENTER);
         titleView.setIncludeFontPadding(false);
-        words.addView(titleView);
+        words.addView(titleView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         if (subtitle != null && !subtitle.trim().isEmpty()) {
             TextView sub = text(subtitle, 11, MUTED, false);
+            sub.setGravity(Gravity.CENTER);
             sub.setPadding(0, dp(3), 0, 0);
-            words.addView(sub);
+            words.addView(sub, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         }
-        card.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        card.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
 
+        LinearLayout rightSlot = new LinearLayout(this);
+        rightSlot.setGravity(Gravity.CENTER);
         ImageView arrow = new ImageView(this);
         arrow.setImageResource(R.drawable.ic_yamone_chevron_right);
         arrow.setColorFilter(PRIMARY2);
         arrow.setPadding(dp(7), dp(7), dp(7), dp(7));
         arrow.setBackground(round(CARD2, 17, 0, 0));
-        card.addView(arrow, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        rightSlot.addView(arrow, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        card.addView(rightSlot, new LinearLayout.LayoutParams(dp(44), dp(44)));
         return card;
     }
 
