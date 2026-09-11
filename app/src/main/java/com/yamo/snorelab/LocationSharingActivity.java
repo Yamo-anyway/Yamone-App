@@ -81,6 +81,8 @@ public class LocationSharingActivity extends Activity {
     private boolean askedActivePermission;
     private int stableTopInset = -1;
     private int stableBottomInset = -1;
+    private LinearLayout activityRoot;
+    private LinearLayout screenHost;
 
     private boolean activeScreen;
     private String currentPage = "loading";
@@ -127,6 +129,7 @@ public class LocationSharingActivity extends Activity {
         super.onCreate(savedInstanceState);
         applyTheme();
         configureSystemBars();
+        initPersistentScreenHost();
         showLoading();
         loadCurrentRoom();
     }
@@ -200,6 +203,34 @@ public class LocationSharingActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(flags);
     }
 
+    /**
+     * One stable top-level view for this Activity. System-bar padding belongs here,
+     * not to individual pages, so page changes can never move the whole coordinate system.
+     */
+    private void initPersistentScreenHost() {
+        if (stableTopInset < 0) stableTopInset = initialStatusBarInset();
+        if (stableBottomInset < 0) stableBottomInset = initialNavigationBarInset();
+
+        activityRoot = new LinearLayout(this);
+        activityRoot.setOrientation(LinearLayout.VERTICAL);
+        activityRoot.setBackgroundColor(BG);
+        activityRoot.setPadding(0, stableTopInset + dp(4), 0, stableBottomInset + dp(6));
+
+        screenHost = new LinearLayout(this);
+        screenHost.setOrientation(LinearLayout.VERTICAL);
+        screenHost.setBackgroundColor(BG);
+        activityRoot.addView(screenHost, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(activityRoot);
+    }
+
+    private void showScreen(View screen) {
+        if (screenHost == null) initPersistentScreenHost();
+        screenHost.removeAllViews();
+        screenHost.addView(screen, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
     private void showLoading() {
         currentPage = "loading";
         activeScreen = false;
@@ -222,7 +253,7 @@ public class LocationSharingActivity extends Activity {
         loading.setGravity(Gravity.CENTER);
         body.addView(loading);
         root.addView(body, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(root);
+        showScreen(root);
     }
 
     private void loadCurrentRoom() {
@@ -304,7 +335,7 @@ public class LocationSharingActivity extends Activity {
 
         scroll.addView(page);
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(root);
+        showScreen(root);
     }
 
     /** 3/9 and 4/9: fixed bottom action, scrollable settings. */
@@ -318,12 +349,9 @@ public class LocationSharingActivity extends Activity {
         LinearLayout root = rootShell();
         root.addView(header(create ? "방 만들기" : "방 참여하기", ""));
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        LinearLayout page = bodyPage();
-        page.setPadding(dp(18), dp(8), dp(18), dp(22));
-
-        page.addView(label("방 이름"));
+        LinearLayout fixedTop = bodyPage();
+        fixedTop.setPadding(dp(18), dp(8), dp(18), dp(2));
+        fixedTop.addView(label("방 이름"));
         LinearLayout roomRow = new LinearLayout(this);
         roomRow.setOrientation(LinearLayout.HORIZONTAL);
         roomRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -355,12 +383,12 @@ public class LocationSharingActivity extends Activity {
         if (create) roomRow.addView(availabilitySlot, checkParams);
         LinearLayout.LayoutParams roomRowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         roomRowParams.bottomMargin = dp(8);
-        page.addView(roomRow, roomRowParams);
+        fixedTop.addView(roomRow, roomRowParams);
 
         availabilityText = text("", 11, MUTED, false);
         availabilityText.setPadding(0, dp(2), 0, dp(14));
-        if (create) page.addView(availabilityText);
-        else spacer(page, 12);
+        if (create) fixedTop.addView(availabilityText);
+        else spacer(fixedTop, 12);
 
         roomNameInput.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -372,6 +400,14 @@ public class LocationSharingActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {}
         });
         if (create) availabilityButton.setOnClickListener(v -> checkAvailability());
+
+        root.addView(fixedTop, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout page = bodyPage();
+        page.setPadding(dp(18), dp(6), dp(18), dp(22));
 
         page.addView(label("내 닉네임"));
         nicknameInput = input("예) 지민", InputType.TYPE_CLASS_TEXT);
@@ -419,11 +455,10 @@ public class LocationSharingActivity extends Activity {
         bottom.addView(actionButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
         root.addView(bottom);
 
-        // Do not let the first EditText steal focus during the content-view swap.
-        // Otherwise Android may pan/scroll the new hierarchy a frame after the
-        // room form appears even before the user intentionally starts typing.
+        // Start the form without an EditText focus. The fixed top area stays outside
+        // the ScrollView, so IME focus can only resize/scroll the lower form content.
         root.setFocusableInTouchMode(true);
-        setContentView(root);
+        showScreen(root);
         root.requestFocus();
     }
 
@@ -644,7 +679,7 @@ public class LocationSharingActivity extends Activity {
         scroll.addView(page);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(root);
+        showScreen(root);
 
         applySnapshot(initial);
         ensureSharingService();
@@ -1333,17 +1368,6 @@ public class LocationSharingActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-
-        // Use one stable system-bar measurement for the lifetime of this screen.
-        // Do not request/apply a second WindowInsets pass after setContentView(): that
-        // delayed relayout made the header and the duplicate-check button jump upward
-        // a fraction of a second after entering the room form.
-        // Measure system bars only once for this Activity. Reusing the exact same
-        // values prevents the landing -> room-form content swap from producing a
-        // one-frame vertical offset when WindowMetrics settle.
-        if (stableTopInset < 0) stableTopInset = initialStatusBarInset();
-        if (stableBottomInset < 0) stableBottomInset = initialNavigationBarInset();
-        root.setPadding(0, stableTopInset + dp(4), 0, stableBottomInset + dp(6));
         return root;
     }
 
