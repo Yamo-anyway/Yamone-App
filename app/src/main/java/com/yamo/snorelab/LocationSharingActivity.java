@@ -319,6 +319,7 @@ public class LocationSharingActivity extends Activity {
         page.addView(label("방 이름"));
         LinearLayout roomRow = new LinearLayout(this);
         roomRow.setOrientation(LinearLayout.HORIZONTAL);
+        roomRow.setGravity(Gravity.CENTER_VERTICAL);
         roomNameInput = input(create ? "예) 야모네 스키 여행" : "참여할 방 이름을 입력하세요",
                 InputType.TYPE_CLASS_TEXT);
         roomNameInput.setSingleLine(true);
@@ -326,7 +327,10 @@ public class LocationSharingActivity extends Activity {
         roomRow.addView(roomNameInput, new LinearLayout.LayoutParams(0, dp(52), 1f));
 
         availabilityButton = smallButton("중복 확인");
-        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(96), dp(52));
+        availabilityButton.setTextSize(13);
+        availabilityButton.setGravity(Gravity.CENTER);
+        availabilityButton.setIncludeFontPadding(false);
+        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(96), dp(46));
         checkParams.leftMargin = dp(8);
         if (create) roomRow.addView(availabilityButton, checkParams);
         LinearLayout.LayoutParams roomRowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
