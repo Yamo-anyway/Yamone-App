@@ -36,16 +36,18 @@ public final class YamoneMockData {
     }
 
     public static final class ActivityCardData {
-        public final String icon;
+        public final int iconType;
         public final String title;
         public final String subtitle;
         public final String badge;
+        public final int tintKind;
 
-        public ActivityCardData(String icon, String title, String subtitle, String badge) {
-            this.icon = icon;
+        public ActivityCardData(int iconType, String title, String subtitle, String badge, int tintKind) {
+            this.iconType = iconType;
             this.title = title;
             this.subtitle = subtitle;
             this.badge = badge;
+            this.tintKind = tintKind;
         }
     }
 
@@ -60,10 +62,30 @@ public final class YamoneMockData {
 
     public static List<ActivityCardData> activityCards() {
         return Arrays.asList(
-                new ActivityCardData("●", "걷기 · 달리기 · 자전거", "자동으로 활동을 구분해 기록", "자동감지 켜짐"),
-                new ActivityCardData("❄", "Snow", "스키·스노보드 기록", ""),
-                new ActivityCardData("⌖", "위치공유", "다른 활동과 동시에 사용할 수 있어요", ""),
-                new ActivityCardData("☾", "수면", "수면과 코골이 후보를 기록", "")
+                new ActivityCardData(
+                        YamoneIconView.ACTIVITY_MULTI,
+                        "걷기 · 달리기 · 자전거",
+                        "자동으로 활동을 구분해 기록",
+                        "자동감지 켜짐",
+                        0),
+                new ActivityCardData(
+                        YamoneIconView.ACTIVITY_SNOW,
+                        "Snow",
+                        "스키 · 스노보드",
+                        "",
+                        1),
+                new ActivityCardData(
+                        YamoneIconView.ACTIVITY_LOCATION,
+                        "위치공유",
+                        "다른 활동과 동시에 사용할 수 있어요",
+                        "",
+                        2),
+                new ActivityCardData(
+                        YamoneIconView.ACTIVITY_SLEEP,
+                        "수면",
+                        "수면과 코골이 후보를 기록",
+                        "",
+                        3)
         );
     }
 }
