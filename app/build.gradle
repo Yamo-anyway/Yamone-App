@@ -10,8 +10,8 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 59
-        versionName '0.3.56-location-menu-stability'
+        versionCode 60
+        versionName '0.3.57-room-form-inset-stability'
         manifestPlaceholders = [appLabel: '야모네']
     }
 
