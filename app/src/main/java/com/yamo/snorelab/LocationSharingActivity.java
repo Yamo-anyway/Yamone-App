@@ -79,6 +79,8 @@ public class LocationSharingActivity extends Activity {
     private int selectedIntervalSeconds = 60;
     private boolean pendingSubmitAfterPermission;
     private boolean askedActivePermission;
+    private int stableTopInset = -1;
+    private int stableBottomInset = -1;
 
     private boolean activeScreen;
     private String currentPage = "loading";
@@ -188,6 +190,11 @@ public class LocationSharingActivity extends Activity {
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
+        // Keep the window itself stationary when an EditText gains focus. The form's
+        // scroll area may resize for the IME, but the header must never be panned.
+        getWindow().setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                        | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         getWindow().getDecorView().setSystemUiVisibility(flags);
@@ -412,7 +419,12 @@ public class LocationSharingActivity extends Activity {
         bottom.addView(actionButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
         root.addView(bottom);
 
+        // Do not let the first EditText steal focus during the content-view swap.
+        // Otherwise Android may pan/scroll the new hierarchy a frame after the
+        // room form appears even before the user intentionally starts typing.
+        root.setFocusableInTouchMode(true);
         setContentView(root);
+        root.requestFocus();
     }
 
     private TextView intervalChip(String label, int seconds) {
@@ -1326,9 +1338,12 @@ public class LocationSharingActivity extends Activity {
         // Do not request/apply a second WindowInsets pass after setContentView(): that
         // delayed relayout made the header and the duplicate-check button jump upward
         // a fraction of a second after entering the room form.
-        final int topInset = initialStatusBarInset();
-        final int bottomInset = initialNavigationBarInset();
-        root.setPadding(0, topInset + dp(4), 0, bottomInset + dp(6));
+        // Measure system bars only once for this Activity. Reusing the exact same
+        // values prevents the landing -> room-form content swap from producing a
+        // one-frame vertical offset when WindowMetrics settle.
+        if (stableTopInset < 0) stableTopInset = initialStatusBarInset();
+        if (stableBottomInset < 0) stableBottomInset = initialNavigationBarInset();
+        root.setPadding(0, stableTopInset + dp(4), 0, stableBottomInset + dp(6));
         return root;
     }
 
@@ -1394,11 +1409,11 @@ public class LocationSharingActivity extends Activity {
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
         icon.setColorFilter(PRIMARY2);
-        icon.setPadding(dp(10), dp(10), dp(10), dp(10));
-        // Only the icon fill distinguishes the primary action. It must not change any
-        // dimensions, gravity, baseline or elevation.
-        icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 22, 0, 0));
-        leftSlot.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        icon.setPadding(dp(9), dp(9), dp(9), dp(9));
+        // Only the icon fill distinguishes the primary action. Keep a small vertical
+        // safety margin so the round background is never clipped by the card.
+        icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 20, 0, 0));
+        leftSlot.addView(icon, new LinearLayout.LayoutParams(dp(40), dp(40)));
         card.addView(leftSlot, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
         boolean hasSubtitle = subtitle != null && !subtitle.trim().isEmpty();

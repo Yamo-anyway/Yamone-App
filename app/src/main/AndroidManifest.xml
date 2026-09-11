@@ -42,7 +42,7 @@
         <activity android:name=".SkiActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".SkiSessionDetailActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".SkiWaitTimesActivity" android:screenOrientation="portrait" android:exported="false" />
-        <activity android:name=".LocationSharingActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name=".LocationSharingActivity" android:screenOrientation="portrait" android:windowSoftInputMode="stateAlwaysHidden|adjustResize" android:exported="false" />
         <activity android:name=".LocationSharingActivityV2" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".LocationSharingTimeActivity" android:screenOrientation="portrait" android:exported="false" />
 
