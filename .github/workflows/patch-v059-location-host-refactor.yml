@@ -1,0 +1,33 @@
+name: Patch Yamone v0.3.59 location host refactor
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-v059-location-host-refactor.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply structural location screen refactor
+        run: python3 .github/scripts/patch_v059_location_host_refactor.py
+
+      - name: Commit app changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/yamo/snorelab/LocationSharingActivity.java app/build.gradle
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Refactor location sharing screen host and fixed room form header"
+          git push
