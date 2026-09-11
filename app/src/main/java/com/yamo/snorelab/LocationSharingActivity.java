@@ -1322,31 +1322,13 @@ public class LocationSharingActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
 
-        // Reserve system-bar space synchronously before the first frame. Previously the
-        // root started with only 8dp bottom padding and waited for onApplyWindowInsets,
-        // which made the fixed bottom CTA appear clipped and then jump upward later.
-        final int initialTop = initialStatusBarInset();
-        final int initialBottom = initialNavigationBarInset();
-        root.setPadding(0, initialTop + dp(4), 0, initialBottom + dp(6));
-
-        if (Build.VERSION.SDK_INT >= 21) {
-            root.setOnApplyWindowInsetsListener((v, insets) -> {
-                int top;
-                int bottom;
-                if (Build.VERSION.SDK_INT >= 30) {
-                    top = insets.getInsets(WindowInsets.Type.statusBars()).top;
-                    bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
-                } else {
-                    top = insets.getSystemWindowInsetTop();
-                    bottom = insets.getSystemWindowInsetBottom();
-                }
-                top = Math.max(top, initialTop);
-                bottom = Math.max(bottom, initialBottom);
-                v.setPadding(0, top + dp(4), 0, bottom + dp(6));
-                return insets;
-            });
-            root.post(root::requestApplyInsets);
-        }
+        // Use one stable system-bar measurement for the lifetime of this screen.
+        // Do not request/apply a second WindowInsets pass after setContentView(): that
+        // delayed relayout made the header and the duplicate-check button jump upward
+        // a fraction of a second after entering the room form.
+        final int topInset = initialStatusBarInset();
+        final int bottomInset = initialNavigationBarInset();
+        root.setPadding(0, topInset + dp(4), 0, bottomInset + dp(6));
         return root;
     }
 
