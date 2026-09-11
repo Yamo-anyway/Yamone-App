@@ -1396,9 +1396,16 @@ public class LocationSharingActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setBaselineAligned(false);
         card.setPadding(dp(12), dp(6), dp(12), dp(6));
         card.setBackground(round(CARD, 22, 1, BORDER));
-        if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(primary ? 2 : 1));
+        // Keep both room menu cards on the exact same rendering path. The previous
+        // primary/non-primary elevation difference could settle on a later frame and
+        // made the first card look as if its title moved slightly upward.
+        if (Build.VERSION.SDK_INT >= 21) {
+            card.setElevation(0f);
+            card.setStateListAnimator(null);
+        }
 
         LinearLayout leftSlot = new LinearLayout(this);
         leftSlot.setGravity(Gravity.CENTER);
@@ -1406,27 +1413,47 @@ public class LocationSharingActivity extends Activity {
         icon.setImageResource(iconRes);
         icon.setColorFilter(PRIMARY2);
         icon.setPadding(dp(10), dp(10), dp(10), dp(10));
+        // Only the icon fill distinguishes the primary action. It must not change any
+        // dimensions, gravity, baseline or elevation.
         icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 22, 0, 0));
         leftSlot.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
         card.addView(leftSlot, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
-        LinearLayout words = new LinearLayout(this);
-        words.setOrientation(LinearLayout.VERTICAL);
-        words.setGravity(Gravity.CENTER);
-        TextView titleView = text(title, 15, TEXT, true);
-        titleView.setSingleLine(true);
-        titleView.setGravity(Gravity.CENTER);
-        titleView.setIncludeFontPadding(false);
-        words.addView(titleView, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        if (subtitle != null && !subtitle.trim().isEmpty()) {
+        boolean hasSubtitle = subtitle != null && !subtitle.trim().isEmpty();
+        if (!hasSubtitle) {
+            // Both '방 만들기' and '방 참여하기' use this fixed-height title path.
+            // MATCH_PARENT + CENTER removes wrap-content remeasurement from the title.
+            TextView titleView = text(title, 15, TEXT, true);
+            titleView.setSingleLine(true);
+            titleView.setGravity(Gravity.CENTER);
+            titleView.setIncludeFontPadding(false);
+            titleView.setLineSpacing(0f, 1f);
+            titleView.setPadding(0, 0, 0, 0);
+            card.addView(titleView, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        } else {
+            LinearLayout words = new LinearLayout(this);
+            words.setOrientation(LinearLayout.VERTICAL);
+            words.setGravity(Gravity.CENTER);
+            words.setBaselineAligned(false);
+
+            TextView titleView = text(title, 15, TEXT, true);
+            titleView.setSingleLine(true);
+            titleView.setGravity(Gravity.CENTER);
+            titleView.setIncludeFontPadding(false);
+            titleView.setLineSpacing(0f, 1f);
+            words.addView(titleView, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
             TextView sub = text(subtitle, 11, MUTED, false);
             sub.setGravity(Gravity.CENTER);
+            sub.setIncludeFontPadding(false);
             sub.setPadding(0, dp(3), 0, 0);
             words.addView(sub, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            card.addView(words, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
         }
-        card.addView(words, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
 
         LinearLayout rightSlot = new LinearLayout(this);
         rightSlot.setGravity(Gravity.CENTER);
