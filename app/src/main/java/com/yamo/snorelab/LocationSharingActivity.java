@@ -385,11 +385,14 @@ public class LocationSharingActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         LinearLayout bottom = new LinearLayout(this);
-        bottom.setPadding(dp(18), dp(10), dp(18), dp(10));
+        // Keep a little breathing room around the fixed CTA. The root already reserves
+        // the system navigation inset from the very first frame, so the button no longer
+        // appears clipped and then jumps upward a moment later.
+        bottom.setPadding(dp(18), dp(8), dp(18), dp(12));
         bottom.setBackgroundColor(BG);
         actionButton = primaryButton(create ? "방 만들기" : "방 참여하기", create);
         actionButton.setOnClickListener(v -> ensurePermissionsThenSubmit());
-        bottom.addView(actionButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
+        bottom.addView(actionButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
         root.addView(bottom);
 
         setContentView(root);
@@ -807,17 +810,17 @@ public class LocationSharingActivity extends Activity {
 
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(20), dp(20), dp(20), dp(18));
-        panel.setBackground(round(CARD, 26, 1, BORDER));
+        panel.setPadding(dp(18), dp(18), dp(18), dp(16));
+        panel.setBackground(round(CARD, 24, 1, BORDER));
 
-        TextView title = text("내 상태 변경", 19, TEXT, true);
+        TextView title = text("내 상태 변경", 18, TEXT, true);
         title.setIncludeFontPadding(false);
         panel.addView(title);
 
         TextView subtitle = text(
                 "현재 상태는 " + userStatusLabel(currentSelfStatus) + "이에요.",
                 12, MUTED, false);
-        subtitle.setPadding(0, dp(5), 0, dp(14));
+        subtitle.setPadding(0, dp(5), 0, dp(12));
         panel.addView(subtitle);
 
         addStatusPickerRow(panel, dialog, "normal", "정상");
@@ -831,8 +834,8 @@ public class LocationSharingActivity extends Activity {
         cancel.setBackground(round(CARD2, 16, 1, BORDER));
         cancel.setOnClickListener(v -> dialog.dismiss());
         LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
-        cancelParams.topMargin = dp(14);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+        cancelParams.topMargin = dp(12);
         panel.addView(cancel, cancelParams);
 
         dialog.setContentView(panel);
@@ -849,7 +852,7 @@ public class LocationSharingActivity extends Activity {
         window = dialog.getWindow();
         if (window != null) {
             int screenWidth = getResources().getDisplayMetrics().widthPixels;
-            window.setLayout(Math.min(dp(360), screenWidth - dp(36)),
+            window.setLayout(Math.min(dp(356), screenWidth - dp(36)),
                     ViewGroup.LayoutParams.WRAP_CONTENT);
             window.setGravity(Gravity.CENTER);
         }
@@ -862,32 +865,39 @@ public class LocationSharingActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(14), 0, dp(12), 0);
-        row.setBackground(round(LocationStatusPalette.softColor(status), 17, 1,
+        row.setPadding(dp(13), 0, dp(10), 0);
+        row.setBackground(round(LocationStatusPalette.softColor(status), 16, 1,
                 selected ? statusColor : BORDER));
 
         View dot = new View(this);
         dot.setBackground(statusDotDrawable(status, selected));
         LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(
-                dp(selected ? 14 : 11), dp(selected ? 14 : 11));
+                dp(selected ? 12 : 10), dp(selected ? 12 : 10));
         dotParams.rightMargin = dp(10);
         row.addView(dot, dotParams);
 
         TextView name = text(label, 13, selected ? statusColor : TEXT, true);
+        name.setGravity(Gravity.CENTER_VERTICAL);
         name.setIncludeFontPadding(false);
-        row.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        row.addView(name, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
 
         TextView state = text(selected ? "현재 상태" : "변경", 10,
                 selected ? statusColor : MUTED, true);
-        state.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        state.setGravity(Gravity.CENTER);
         state.setIncludeFontPadding(false);
-        row.addView(state, new LinearLayout.LayoutParams(dp(58), dp(48)));
+        state.setBackground(round(CARD, 13, 1, selected ? statusColor : BORDER));
+        row.addView(state, new LinearLayout.LayoutParams(dp(66), dp(30)));
 
+        // Keep the current state fully legible; disable only its click action.
+        // Fading the whole row made the selected state look visually broken.
+        row.setAlpha(1f);
         if (selected) {
-            row.setEnabled(false);
-            row.setAlpha(0.56f);
+            row.setClickable(false);
+            row.setFocusable(false);
         } else {
             row.setClickable(true);
+            row.setFocusable(true);
             row.setOnClickListener(v -> {
                 dialog.dismiss();
                 requestStatusChange(status);
@@ -895,8 +905,8 @@ public class LocationSharingActivity extends Activity {
         }
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        params.topMargin = dp(7);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+        params.topMargin = dp(6);
         panel.addView(row, params);
     }
 
@@ -1294,7 +1304,14 @@ public class LocationSharingActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(0, dp(8), 0, dp(8));
+
+        // Reserve system-bar space synchronously before the first frame. Previously the
+        // root started with only 8dp bottom padding and waited for onApplyWindowInsets,
+        // which made the fixed bottom CTA appear clipped and then jump upward later.
+        final int initialTop = initialStatusBarInset();
+        final int initialBottom = initialNavigationBarInset();
+        root.setPadding(0, initialTop + dp(4), 0, initialBottom + dp(6));
+
         if (Build.VERSION.SDK_INT >= 21) {
             root.setOnApplyWindowInsetsListener((v, insets) -> {
                 int top;
@@ -1306,12 +1323,39 @@ public class LocationSharingActivity extends Activity {
                     top = insets.getSystemWindowInsetTop();
                     bottom = insets.getSystemWindowInsetBottom();
                 }
-                v.setPadding(0, top + dp(4), 0, bottom + dp(4));
+                top = Math.max(top, initialTop);
+                bottom = Math.max(bottom, initialBottom);
+                v.setPadding(0, top + dp(4), 0, bottom + dp(6));
                 return insets;
             });
-            root.requestApplyInsets();
+            root.post(root::requestApplyInsets);
         }
         return root;
+    }
+
+    private int initialStatusBarInset() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                return getWindowManager().getCurrentWindowMetrics().getWindowInsets()
+                        .getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()).top;
+            } catch (Exception ignored) { }
+        }
+        return systemDimensionPx("status_bar_height");
+    }
+
+    private int initialNavigationBarInset() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                return getWindowManager().getCurrentWindowMetrics().getWindowInsets()
+                        .getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars()).bottom;
+            } catch (Exception ignored) { }
+        }
+        return systemDimensionPx("navigation_bar_height");
+    }
+
+    private int systemDimensionPx(String name) {
+        int id = getResources().getIdentifier(name, "dimen", "android");
+        return id == 0 ? 0 : getResources().getDimensionPixelSize(id);
     }
 
     private LinearLayout header(String title, String subtitle) {
