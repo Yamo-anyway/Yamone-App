@@ -320,6 +320,10 @@ public class LocationSharingActivity extends Activity {
         LinearLayout roomRow = new LinearLayout(this);
         roomRow.setOrientation(LinearLayout.HORIZONTAL);
         roomRow.setGravity(Gravity.CENTER_VERTICAL);
+        // EditText and Button both expose a text baseline. Disable LinearLayout's
+        // baseline alignment so the smaller action button is positioned by its box,
+        // not pulled upward to match the EditText text baseline.
+        roomRow.setBaselineAligned(false);
         roomNameInput = input(create ? "예) 야모네 스키 여행" : "참여할 방 이름을 입력하세요",
                 InputType.TYPE_CLASS_TEXT);
         roomNameInput.setSingleLine(true);
@@ -327,12 +331,21 @@ public class LocationSharingActivity extends Activity {
         roomRow.addView(roomNameInput, new LinearLayout.LayoutParams(0, dp(52), 1f));
 
         availabilityButton = smallButton("중복 확인");
-        availabilityButton.setTextSize(13);
+        availabilityButton.setTextSize(14);
         availabilityButton.setGravity(Gravity.CENTER);
         availabilityButton.setIncludeFontPadding(false);
-        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(96), dp(46));
+        availabilityButton.setPadding(0, 0, 0, 0);
+
+        // Give the button the same 52dp layout slot as the input, then center a
+        // slightly smaller 48dp button inside it. This makes vertical alignment
+        // deterministic across fonts, keyboards and Android button implementations.
+        LinearLayout availabilitySlot = new LinearLayout(this);
+        availabilitySlot.setGravity(Gravity.CENTER);
+        availabilitySlot.addView(availabilityButton, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48)));
+        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(96), dp(52));
         checkParams.leftMargin = dp(8);
-        if (create) roomRow.addView(availabilityButton, checkParams);
+        if (create) roomRow.addView(availabilitySlot, checkParams);
         LinearLayout.LayoutParams roomRowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         roomRowParams.bottomMargin = dp(8);
         page.addView(roomRow, roomRowParams);
