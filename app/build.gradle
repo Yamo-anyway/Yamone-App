@@ -10,8 +10,8 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 57
-        versionName '0.3.54-duplicate-check-button'
+        versionCode 58
+        versionName '0.3.55-duplicate-check-alignment'
         manifestPlaceholders = [appLabel: '야모네']
     }
 
