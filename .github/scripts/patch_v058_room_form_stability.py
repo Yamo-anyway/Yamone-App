@@ -23,6 +23,14 @@ new = '''        root.addView(bottom);\n\n        // Do not let the first EditTe
 assert old in text
 text = text.replace(old, new, 1)
 
+# The round icon in the room cards was exactly 44dp inside a 64dp card with inner
+# padding, which could visually clip the circle at the top/bottom on some densities.
+# Keep the 44dp alignment slot but render the actual circular icon at 40dp.
+old = '''        icon.setPadding(dp(10), dp(10), dp(10), dp(10));\n        // Only the icon fill distinguishes the primary action. It must not change any\n        // dimensions, gravity, baseline or elevation.\n        icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 22, 0, 0));\n        leftSlot.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));\n        card.addView(leftSlot, new LinearLayout.LayoutParams(dp(44), dp(44)));\n'''
+new = '''        icon.setPadding(dp(9), dp(9), dp(9), dp(9));\n        // Only the icon fill distinguishes the primary action. Keep a small vertical\n        // safety margin so the round background is never clipped by the card.\n        icon.setBackground(round(primary ? 0xFFFFE2EB : CARD2, 20, 0, 0));\n        leftSlot.addView(icon, new LinearLayout.LayoutParams(dp(40), dp(40)));\n        card.addView(leftSlot, new LinearLayout.LayoutParams(dp(44), dp(44)));\n'''
+assert old in text
+text = text.replace(old, new, 1)
+
 java_path.write_text(text)
 
 manifest_path = Path('app/src/main/AndroidManifest.xml')
