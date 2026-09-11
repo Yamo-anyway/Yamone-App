@@ -1,0 +1,33 @@
+name: Patch Yamone v0.3.56 location menu cards
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-v056-location-menu-cards.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply location menu card patch
+        run: python3 .github/scripts/patch_v056_location_menu_cards.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/yamo/snorelab/LocationSharingActivity.java
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Stabilize room menu card titles"
+          git push
