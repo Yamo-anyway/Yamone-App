@@ -1,0 +1,31 @@
+<resources>
+    <!-- Yamone Renewal v0.00.23 -->
+    <color name="yamone_v23_mint_bg">#FBFDFC</color>
+    <color name="yamone_v23_mint_surface">#FFFFFF</color>
+    <color name="yamone_v23_mint_soft">#E9FAF5</color>
+    <color name="yamone_v23_mint_text">#111827</color>
+    <color name="yamone_v23_mint_muted">#778295</color>
+    <color name="yamone_v23_mint_primary">#0BB88E</color>
+    <color name="yamone_v23_mint_primary2">#43D2B0</color>
+    <color name="yamone_v23_mint_border">#DCE3E7</color>
+    <color name="yamone_v23_pink_bg">#FFFAFB</color>
+    <color name="yamone_v23_pink_surface">#FFFFFF</color>
+    <color name="yamone_v23_pink_soft">#FFF0F4</color>
+    <color name="yamone_v23_pink_text">#21171B</color>
+    <color name="yamone_v23_pink_muted">#88757D</color>
+    <color name="yamone_v23_pink_primary">#F06F95</color>
+    <color name="yamone_v23_pink_primary2">#FFADC4</color>
+    <color name="yamone_v23_pink_border">#EFDFE5</color>
+    <color name="yamone_v23_danger">#E75B6D</color>
+    <color name="yamone_v23_warning">#E9A642</color>
+    <color name="yamone_v23_nav_inactive">#8591A1</color>
+    <dimen name="yamone_v23_screen_horizontal">17dp</dimen>
+    <dimen name="yamone_v23_screen_top">9dp</dimen>
+    <dimen name="yamone_v23_screen_bottom">22dp</dimen>
+    <dimen name="yamone_v23_card_radius">15dp</dimen>
+    <dimen name="yamone_v23_card_border">1.5dp</dimen>
+    <dimen name="yamone_v23_top_asset">44dp</dimen>
+    <dimen name="yamone_v23_nav_height">80dp</dimen>
+    <dimen name="yamone_v23_nav_icon">34dp</dimen>
+    <dimen name="yamone_v23_nav_radius">13dp</dimen>
+</resources>
