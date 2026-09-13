@@ -1,0 +1,26 @@
+/* v0.25.08 real walking/running/cycling recorder + route map. */
+.v2508-map-card{display:block!important;padding:0!important;overflow:hidden!important}
+.v2508-map-title{display:flex;align-items:center;gap:10px;padding:12px 14px 10px}
+.v2508-map-title>img{width:34px;height:34px;object-fit:contain}
+.v2508-map-title b{display:block;font-size:14px}
+.v2508-map-title small{display:block;margin-top:2px;color:var(--muted);font-size:11px}
+.v2508-route-map{position:relative;height:210px;overflow:hidden;background:linear-gradient(90deg,rgba(11,184,142,.05) 1px,transparent 1px),linear-gradient(rgba(11,184,142,.05) 1px,transparent 1px),#eef6f3;background-size:28px 28px;isolation:isolate}
+.v2508-summary-map-card{padding:0!important;overflow:hidden!important}
+.v2508-summary-map-card .v2508-route-map{height:220px}
+.v2508-tile-layer{position:absolute;inset:0;z-index:1}
+.v2508-tile{position:absolute;width:256px;height:256px;max-width:none!important;border:0!important;user-select:none;-webkit-user-drag:none}
+.v2508-route-svg{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+.v2508-route-line-shadow{fill:none;stroke:rgba(255,255,255,.92);stroke-width:8;stroke-linecap:round;stroke-linejoin:round}
+.v2508-route-line{fill:none;stroke:var(--primary);stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round}
+.v2508-route-start{fill:#fff;stroke:var(--primary);stroke-width:3}
+.v2508-route-current-ring{fill:rgba(11,184,142,.18);stroke:rgba(11,184,142,.24);stroke-width:2}
+.v2508-route-current{fill:var(--primary);stroke:#fff;stroke-width:2.5}
+.v2508-attribution{position:absolute;right:4px;bottom:3px;z-index:5;padding:2px 4px;border-radius:5px;background:rgba(255,255,255,.86);font-size:8px;color:#66727b}
+.v2508-map-wait{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:12px;font-weight:750}
+.v2508-empty-segment{padding:14px 10px;text-align:center;color:var(--muted);font-size:12px}
+.v2508-gps-good{color:var(--primary)!important}.v2508-gps-fair{color:#bc7a14!important}.v2508-gps-lost{color:#c84f64!important}
+.v2508-finishing{min-height:55vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center}
+.v2508-finishing img{width:82px;height:82px;object-fit:contain}.v2508-finishing b{font-size:18px}.v2508-finishing small{font-size:12px;color:var(--muted)}
+.v2508-glance-back{border:0!important;background:transparent!important;padding:0!important;width:44px;height:44px;display:grid;place-items:center}
+.v2508-glance-back img{width:36px!important;height:36px!important;object-fit:contain!important}
+@media(max-width:359px){.v2508-route-map{height:184px}.v2508-summary-map-card .v2508-route-map{height:194px}}
