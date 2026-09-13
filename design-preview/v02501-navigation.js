@@ -1,4 +1,4 @@
-/* v0.25.01: visited-screen history, not a hard-coded return-to-home.
+/* v0.25.01+: visited-screen history, not a hard-coded return-to-home.
  * This is an in-memory UI history. Recording/service state is never rewound.
  */
 (function () {
@@ -22,6 +22,7 @@
       if (alarmView === 'edit') route.editingAlarmId = editingAlarmId;
       if (alarmView === 'ring') route.ringingAlarmId = ringingAlarmId;
     }
+    if (view === 'move') route.moveState = moveState;
     if (view === 'location') route.locationState = locationState;
     return route;
   }
@@ -101,6 +102,7 @@
         window.__alarmPreview = alarmView === 'ring' ? copy(u.alarmPreview) : null;
         ringtonePickerOpen = alarmView === 'edit' && !!u.ringtonePickerOpen;
       }
+      if (r.view === 'move') moveState = r.moveState || 'ready';
       if (r.view === 'location') {
         // Back navigation must never restart a finished sharing session.
         locationState = ['active', 'extend'].includes(r.locationState) && !locationSharingActive
