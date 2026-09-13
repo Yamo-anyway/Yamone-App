@@ -1,0 +1,6 @@
+/* v0.25.11: Home card for a real movement activity that is still recording. */
+#homeMovementRunning{touch-action:manipulation}
+.running-card + #homeMovementRunning{margin-top:8px}
+#homeMovementRunning .running-card-copy b{font-size:13px}
+#homeMovementRunning .running-card-copy small{font-size:10px;line-height:1.35}
+#homeMovementRunning .running-card-pill{font-size:9px;padding:6px 9px}
