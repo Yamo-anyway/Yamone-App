@@ -1,0 +1,26 @@
+/* v0.25.10: stable glance updates + bottom action dock flush to the safe viewport. */
+
+/* The WebView itself already stops above Android's navigation bar.
+ * Keep the recording controls at the absolute bottom of that safe viewport. */
+.v2508-real-live{
+  padding-bottom:98px!important;
+}
+.v2508-real-live .v25-live-controls-under-route{
+  position:fixed!important;
+  left:0!important;
+  right:0!important;
+  bottom:0!important;
+  z-index:90!important;
+  margin:0!important;
+  padding:6px 12px 8px!important;
+  border-left:0!important;
+  border-right:0!important;
+  border-bottom:0!important;
+  border-radius:18px 18px 0 0!important;
+  background:rgba(251,253,252,.98)!important;
+  box-shadow:0 -6px 22px rgba(17,24,39,.12)!important;
+}
+
+@media(max-width:359px){
+  .v2508-real-live{padding-bottom:92px!important}
+}
