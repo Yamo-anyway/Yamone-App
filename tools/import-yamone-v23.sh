@@ -24,11 +24,11 @@ mkdir -p "$TARGET/assets"
 cp -R "$SOURCE_DIR"/. "$TARGET"/
 rm -f "$TARGET/asset-audit.png" "$TARGET/move-assets-audit.png" || true
 
-# Keep approved v24 artwork and v25.01 navigation; v25.02 lifts the exit dialog only.
-for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02501-navigation.js; do
+# Keep approved v24 artwork and v25 navigation; v25.03 adds movement Summary View only.
+for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02503-summary.js v02501-navigation.js; do
   cp "$ROOT/design-preview/$file" "$TARGET/$file"
 done
-for file in title-activity-v02402.png title-records-v02402.png title-alarm-v02402.png title-settings-v02402.png back-v02402.png; do
+for file in title-activity-v02402.png title-records-v02402.png title-alarm-v02402.png title-settings-v02402.png back-v02402.png summary-view-button-v02503.svg title-summary-walk-v02503.svg title-summary-run-v02503.svg title-summary-bike-v02503.svg; do
   cp "$ROOT/design-preview/assets/$file" "$TARGET/assets/$file"
 done
 
@@ -39,13 +39,13 @@ p = Path(sys.argv[1])
 s = p.read_text(encoding='utf-8')
 if 'name="viewport"' not in s:
     s = s.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">', 1)
-for css in ['mobile.css', 'v02403.css']:
+for css in ['mobile.css', 'v02403.css', 'v02503-summary.css']:
     if f'href="{css}"' not in s:
         s = s.replace('</head>', f'  <link rel="stylesheet" href="{css}">\n</head>', 1)
-for js in ['app-mobile.js', 'v02501-ui.js', 'v02501-navigation.js']:
+for js in ['app-mobile.js', 'v02501-ui.js', 'v02503-summary.js', 'v02501-navigation.js']:
     if f'src="{js}"' not in s:
         s = s.replace('</body>', f'  <script src="{js}"></script>\n</body>', 1)
 p.write_text(s, encoding='utf-8')
 PY
 
-echo "Imported approved v24 design with v0.25.02 exit dialog placement into: $TARGET"
+echo "Imported approved v24 design with v0.25.03 movement Summary View into: $TARGET"
