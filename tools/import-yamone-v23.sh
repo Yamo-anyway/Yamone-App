@@ -24,9 +24,9 @@ mkdir -p "$TARGET/assets"
 cp -R "$SOURCE_DIR"/. "$TARGET"/
 rm -f "$TARGET/asset-audit.png" "$TARGET/move-assets-audit.png" || true
 
-# Keep approved v24/v25 design patches. v0.25.10 keeps the real recorder from
-# v0.25.08, prevents full Summary View rerenders, and pins live controls to bottom.
-for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02508-real-move.css v02508-real-move.js v02509-ui.css v02510-ui.css v02510-ui.js v02510-version.js; do
+# Keep approved v24/v25 design patches. v0.25.11 keeps the v0.25.10 stable
+# Summary View/live controls and adds a Home card for an active movement record.
+for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02508-real-move.css v02508-real-move.js v02509-ui.css v02510-ui.css v02510-ui.js v02511-home-active.css v02511-home-active.js v02511-version.js; do
   cp "$ROOT/design-preview/$file" "$TARGET/$file"
 done
 for file in title-activity-v02402.png title-records-v02402.png title-alarm-v02402.png title-settings-v02402.png back-v02402.png summary-view-button-v02503.svg title-summary-walk-v02503.svg title-summary-run-v02503.svg title-summary-bike-v02503.svg; do
@@ -55,13 +55,13 @@ p = Path(sys.argv[1])
 s = p.read_text(encoding='utf-8')
 if 'name="viewport"' not in s:
     s = s.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">', 1)
-for css in ['mobile.css', 'v02403.css', 'v02503-summary.css', 'v02505-summary.css', 'v02507-fit.css', 'v02507-move.css', 'v02508-real-move.css', 'v02509-ui.css', 'v02510-ui.css']:
+for css in ['mobile.css', 'v02403.css', 'v02503-summary.css', 'v02505-summary.css', 'v02507-fit.css', 'v02507-move.css', 'v02508-real-move.css', 'v02509-ui.css', 'v02510-ui.css', 'v02511-home-active.css']:
     if f'href="{css}"' not in s:
         s = s.replace('</head>', f'  <link rel="stylesheet" href="{css}">\n</head>', 1)
-for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02508-real-move.js', 'v02510-ui.js', 'v02510-version.js']:
+for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02508-real-move.js', 'v02510-ui.js', 'v02511-home-active.js', 'v02511-version.js']:
     if f'src="{js}"' not in s:
         s = s.replace('</body>', f'  <script src="{js}"></script>\n</body>', 1)
 p.write_text(s, encoding='utf-8')
 PY
 
-echo "Imported approved design with v0.25.10 stable Summary View + bottom live controls into: $TARGET"
+echo "Imported approved design with v0.25.11 Home active-movement card into: $TARGET"
