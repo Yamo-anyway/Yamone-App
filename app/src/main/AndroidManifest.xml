@@ -26,7 +26,7 @@
         android:roundIcon="@mipmap/ic_launcher_round">
 
         <activity
-            android:name=".YamoneDesignPreviewActivity"
+            android:name=".YamoneMovementActivity"
             android:screenOrientation="portrait"
             android:enableOnBackInvokedCallback="true"
             android:exported="true">
@@ -35,6 +35,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".YamoneDesignPreviewActivity" android:screenOrientation="portrait" android:exported="false" />
 
         <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="false" />
         <activity android:name=".AlarmActivity" android:screenOrientation="portrait" android:exported="false" />
