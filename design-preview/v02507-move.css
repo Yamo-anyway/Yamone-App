@@ -1,0 +1,42 @@
+/* v0.25.07: movement live/stop/summary refinements. */
+
+/* Stop confirmation: place the full rounded sheet around 2/3 of the viewport. */
+.move-overlay[data-v25-move-stop="1"]{
+  align-items:flex-start!important;
+  justify-content:center!important;
+  padding:0 12px!important;
+}
+.move-overlay[data-v25-move-stop="1"] > .move-sheet{
+  position:absolute!important;
+  left:50%!important;
+  top:66.6667%!important;
+  transform:translate(-50%,-50%)!important;
+  width:min(420px,calc(100% - 24px))!important;
+  border-radius:24px!important;
+  padding:10px 16px 20px!important;
+  box-shadow:0 12px 32px rgba(0,0,0,.16)!important;
+}
+
+/* Recording screen: route -> controls -> automatic segment list. */
+.v25-live-controls-under-route{margin-top:12px!important}
+.v25-live-segments-bottom{margin-top:12px!important}
+
+/* End summary: no Back arrow; Confirm button remains visible while content scrolls. */
+.v25-move-end-summary{padding-bottom:92px!important}
+.v25-move-end-summary .v25-summary-header-only{padding-left:2px!important}
+.v25-move-end-summary .v25-summary-header-only .move-plain-title{margin:0!important}
+.v25-move-summary-savebar{
+  position:fixed!important;
+  left:12px!important;
+  right:12px!important;
+  bottom:max(10px,env(safe-area-inset-bottom))!important;
+  z-index:45!important;
+  padding:8px!important;
+  border:1px solid rgba(220,227,231,.9)!important;
+  border-radius:20px!important;
+  background:rgba(251,253,252,.94)!important;
+  backdrop-filter:blur(12px)!important;
+  -webkit-backdrop-filter:blur(12px)!important;
+  box-shadow:0 8px 28px rgba(17,24,39,.12)!important;
+}
+.v25-move-summary-savebar .move-save{width:100%!important;margin:0!important}
