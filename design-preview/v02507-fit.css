@@ -1,0 +1,39 @@
+/* v0.25.07: Summary View uses one common maximum number size.
+ * Units keep a fixed readable size and never participate in font scaling.
+ */
+.v25-summary-screen .v25-summary-value-wrap > strong,
+.v25-summary-screen .v25-summary-card.v25-summary-wide .v25-summary-value-wrap > strong{
+  display:inline-flex!important;
+  align-items:baseline!important;
+  max-width:100%!important;
+  min-width:0!important;
+  font-size:0!important;
+  line-height:1!important;
+  letter-spacing:0!important;
+  white-space:nowrap!important;
+}
+.v25-summary-screen .v25-summary-number{
+  display:inline-block!important;
+  flex:0 1 auto!important;
+  font-size:64px!important;
+  line-height:.84!important;
+  font-weight:950!important;
+  letter-spacing:-2.6px!important;
+  color:var(--text)!important;
+  font-variant-numeric:tabular-nums!important;
+  white-space:nowrap!important;
+}
+.v25-summary-screen .v25-summary-unit{
+  display:inline-block!important;
+  flex:0 0 auto!important;
+  margin-left:7px!important;
+  font-size:22px!important;
+  line-height:1!important;
+  font-weight:850!important;
+  letter-spacing:-.5px!important;
+  color:#52606b!important;
+  white-space:nowrap!important;
+}
+@media(max-width:359px){
+  .v25-summary-screen .v25-summary-unit{font-size:19px!important;margin-left:5px!important}
+}
