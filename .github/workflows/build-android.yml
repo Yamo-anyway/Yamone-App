@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import v24 design + v0.25.10 stable Summary View
+      - name: Import v24 design + v0.25.11 Home active card
         shell: bash
         run: bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
 
@@ -36,8 +36,10 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v02501-navigation.js
           node --check app/src/main/assets/yamone-v23/v02508-real-move.js
           node --check app/src/main/assets/yamone-v23/v02510-ui.js
-          node --check app/src/main/assets/yamone-v23/v02510-version.js
+          node --check app/src/main/assets/yamone-v23/v02511-home-active.js
+          node --check app/src/main/assets/yamone-v23/v02511-version.js
           grep -q "v02510UpdateGlance" app/src/main/assets/yamone-v23/v02508-real-move.js
+          grep -q "homeMovementRunning" app/src/main/assets/yamone-v23/v02511-home-active.js
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -71,6 +73,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.25.10-stable-glance-apk
+          name: yamone-v0.25.11-home-active-card-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
