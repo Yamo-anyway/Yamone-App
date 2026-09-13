@@ -1,0 +1,26 @@
+/* v0.25.06: let the Summary View value use the largest possible font size.
+ * Row count/layout, icons and labels remain exactly as approved in v0.25.05.
+ */
+.v25-summary-screen .v25-summary-value-wrap{
+  padding-right:2px!important;
+}
+.v25-summary-screen .v25-summary-card strong,
+.v25-summary-screen .v25-summary-card.v25-summary-wide strong{
+  font-size:120px!important;
+  line-height:.84!important;
+  letter-spacing:-3.2px!important;
+  transform-origin:left center!important;
+}
+.v25-summary-screen .v25-summary-unit{
+  margin-left:6px!important;
+  font-size:.30em!important;
+  line-height:1!important;
+  letter-spacing:-.4px!important;
+}
+@media(max-width:359px){
+  .v25-summary-screen .v25-summary-card strong,
+  .v25-summary-screen .v25-summary-card.v25-summary-wide strong{
+    font-size:108px!important;
+    letter-spacing:-2.6px!important;
+  }
+}
