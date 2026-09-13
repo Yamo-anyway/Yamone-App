@@ -24,9 +24,9 @@ mkdir -p "$TARGET/assets"
 cp -R "$SOURCE_DIR"/. "$TARGET"/
 rm -f "$TARGET/asset-audit.png" "$TARGET/move-assets-audit.png" || true
 
-# Keep approved v24 artwork and v25 navigation; v25.07 refines move stop/summary
-# and uses one common maximum Summary View number size with fixed-size units.
-for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02507-version.js; do
+# Keep approved v24/v25 design patches. v0.25.08 connects the movement UI
+# to WalkingRecorderService and renders the real GPS route on transient OSM tiles.
+for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02508-real-move.css v02508-real-move.js v02508-version.js; do
   cp "$ROOT/design-preview/$file" "$TARGET/$file"
 done
 for file in title-activity-v02402.png title-records-v02402.png title-alarm-v02402.png title-settings-v02402.png back-v02402.png summary-view-button-v02503.svg title-summary-walk-v02503.svg title-summary-run-v02503.svg title-summary-bike-v02503.svg; do
@@ -40,13 +40,13 @@ p = Path(sys.argv[1])
 s = p.read_text(encoding='utf-8')
 if 'name="viewport"' not in s:
     s = s.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">', 1)
-for css in ['mobile.css', 'v02403.css', 'v02503-summary.css', 'v02505-summary.css', 'v02507-fit.css', 'v02507-move.css']:
+for css in ['mobile.css', 'v02403.css', 'v02503-summary.css', 'v02505-summary.css', 'v02507-fit.css', 'v02507-move.css', 'v02508-real-move.css']:
     if f'href="{css}"' not in s:
         s = s.replace('</head>', f'  <link rel="stylesheet" href="{css}">\n</head>', 1)
-for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02507-version.js']:
+for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02508-real-move.js', 'v02508-version.js']:
     if f'src="{js}"' not in s:
         s = s.replace('</body>', f'  <script src="{js}"></script>\n</body>', 1)
 p.write_text(s, encoding='utf-8')
 PY
 
-echo "Imported approved v24 design with v0.25.07 movement flow + common max-font Summary View into: $TARGET"
+echo "Imported approved design with v0.25.08 real walking/running/cycling recording into: $TARGET"
