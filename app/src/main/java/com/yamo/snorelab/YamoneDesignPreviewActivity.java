@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,8 +22,11 @@ import android.widget.TextView;
 
 import java.io.IOException;
 
-/** v0.25.01: original mockup design, with app-internal visit-history Back. */
+/** v0.25.12: renewed design host with activity-notification deep links. */
 public class YamoneDesignPreviewActivity extends Activity {
+    public static final String EXTRA_OPEN_MOVEMENT = "yamone_open_movement";
+    public static final String EXTRA_OPEN_STOP_CONFIRM = "yamone_open_stop_confirm";
+
     private static final String MOCKUP_ROOT = "yamone-v23";
     private static final String MOCKUP_INDEX = MOCKUP_ROOT + "/index.html";
     private static final int BOTTOM_TOUCH_SAFETY_DP = 6;
@@ -31,10 +35,14 @@ public class YamoneDesignPreviewActivity extends Activity {
     private Runnable unregisterSystemBack;
     private boolean backPending;
     private AlertDialog fallbackExitDialog;
+    private boolean webPageReady;
+    private boolean pendingMovementOpen;
+    private boolean pendingStopConfirm;
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        captureNotificationIntent(getIntent());
         applySystemBars(false);
         if (Build.VERSION.SDK_INT >= 33) {
             unregisterSystemBack = Api33.register(this, this::dispatchSystemBack);
@@ -63,9 +71,16 @@ public class YamoneDesignPreviewActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccessFromFileURLs(true);
         settings.setAllowUniversalAccessFromFileURLs(false);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                webPageReady = true;
+                dispatchPendingNotificationIntent();
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new NativeBridge(), "YamoneNative");
+        webView.addJavascriptInterface(new MovementBridge(this), "YamoneMovement");
         safeRoot.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         safeRoot.setOnApplyWindowInsetsListener((v, insets) -> {
@@ -98,6 +113,35 @@ public class YamoneDesignPreviewActivity extends Activity {
         setContentView(safeRoot);
         safeRoot.requestApplyInsets();
         webView.loadUrl("file:///android_asset/" + MOCKUP_INDEX);
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        captureNotificationIntent(intent);
+        dispatchPendingNotificationIntent();
+    }
+
+    private void captureNotificationIntent(Intent intent) {
+        if (intent == null) return;
+        boolean openMovement = intent.getBooleanExtra(EXTRA_OPEN_MOVEMENT, false);
+        boolean openStop = intent.getBooleanExtra(EXTRA_OPEN_STOP_CONFIRM, false);
+        if (openMovement || openStop) {
+            pendingMovementOpen = true;
+            pendingStopConfirm = pendingStopConfirm || openStop;
+            intent.removeExtra(EXTRA_OPEN_MOVEMENT);
+            intent.removeExtra(EXTRA_OPEN_STOP_CONFIRM);
+        }
+    }
+
+    private void dispatchPendingNotificationIntent() {
+        if (!webPageReady || webView == null || !pendingMovementOpen || isFinishing() || isDestroyed()) return;
+        final boolean openStop = pendingStopConfirm;
+        pendingMovementOpen = false;
+        pendingStopConfirm = false;
+        String js = "Boolean(window.yamoneOpenActiveMovement && window.yamoneOpenActiveMovement("
+                + (openStop ? "true" : "false") + "))";
+        webView.evaluateJavascript(js, ignored -> { });
     }
 
     private boolean mockupAssetsInstalled() {
@@ -198,6 +242,7 @@ public class YamoneDesignPreviewActivity extends Activity {
         if (webView != null) {
             webView.loadUrl("about:blank");
             webView.removeJavascriptInterface("YamoneNative");
+            webView.removeJavascriptInterface("YamoneMovement");
             webView.removeAllViews();
             webView.destroy();
             webView = null;
