@@ -1,0 +1,90 @@
+/* Yamone design check v0.24.03
+ * Only the alarm title size changes. All v0.24.02 artwork and controls stay intact.
+ */
+:root{
+  --primary:#0bb88e;
+  --primary2:#f487a8;
+  --pink-accent:#f487a8;
+  --pink-soft:#fff0f4;
+}
+body[data-theme="pink"]{
+  --bg:#fbfdfc;
+  --surface:#fff;
+  --soft:#e9faf5;
+  --text:#111827;
+  --muted:#778295;
+  --primary:#0bb88e;
+  --primary2:#f487a8;
+  --border:#dce3e7;
+}
+
+/* Approved v0.24.02 top-title image assets */
+.v24-page-title-wrap{margin:0 0 12px;min-height:46px;display:flex;align-items:center}
+.v24-page-title{display:block;height:46px;width:auto;max-width:86%;object-fit:contain;object-position:left center}
+.title-asset.title-activity{height:54px!important;width:auto!important;max-width:88%!important;object-fit:contain!important}
+/* Match Records/Settings' 46px title box (about 40px of visible artwork).
+ * Override BOTH the old 36px max-height and the 78% shrink-to-fit constraint.
+ * Applies to the alarm list and editor; keep the PNG and its aspect ratio unchanged.
+ */
+.alarm-title-asset{height:46px!important;max-height:46px!important;width:auto!important;max-width:100%!important;flex-shrink:0;object-fit:contain!important}
+
+/* Back buttons: transparent button surface, generated arrow asset only. */
+.move-back-asset-btn,.setting-back{
+  width:38px!important;height:38px!important;min-width:38px!important;max-width:38px!important;
+  border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;
+  border-radius:0!important;padding:3px!important;margin:0!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  overflow:visible!important;
+}
+.move-back-asset-btn::before,.setting-back::before{content:none!important;display:none!important}
+.move-back-asset-btn img,.setting-back img{
+  display:block!important;width:30px!important;height:30px!important;object-fit:contain!important;
+  border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;
+}
+
+/* Mint is the base. Pink is only a soft secondary accent. */
+.badge,.alarm-tag.accent{background:var(--pink-soft)!important;color:#d85f84!important}
+.alarm-editor-title{color:#ce6c8a!important}
+.ringtone-coming{border-color:#f3d8e1!important}
+
+/* one-row left/right record summaries */
+.v24-list-grid{
+  display:grid!important;grid-template-columns:1fr!important;gap:6px!important;
+}
+.v24-list-grid>.card{
+  min-height:42px!important;padding:9px 12px!important;display:flex!important;align-items:center!important;
+  justify-content:space-between!important;gap:16px!important;
+}
+.v24-list-grid>.card span{
+  display:block!important;margin:0!important;font-size:10px!important;color:var(--muted)!important;
+}
+.v24-list-grid>.card b{
+  display:block!important;margin:0!important;text-align:right!important;font-size:13px!important;color:var(--text)!important;
+}
+.v24-move-summary-list,.v24-snow-summary-list{
+  display:grid!important;grid-template-columns:1fr!important;gap:6px!important;
+}
+.v24-move-summary-list>.card,.v24-snow-summary-list>.card{
+  min-height:48px!important;padding:8px 11px!important;display:flex!important;align-items:center!important;gap:9px!important;
+}
+.v24-move-summary-list>.card>div,.v24-snow-summary-list>.card>div{
+  min-width:0!important;flex:1!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;
+}
+.v24-move-summary-list>.card b,.v24-snow-summary-list>.card b{margin:0!important;font-size:10px!important}
+.v24-move-summary-list>.card strong,.v24-snow-summary-list>.card strong{margin:0!important;font-size:13px!important;text-align:right!important}
+.v24-move-summary-list>.card img,.v24-snow-summary-list>.card img{width:32px!important;height:32px!important;flex:0 0 32px!important}
+
+/* Tapping the selected hour/minute turns that exact wheel cell into an input. */
+.wheel-item.selected{cursor:text}
+.wheel-item.v24-inline-editing{
+  padding:0!important;display:flex!important;align-items:center!important;justify-content:center!important;
+}
+.v24-inline-time-input{
+  width:64px;height:40px;border:2px solid var(--primary);border-radius:11px;background:#fff;
+  color:var(--text);font-size:22px;line-height:1;font-weight:900;text-align:center;outline:none;
+  padding:0 5px;margin:0;box-sizing:border-box;
+  -moz-appearance:textfield;
+}
+.v24-inline-time-input::-webkit-outer-spin-button,
+.v24-inline-time-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.v24-exit-sheet h3{margin-bottom:5px}
