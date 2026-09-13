@@ -7,12 +7,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import java.io.IOException;
@@ -22,11 +24,14 @@ import java.io.IOException;
  *
  * This Activity intentionally runs only the approved HTML/CSS/JS mockup.
  * GPS, alarm scheduling, sleep recording and the other production services
- * are not connected at this stage.  The purpose is phone-size UI review first.
+ * are not connected at this stage. The purpose is phone-size UI review first.
  */
 public class YamoneDesignPreviewActivity extends Activity {
     private static final String MOCKUP_ROOT = "yamone-v23";
     private static final String MOCKUP_INDEX = MOCKUP_ROOT + "/index.html";
+    private static final int BOTTOM_TOUCH_SAFETY_DP = 6;
+
+    private FrameLayout safeRoot;
     private WebView webView;
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
@@ -39,8 +44,13 @@ public class YamoneDesignPreviewActivity extends Activity {
             return;
         }
 
+        safeRoot = new FrameLayout(this);
+        safeRoot.setBackgroundColor(Color.rgb(251, 253, 252));
+
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(251, 253, 252));
+        webView.setPadding(0, 0, 0, 0);
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -63,24 +73,52 @@ public class YamoneDesignPreviewActivity extends Activity {
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new NativeBridge(), "YamoneNative");
 
+        FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+        safeRoot.addView(webView, webParams);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            webView.setOnApplyWindowInsetsListener((v, insets) -> {
+            safeRoot.setOnApplyWindowInsetsListener((v, insets) -> {
                 int top;
                 int bottom;
+                int left;
+                int right;
+
                 if (Build.VERSION.SDK_INT >= 30) {
-                    top = insets.getInsets(WindowInsets.Type.statusBars()).top;
-                    bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                    android.graphics.Insets topInsets = insets.getInsets(
+                            WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout()
+                    );
+                    android.graphics.Insets bottomInsets = insets.getInsets(
+                            WindowInsets.Type.navigationBars() | WindowInsets.Type.mandatorySystemGestures()
+                    );
+                    android.graphics.Insets horizontalInsets = insets.getInsets(
+                            WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                    );
+                    top = topInsets.top;
+                    bottom = bottomInsets.bottom;
+                    left = horizontalInsets.left;
+                    right = horizontalInsets.right;
                 } else {
                     top = insets.getSystemWindowInsetTop();
                     bottom = insets.getSystemWindowInsetBottom();
+                    left = insets.getSystemWindowInsetLeft();
+                    right = insets.getSystemWindowInsetRight();
                 }
-                v.setPadding(0, top, 0, bottom);
+
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) webView.getLayoutParams();
+                lp.leftMargin = left;
+                lp.topMargin = top;
+                lp.rightMargin = right;
+                lp.bottomMargin = bottom + dp(BOTTOM_TOUCH_SAFETY_DP);
+                webView.setLayoutParams(lp);
                 return insets;
             });
-            webView.requestApplyInsets();
+            safeRoot.requestApplyInsets();
         }
 
-        setContentView(webView);
+        setContentView(safeRoot);
         webView.loadUrl("file:///android_asset/" + MOCKUP_INDEX);
     }
 
@@ -158,6 +196,7 @@ public class YamoneDesignPreviewActivity extends Activity {
             webView.destroy();
             webView = null;
         }
+        safeRoot = null;
         super.onDestroy();
     }
 }
