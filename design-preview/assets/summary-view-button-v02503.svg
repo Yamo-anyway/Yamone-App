@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="72" viewBox="0 0 220 72">
+  <rect x="2" y="2" width="216" height="68" rx="34" fill="#f4fffb" stroke="#43d2b0" stroke-width="3"/>
+  <g fill="#0b8f73">
+    <rect x="25" y="37" width="8" height="15" rx="4"/><rect x="38" y="29" width="8" height="23" rx="4"/><rect x="51" y="20" width="8" height="32" rx="4"/>
+  </g>
+  <text x="78" y="45" fill="#12312c" font-family="system-ui,'Noto Sans KR',sans-serif" font-size="24" font-weight="850">요약보기</text>
+  <path d="M193 27l9 9-9 9" fill="none" stroke="#0b8f73" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
