@@ -20,11 +20,11 @@ import android.widget.TextView;
 import java.io.IOException;
 
 /**
- * Yamone v0.00.23 design-review host.
+ * Yamone v0.24.01 design-review host.
  *
- * This Activity intentionally runs only the approved HTML/CSS/JS mockup.
- * GPS, alarm scheduling, sleep recording and the other production services
- * are not connected at this stage. The purpose is phone-size UI review first.
+ * This Activity intentionally runs the approved mockup plus the current
+ * design-check patch only. GPS, alarm scheduling, sleep recording and the
+ * other production services are not connected at this stage.
  */
 public class YamoneDesignPreviewActivity extends Activity {
     private static final String MOCKUP_ROOT = "yamone-v23";
@@ -142,9 +142,9 @@ public class YamoneDesignPreviewActivity extends Activity {
         notice.setTextSize(16f);
         notice.setBackgroundColor(Color.rgb(247, 255, 251));
         notice.setText(
-                "야모네 v0.00.23 디자인 소스가 아직 APK에 포함되지 않았습니다.\n\n" +
+                "야모네 디자인 소스가 아직 APK에 포함되지 않았습니다.\n\n" +
                 "design-source/yamone-v23.zip 을 추가하면\n" +
-                "GitHub Actions가 빌드 전에 자동으로 앱 목업에 반영합니다.\n\n" +
+                "기본 디자인에 v0.24.01 점검 패치를 적용해 빌드합니다.\n\n" +
                 "실제 알람 · 수면 · 활동 기능 코드는 변경되지 않았습니다."
         );
         setContentView(notice);
@@ -170,6 +170,10 @@ public class YamoneDesignPreviewActivity extends Activity {
     private final class NativeBridge {
         @JavascriptInterface public void setTheme(String theme) {
             runOnUiThread(() -> applySystemBars("pink".equals(theme)));
+        }
+
+        @JavascriptInterface public void finishApp() {
+            runOnUiThread(() -> finish());
         }
     }
 

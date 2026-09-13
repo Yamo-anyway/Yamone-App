@@ -1,0 +1,80 @@
+/* Yamone design check v0.24.01
+ * Only the user-reviewed visual changes are layered over the approved v0.00.23 source.
+ */
+:root{
+  --primary:#0bb88e;
+  --primary2:#f487a8;
+  --pink-accent:#f487a8;
+  --pink-soft:#fff0f4;
+}
+body[data-theme="pink"]{
+  --bg:#fbfdfc;
+  --surface:#fff;
+  --soft:#e9faf5;
+  --text:#111827;
+  --muted:#778295;
+  --primary:#0bb88e;
+  --primary2:#f487a8;
+  --border:#dce3e7;
+}
+
+/* records/settings title assets */
+.v24-page-title-wrap{margin:2px 0 13px;min-height:42px;display:flex;align-items:center}
+.v24-page-title{display:block;height:42px;width:auto;max-width:82%;object-fit:contain;object-position:left center}
+
+/* back buttons: no tile, outline or image edge; arrow only */
+.move-back-asset-btn,.setting-back{
+  width:36px!important;height:36px!important;min-width:36px!important;max-width:36px!important;
+  border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;
+  border-radius:0!important;padding:0!important;margin:0!important;
+  display:flex!important;align-items:center!important;justify-content:flex-start!important;
+  color:var(--text)!important;overflow:visible!important;
+}
+.move-back-asset-btn img,.setting-back img{display:none!important}
+.move-back-asset-btn::before,.setting-back::before{
+  content:"←";display:block;font-size:25px;line-height:1;font-weight:650;letter-spacing:-2px;color:var(--text);
+  transform:translateY(-1px);
+}
+
+/* Mint is the base. Pink is only a soft secondary accent. */
+.badge,.alarm-tag.accent{background:var(--pink-soft)!important;color:#d85f84!important}
+.alarm-editor-title{color:#ce6c8a!important}
+.ringtone-coming{border-color:#f3d8e1!important}
+
+/* one-row left/right record summaries */
+.v24-list-grid{
+  display:grid!important;grid-template-columns:1fr!important;gap:6px!important;
+}
+.v24-list-grid>.card{
+  min-height:42px!important;padding:9px 12px!important;display:flex!important;align-items:center!important;
+  justify-content:space-between!important;gap:16px!important;
+}
+.v24-list-grid>.card span{
+  display:block!important;margin:0!important;font-size:10px!important;color:var(--muted)!important;
+}
+.v24-list-grid>.card b{
+  display:block!important;margin:0!important;text-align:right!important;font-size:13px!important;color:var(--text)!important;
+}
+.v24-move-summary-list,.v24-snow-summary-list{
+  display:grid!important;grid-template-columns:1fr!important;gap:6px!important;
+}
+.v24-move-summary-list>.card,.v24-snow-summary-list>.card{
+  min-height:48px!important;padding:8px 11px!important;display:flex!important;align-items:center!important;gap:9px!important;
+}
+.v24-move-summary-list>.card>div,.v24-snow-summary-list>.card>div{
+  min-width:0!important;flex:1!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;
+}
+.v24-move-summary-list>.card b,.v24-snow-summary-list>.card b{margin:0!important;font-size:10px!important}
+.v24-move-summary-list>.card strong,.v24-snow-summary-list>.card strong{margin:0!important;font-size:13px!important;text-align:right!important}
+.v24-move-summary-list>.card img,.v24-snow-summary-list>.card img{width:32px!important;height:32px!important;flex:0 0 32px!important}
+
+/* Direct numeric entry sheet for alarm wheel */
+.v24-number-input{
+  width:100%;height:56px;border:2px solid var(--primary);border-radius:14px;background:#fff;
+  color:var(--text);font-size:28px;font-weight:900;text-align:center;outline:none;margin:8px 0 4px;
+}
+.v24-number-hint{font-size:9px;color:var(--muted);text-align:center;margin:0 0 10px}
+.v24-exit-sheet h3{margin-bottom:5px}
+
+/* the selected wheel value is intentionally tappable */
+.wheel-item.selected{cursor:text}
