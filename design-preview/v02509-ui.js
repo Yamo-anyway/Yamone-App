@@ -38,7 +38,10 @@
     if(label&&label.textContent!=='시간(HH:MM)')label.textContent='시간(HH:MM)';
     const state=bridgeState();
     const number=timeCard.querySelector('.v25-summary-number');
-    if(number&&state)number.textContent=hhmm(state.elapsedMs);
+    if(number&&state){
+      const value=hhmm(state.elapsedMs);
+      if(number.textContent!==value)number.textContent=value;
+    }
     const unit=timeCard.querySelector('.v25-summary-unit');
     if(unit)unit.remove();
   }
