@@ -24,7 +24,7 @@ mkdir -p "$TARGET/assets"
 cp -R "$SOURCE_DIR"/. "$TARGET"/
 rm -f "$TARGET/asset-audit.png" "$TARGET/move-assets-audit.png" || true
 
-# Keep all approved v24 artwork and CSS; v25.01 changes navigation only.
+# Keep approved v24 artwork and v25.01 navigation; v25.02 lifts the exit dialog only.
 for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02501-navigation.js; do
   cp "$ROOT/design-preview/$file" "$TARGET/$file"
 done
@@ -48,4 +48,4 @@ for js in ['app-mobile.js', 'v02501-ui.js', 'v02501-navigation.js']:
 p.write_text(s, encoding='utf-8')
 PY
 
-echo "Imported approved v24 design with v0.25.01 navigation into: $TARGET"
+echo "Imported approved v24 design with v0.25.02 exit dialog placement into: $TARGET"

@@ -1,6 +1,6 @@
 (function(){
   'use strict';
-  const V='0.25.01';
+  const V='0.25.02';
   const ASSET='assets/';
   let enhanceQueued=false;
 

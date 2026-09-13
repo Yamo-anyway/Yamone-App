@@ -33,3 +33,14 @@ button{touch-action:manipulation}
   .screen{padding-top:6px;padding-bottom:12px}
   .brand{margin-bottom:10px}
 }
+
+/* v0.25.02: lift only the app-exit confirmation above the system controls.
+ * The Cancel / Leave button centres sit at 2/3 of the usable app viewport.
+ * 44px = existing 20px sheet bottom padding + half of the 48px button height.
+ * Keep the artwork, card styling and other confirmation sheets unchanged.
+ * dvh follows viewport resizing; vh is the fallback for older WebViews.
+ */
+.move-overlay[data-v25-exit="1"] > .v24-exit-sheet{
+  margin-bottom:max(12px,calc(33.333333vh - 44px));
+  margin-bottom:max(12px,calc(33.333333dvh - 44px));
+}

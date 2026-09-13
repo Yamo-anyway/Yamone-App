@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import v24 design + v0.25.01 navigation
+      - name: Import v24 design + v0.25.02 exit dialog placement
         shell: bash
         run: bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
 
@@ -64,6 +64,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.25.01-navigation-apk
+          name: yamone-v0.25.02-navigation-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
