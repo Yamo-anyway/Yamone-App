@@ -1,0 +1,35 @@
+/* Yamone v0.00.23 Android design-review shell.
+ * The approved web styles.css stays untouched. This file only adapts the
+ * phone frame to a real Android viewport and keeps proportions responsive.
+ */
+html,body{width:100%;height:100%;min-height:100%;overflow:hidden;background:var(--bg);overscroll-behavior:none}
+body{margin:0;min-height:100dvh;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.workspace{display:block;width:100%;height:100dvh;min-height:0;padding:0;margin:0;background:var(--bg)}
+.phone{width:100%;max-width:none;height:100dvh;min-height:0;margin:0;border:0;border-radius:0;box-shadow:none;background:var(--bg)}
+.statusbar,.notes{display:none!important}
+.screen{padding-left:clamp(14px,4.35vw,20px);padding-right:clamp(14px,4.35vw,20px);padding-top:9px;padding-bottom:22px}
+.adbar{flex:0 0 auto}
+.bottom-nav{flex:0 0 auto}
+.move-sheet,.alarm-sheet{max-width:520px}
+img{max-width:100%}
+button{touch-action:manipulation}
+@media(max-width:359px){
+  .screen{padding-left:12px;padding-right:12px}
+  .stats,.move-metrics,.snow-metrics{gap:6px}
+  .activity-card{padding-left:10px;padding-right:10px}
+  .activity-card img.asset{width:56px;height:56px;flex-basis:56px;margin-right:9px}
+  .activity-copy b{font-size:15px}
+  .bottom-nav .nav img{transform:scale(.94)}
+}
+@media(min-width:431px) and (max-width:599px){
+  .screen{padding-left:20px;padding-right:20px}
+}
+@media(min-width:600px){
+  body{display:flex;justify-content:center;background:#eef3f2}
+  .workspace{max-width:520px;box-shadow:0 0 32px rgba(20,45,45,.08)}
+  .phone{max-width:520px}
+}
+@media(orientation:landscape) and (max-height:520px){
+  .screen{padding-top:6px;padding-bottom:12px}
+  .brand{margin-bottom:10px}
+}
