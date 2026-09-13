@@ -24,16 +24,13 @@ mkdir -p "$TARGET/assets"
 cp -R "$SOURCE_DIR"/. "$TARGET"/
 rm -f "$TARGET/asset-audit.png" "$TARGET/move-assets-audit.png" || true
 
-# Android shell + current design-check patch. The base source remains byte-for-byte preserved.
-cp "$ROOT/design-preview/mobile.css" "$TARGET/mobile.css"
-cp "$ROOT/design-preview/app-mobile.js" "$TARGET/app-mobile.js"
-cp "$ROOT/design-preview/v02403.css" "$TARGET/v02403.css"
-cp "$ROOT/design-preview/v02403.js" "$TARGET/v02403.js"
-cp "$ROOT/design-preview/assets/title-activity-v02402.png" "$TARGET/assets/title-activity-v02402.png"
-cp "$ROOT/design-preview/assets/title-records-v02402.png" "$TARGET/assets/title-records-v02402.png"
-cp "$ROOT/design-preview/assets/title-alarm-v02402.png" "$TARGET/assets/title-alarm-v02402.png"
-cp "$ROOT/design-preview/assets/title-settings-v02402.png" "$TARGET/assets/title-settings-v02402.png"
-cp "$ROOT/design-preview/assets/back-v02402.png" "$TARGET/assets/back-v02402.png"
+# Keep all approved v24 artwork and CSS; v25.01 changes navigation only.
+for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02501-navigation.js; do
+  cp "$ROOT/design-preview/$file" "$TARGET/$file"
+done
+for file in title-activity-v02402.png title-records-v02402.png title-alarm-v02402.png title-settings-v02402.png back-v02402.png; do
+  cp "$ROOT/design-preview/assets/$file" "$TARGET/assets/$file"
+done
 
 python3 - "$TARGET/index.html" <<'PY'
 from pathlib import Path
@@ -42,16 +39,13 @@ p = Path(sys.argv[1])
 s = p.read_text(encoding='utf-8')
 if 'name="viewport"' not in s:
     s = s.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">', 1)
-if 'mobile.css' not in s:
-    s = s.replace('</head>', '  <link rel="stylesheet" href="mobile.css">\n</head>', 1)
-if 'v02403.css' not in s:
-    s = s.replace('</head>', '  <link rel="stylesheet" href="v02403.css">\n</head>', 1)
-if 'app-mobile.js' not in s:
-    s = s.replace('</body>', '  <script src="app-mobile.js"></script>\n</body>', 1)
-if 'v02403.js' not in s:
-    s = s.replace('</body>', '  <script src="v02403.js"></script>\n</body>', 1)
+for css in ['mobile.css', 'v02403.css']:
+    if f'href="{css}"' not in s:
+        s = s.replace('</head>', f'  <link rel="stylesheet" href="{css}">\n</head>', 1)
+for js in ['app-mobile.js', 'v02501-ui.js', 'v02501-navigation.js']:
+    if f'src="{js}"' not in s:
+        s = s.replace('</body>', f'  <script src="{js}"></script>\n</body>', 1)
 p.write_text(s, encoding='utf-8')
 PY
 
-echo "Imported Yamone base design and applied v0.24.03 design-check patch into: $TARGET"
-echo "Source: $ZIP_PATH"
+echo "Imported approved v24 design with v0.25.01 navigation into: $TARGET"
