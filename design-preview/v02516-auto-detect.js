@@ -136,7 +136,7 @@
     if(head){
       let gps=head.querySelector('.v2516-inline-gps');
       if(!gps){gps=document.createElement('span');gps.className='v2516-inline-gps';head.appendChild(gps);}
-      const g=gpsLabel(movementState());gps.textContent=g.text;gps.classList.remove('good','fair','lost');gps.classList.add(g.tone);
+      const g=gpsLabel(movementState());if(gps.textContent!==g.text)gps.textContent=g.text;gps.classList.remove('good','fair','lost');gps.classList.add(g.tone);
     }
     const dock=screen.querySelector('.v2508-real-live .v25-live-controls-under-route');
     if(dock){
