@@ -1,18 +1,9 @@
-/* v0.25.13: show completed local movement records together with clearly-marked samples. */
+/* v0.26.01: Records shows only actually saved local records; all mock/sample records are removed. */
 (function(){
   'use strict';
   const A='assets/';
-  const SAMPLE_IDS=['run1','bike1','snow1','sleep1'];
   let savedById=Object.create(null);
   let selectedSavedId=null;
-
-  function markSamples(){
-    if(typeof recordSamples==='undefined')return;
-    SAMPLE_IDS.forEach(id=>{
-      const r=recordSamples[id];
-      if(r && !/\(sample\)$/.test(r.title))r.title += '(sample)';
-    });
-  }
 
   function readSaved(){
     try{
@@ -79,19 +70,10 @@
     </button>`;
   }
 
-  const originalRenderRecords=window.renderRecords;
   window.renderRecords=function(){
-    markSamples();
     const saved=readSaved();
-    const sampleIds=SAMPLE_IDS.filter(id=>{
-      if(typeof recordSamples==='undefined'||!recordSamples[id])return false;
-      if(typeof deletedRecordIds!=='undefined'&&deletedRecordIds.includes(id))return false;
-      return recordFilter==='all'||recordSamples[id].kind===recordFilter;
-    });
     const showSaved=recordFilter==='all'||recordFilter==='move';
     const realHtml=showSaved?saved.map(realListItem).join(''):'';
-    const sampleHtml=sampleIds.map(recordListItem).join('');
-    const recentHtml=realHtml+sampleHtml;
 
     screen.innerHTML=`<h1 class="title">기록</h1>
       <div class="filters">
@@ -100,14 +82,11 @@
         <button class="filter ${recordFilter==='snow'?'active':''}" data-record-filter="snow">Snow</button>
         <button class="filter ${recordFilter==='sleep'?'active':''}" data-record-filter="sleep">수면</button>
       </div>
-      <div class="section">최근 기록</div>
-      ${recentHtml||`<div class="record-empty">표시할 기록이 없습니다.</div>`}
-      <div class="section">이전 기록</div>${month('2026년 08월',8)}${month('2026년 07월',7)}`;
+      <div class="section">저장된 기록</div>
+      ${realHtml||`<div class="record-empty">표시할 기록이 없습니다.</div>`}`;
 
     document.querySelectorAll('[data-record-filter]').forEach(b=>b.onclick=()=>{recordFilter=b.dataset.recordFilter;renderRecords();});
-    document.querySelectorAll('[data-record]').forEach(b=>b.onclick=()=>{recordDetailId=b.dataset.record;recordSelectedSegment=7;view='record-detail';render();});
     document.querySelectorAll('[data-v2513-saved]').forEach(b=>b.onclick=()=>{selectedSavedId=b.dataset.v2513Saved;view='saved-record-detail';render();});
-    document.querySelectorAll('[data-month]').forEach(m=>m.querySelector('button').onclick=()=>{let k=+m.dataset.month;openMonth=openMonth===k?null:k;renderRecords();});
   };
 
   function renderSavedDetail(){
@@ -150,6 +129,4 @@
     }
     return previousBack?previousBack():false;
   };
-
-  markSamples();
 })();
