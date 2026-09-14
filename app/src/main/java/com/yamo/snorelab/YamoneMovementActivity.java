@@ -20,7 +20,7 @@ import android.widget.TextView;
 
 import java.io.IOException;
 
-/** v0.25.08: renewed UI backed by the real walking/running/cycling recorder. */
+/** Renewed Yamone UI backed by the real walking/running/cycling recorder. */
 public class YamoneMovementActivity extends Activity {
     private static final String MOCKUP_ROOT = "yamone-v23";
     private static final String MOCKUP_INDEX = MOCKUP_ROOT + "/index.html";
@@ -59,11 +59,12 @@ public class YamoneMovementActivity extends Activity {
         settings.setAllowFileAccessFromFileURLs(true);
         settings.setAllowUniversalAccessFromFileURLs(false);
         String defaultUa = settings.getUserAgentString();
-        if (defaultUa != null && !defaultUa.contains("Yamone/0.25.08")) settings.setUserAgentString(defaultUa + " Yamone/0.25.08");
+        if (defaultUa != null && !defaultUa.contains("Yamone/0.25")) settings.setUserAgentString(defaultUa + " Yamone/0.25");
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new NativeBridge(), "YamoneNative");
         webView.addJavascriptInterface(new MovementBridge(this), "YamoneMovement");
+        webView.addJavascriptInterface(new SavedMovementRecordsBridge(this), "YamoneRecords");
 
         safeRoot.addView(webView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         safeRoot.setOnApplyWindowInsetsListener((v, insets) -> {
@@ -167,6 +168,7 @@ public class YamoneMovementActivity extends Activity {
         if (fallbackExitDialog != null) { fallbackExitDialog.dismiss(); fallbackExitDialog = null; }
         if (webView != null) {
             webView.loadUrl("about:blank");
+            webView.removeJavascriptInterface("YamoneRecords");
             webView.removeJavascriptInterface("YamoneMovement");
             webView.removeJavascriptInterface("YamoneNative");
             webView.removeAllViews();
