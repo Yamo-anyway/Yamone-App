@@ -79,6 +79,7 @@ public final class MovementBridge {
             Intent intent = new Intent(activity, WalkingRecorderService.class);
             intent.setAction(WalkingRecorderService.ACTION_START);
             intent.putExtra("activity_type", type);
+            intent.putExtra(WalkingRecorderService.EXTRA_STARTED_BY_AUTO_DETECT, false);
             if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent);
             else activity.startService(intent);
         });
@@ -90,6 +91,7 @@ public final class MovementBridge {
     @JavascriptInterface public String pause() { return command(WalkingRecorderService.ACTION_PAUSE, "pausing"); }
     @JavascriptInterface public String resume() { return command(WalkingRecorderService.ACTION_RESUME, "resuming"); }
     @JavascriptInterface public String stop() { return command(WalkingRecorderService.ACTION_STOP, "stopping"); }
+    @JavascriptInterface public String cancel() { return command(WalkingRecorderService.ACTION_CANCEL, "cancelling"); }
 
     @JavascriptInterface
     public String getState() {
@@ -128,8 +130,9 @@ public final class MovementBridge {
     }
 
     private String command(String action, String status) {
-        if (!runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false)
-                && !WalkingRecorderService.ACTION_STOP.equals(action)) {
+        boolean ending = WalkingRecorderService.ACTION_STOP.equals(action)
+                || WalkingRecorderService.ACTION_CANCEL.equals(action);
+        if (!runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false) && !ending) {
             return result(false, "not_recording").toString();
         }
         activity.runOnUiThread(() -> {
@@ -148,6 +151,7 @@ public final class MovementBridge {
             float accuracy = runtime.getFloat(WalkingRecorderService.KEY_ACCURACY_M, Float.NaN);
             out.put("recording", runtime.getBoolean(WalkingRecorderService.KEY_RECORDING, false));
             out.put("paused", runtime.getBoolean(WalkingRecorderService.KEY_PAUSED, false));
+            out.put("startedByAutoDetect", runtime.getBoolean(WalkingRecorderService.KEY_STARTED_BY_AUTO_DETECT, false));
             out.put("activityType", runtime.getString(WalkingRecorderService.KEY_ACTIVITY_TYPE, "walking"));
             out.put("autoMotionMode", runtime.getString(WalkingRecorderService.KEY_AUTO_MOTION_MODE, "walking"));
             out.put("startMs", runtime.getLong(WalkingRecorderService.KEY_START_MS, 0L));
