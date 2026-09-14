@@ -22,13 +22,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import approved design + v0.26.02 real sleep
+      - name: Import approved design + v0.27.01 real alarm
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
           python3 tools/apply-v02602-sleep.py
+          python3 tools/apply-v02701-alarm.py
 
-      - name: Validate app JavaScript and real sleep integration
+      - name: Validate app JavaScript and real alarm integration
         shell: bash
         run: |
           node --check app/src/main/assets/yamone-v23/v02501-ui.js
@@ -45,28 +46,26 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v02515-record-detail.js
           node --check app/src/main/assets/yamone-v23/v02516-auto-detect.js
           node --check app/src/main/assets/yamone-v23/v02602-sleep.js
-          node --check app/src/main/assets/yamone-v23/v02602-version.js
+          node --check app/src/main/assets/yamone-v23/v02701-alarm.js
+          node --check app/src/main/assets/yamone-v23/v02701-version.js
           grep -q "v02510UpdateGlance" app/src/main/assets/yamone-v23/v02508-real-move.js
-          grep -q "homeMovementRunning" app/src/main/assets/yamone-v23/v02511-home-active.js
           grep -q "yamoneOpenActiveMovement" app/src/main/assets/yamone-v23/v02512-notification.js
-          grep -q "getSavedRecords" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
-          grep -q "getSavedRecordDetail" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
-          grep -q "requestActivityTransitionUpdates" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
-          grep -q "ACTION_CANCEL" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
-          grep -q "기록 취소" app/src/main/assets/yamone-v23/v02516-auto-detect.js
-          grep -q "GPS 상태:" app/src/main/assets/yamone-v23/v02516-auto-detect.js
-          grep -q "저장된 기록" app/src/main/assets/yamone-v23/v02513-records.js
-          ! grep -q "(sample)" app/src/main/assets/yamone-v23/v02513-records.js
           grep -q "class SleepBridge" app/src/main/java/com/yamo/snorelab/SleepBridge.java
-          grep -q "YamoneSleep" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
-          grep -q "YamoneSleep" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
-          grep -q "sleep_current_dbfs" app/src/main/java/com/yamo/snorelab/SleepRecorderService.java
-          grep -q "sleepNotificationIntent(true)" app/src/main/java/com/yamo/snorelab/SleepRecorderService.java
           grep -q "yamoneOpenActiveSleep" app/src/main/assets/yamone-v23/v02602-sleep.js
-          grep -q "전체 수면 데이터 삭제" app/src/main/assets/yamone-v23/v02602-sleep.js
-          grep -q "deleteRecord" app/src/main/assets/yamone-v23/v02602-sleep.js
-          grep -q "playClip" app/src/main/assets/yamone-v23/v02602-sleep.js
-          grep -q "0.26.02" app/src/main/assets/yamone-v23/v02602-version.js
+          grep -q "class AlarmBridge" app/src/main/java/com/yamo/snorelab/AlarmBridge.java
+          grep -q "class YamoneAlarmTone" app/src/main/java/com/yamo/snorelab/YamoneAlarmTone.java
+          grep -q "YamoneAlarm" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
+          grep -q "YamoneAlarm" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
+          grep -q "EXTRA_OPEN_ALARM" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
+          grep -q "snoozeCount" app/src/main/java/com/yamo/snorelab/AlarmStore.java
+          grep -q "shakeStrength" app/src/main/java/com/yamo/snorelab/AlarmStore.java
+          grep -q "YamoneAlarmTone.synth" app/src/main/java/com/yamo/snorelab/AlarmRingService.java
+          grep -q "canSnooze" app/src/main/java/com/yamo/snorelab/AlarmRingActivity.java
+          grep -q "yamoneOpenAlarmList" app/src/main/assets/yamone-v23/v02701-alarm.js
+          grep -q "야모네 전용 알람음 5종" app/src/main/assets/yamone-v23/v02701-alarm.js
+          grep -q "alarm-title-asset" app/src/main/assets/yamone-v23/v02701-alarm.css
+          grep -q "border-right:0" app/src/main/assets/yamone-v23/v02701-alarm.css
+          grep -q "0.27.01" app/src/main/assets/yamone-v23/v02701-version.js
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -100,6 +99,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.26.02-real-sleep-apk
+          name: yamone-v0.27.01-real-alarm-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
