@@ -1,0 +1,13 @@
+/* v0.25.13: real saved records appear in the same list as sample records. */
+.v2513-real-record{position:relative}
+.v2513-real-record .record-copy b{font-weight:900}
+.v2513-real-note{
+  margin:12px 2px 24px;
+  padding:12px 14px;
+  border-radius:16px;
+  background:var(--soft);
+  color:var(--muted);
+  font-size:12px;
+  font-weight:700;
+  line-height:1.45;
+}
