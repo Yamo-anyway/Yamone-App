@@ -22,11 +22,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import v24 design + v0.25.13 saved records
+      - name: Import v24 design + v0.25.14 partial segment pace
         shell: bash
         run: bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
 
-      - name: Validate movement JavaScript and saved-record integration
+      - name: Validate movement JavaScript and partial-segment integration
         shell: bash
         run: |
           node --check app/src/main/assets/yamone-v23/v02501-ui.js
@@ -39,7 +39,8 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v02511-home-active.js
           node --check app/src/main/assets/yamone-v23/v02512-notification.js
           node --check app/src/main/assets/yamone-v23/v02513-records.js
-          node --check app/src/main/assets/yamone-v23/v02513-version.js
+          node --check app/src/main/assets/yamone-v23/v02514-partial-pace.js
+          node --check app/src/main/assets/yamone-v23/v02514-version.js
           grep -q "v02510UpdateGlance" app/src/main/assets/yamone-v23/v02508-real-move.js
           grep -q "homeMovementRunning" app/src/main/assets/yamone-v23/v02511-home-active.js
           grep -q "yamoneOpenActiveMovement" app/src/main/assets/yamone-v23/v02512-notification.js
@@ -47,6 +48,8 @@ jobs:
           grep -q "SavedMovementRecordsBridge(this)" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
           grep -q "SavedMovementRecordsBridge(this)" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
           grep -q "(sample)" app/src/main/assets/yamone-v23/v02513-records.js
+          grep -q "v2514Partial" app/src/main/assets/yamone-v23/v02514-partial-pace.js
+          grep -q "lastLivePace" app/src/main/assets/yamone-v23/v02514-partial-pace.js
           grep -q "movementNotificationIntent(true)" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
 
       - name: Set up JDK 17
@@ -81,6 +84,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.25.13-saved-records-apk
+          name: yamone-v0.25.14-partial-segment-pace-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
