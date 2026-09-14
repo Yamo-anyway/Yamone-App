@@ -10,8 +10,8 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 85
-        versionName '0.28.01'
+        versionCode 86
+        versionName '0.28.02'
         // Snow stays disabled by default. Only the debug/developer build turns it on.
         manifestPlaceholders = [appLabel: '야모네', snowFeatureEnabled: 'false']
     }
