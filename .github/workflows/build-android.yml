@@ -22,11 +22,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import v24 design + v0.25.15 saved record route detail
+      - name: Import v24 design + v0.25.16 auto-detect and cancel flow
         shell: bash
         run: bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
 
-      - name: Validate movement JavaScript and saved-record detail integration
+      - name: Validate movement JavaScript and auto-detect integration
         shell: bash
         run: |
           node --check app/src/main/assets/yamone-v23/v02501-ui.js
@@ -41,18 +41,21 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v02513-records.js
           node --check app/src/main/assets/yamone-v23/v02514-partial-pace.js
           node --check app/src/main/assets/yamone-v23/v02515-record-detail.js
-          node --check app/src/main/assets/yamone-v23/v02515-version.js
+          node --check app/src/main/assets/yamone-v23/v02516-auto-detect.js
+          node --check app/src/main/assets/yamone-v23/v02516-version.js
           grep -q "v02510UpdateGlance" app/src/main/assets/yamone-v23/v02508-real-move.js
           grep -q "homeMovementRunning" app/src/main/assets/yamone-v23/v02511-home-active.js
           grep -q "yamoneOpenActiveMovement" app/src/main/assets/yamone-v23/v02512-notification.js
           grep -q "getSavedRecords" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
           grep -q "getSavedRecordDetail" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
           grep -q "SavedMovementRecordsBridge(this)" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
-          grep -q "SavedMovementRecordsBridge(this)" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
-          grep -q "(sample)" app/src/main/assets/yamone-v23/v02513-records.js
-          grep -q "v2514Partial" app/src/main/assets/yamone-v23/v02514-partial-pace.js
-          grep -q "마지막" app/src/main/assets/yamone-v23/v02515-record-detail.js
-          grep -q "전체 경로" app/src/main/assets/yamone-v23/v02515-record-detail.js
+          grep -q "AutoDetectSettingsBridge(this)" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
+          grep -q "AutoDetectSettingsBridge(this)" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
+          grep -q "requestActivityTransitionUpdates" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q "ACTION_CANCEL" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q "KEY_STARTED_BY_AUTO_DETECT" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q "recording cancel UI" design-preview/v02516-auto-detect.js || grep -q "기록 취소" app/src/main/assets/yamone-v23/v02516-auto-detect.js
+          grep -q "GPS 상태:" app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q "movementNotificationIntent(true)" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
 
       - name: Set up JDK 17
@@ -87,6 +90,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.25.15-saved-record-route-detail-apk
+          name: yamone-v0.25.16-auto-detect-cancel-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
