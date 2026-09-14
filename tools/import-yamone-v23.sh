@@ -24,10 +24,10 @@ mkdir -p "$TARGET/assets"
 cp -R "$SOURCE_DIR"/. "$TARGET"/
 rm -f "$TARGET/asset-audit.png" "$TARGET/move-assets-audit.png" || true
 
-# Keep approved v24/v25 design patches. v0.25.13 keeps the current movement,
-# Home-card and notification behavior, then connects the Records tab to real
-# completed WalkingStore sessions while marking mock records as (sample).
-for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02508-real-move.css v02508-real-move.js v02509-ui.css v02510-ui.css v02510-ui.js v02511-home-active.css v02511-home-active.js v02512-notification.js v02513-records.css v02513-records.js v02513-version.js; do
+# Keep approved v24/v25 design patches. v0.25.14 preserves all current behavior,
+# keeps the last valid live pace, and includes the current partial (<1 km) segment
+# in Summary View and the final exercise segment summary.
+for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02508-real-move.css v02508-real-move.js v02509-ui.css v02510-ui.css v02510-ui.js v02511-home-active.css v02511-home-active.js v02512-notification.js v02513-records.css v02513-records.js v02514-partial-pace.js v02514-version.js; do
   cp "$ROOT/design-preview/$file" "$TARGET/$file"
 done
 for file in title-activity-v02402.png title-records-v02402.png title-alarm-v02402.png title-settings-v02402.png back-v02402.png summary-view-button-v02503.svg title-summary-walk-v02503.svg title-summary-run-v02503.svg title-summary-bike-v02503.svg; do
@@ -110,10 +110,10 @@ if 'name="viewport"' not in s:
 for css in ['mobile.css', 'v02403.css', 'v02503-summary.css', 'v02505-summary.css', 'v02507-fit.css', 'v02507-move.css', 'v02508-real-move.css', 'v02509-ui.css', 'v02510-ui.css', 'v02511-home-active.css', 'v02513-records.css']:
     if f'href="{css}"' not in s:
         s = s.replace('</head>', f'  <link rel="stylesheet" href="{css}">\n</head>', 1)
-for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02508-real-move.js', 'v02510-ui.js', 'v02511-home-active.js', 'v02512-notification.js', 'v02513-records.js', 'v02513-version.js']:
+for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02508-real-move.js', 'v02510-ui.js', 'v02511-home-active.js', 'v02512-notification.js', 'v02513-records.js', 'v02514-partial-pace.js', 'v02514-version.js']:
     if f'src="{js}"' not in s:
         s = s.replace('</body>', f'  <script src="{js}"></script>\n</body>', 1)
 p.write_text(s, encoding='utf-8')
 PY
 
-echo "Imported approved design with v0.25.13 real saved movement records in Records tab into: $TARGET"
+echo "Imported approved design with v0.25.14 stable live pace + partial segment summaries into: $TARGET"
