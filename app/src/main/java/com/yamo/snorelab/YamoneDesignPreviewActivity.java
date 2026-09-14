@@ -82,6 +82,7 @@ public class YamoneDesignPreviewActivity extends Activity {
         webView.addJavascriptInterface(new NativeBridge(), "YamoneNative");
         webView.addJavascriptInterface(new MovementBridge(this), "YamoneMovement");
         webView.addJavascriptInterface(new SavedMovementRecordsBridge(this), "YamoneRecords");
+        webView.addJavascriptInterface(new AutoDetectSettingsBridge(this), "YamoneAutoDetect");
         safeRoot.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         safeRoot.setOnApplyWindowInsetsListener((v, insets) -> {
@@ -114,6 +115,17 @@ public class YamoneDesignPreviewActivity extends Activity {
         setContentView(safeRoot);
         safeRoot.requestApplyInsets();
         webView.loadUrl("file:///android_asset/" + MOCKUP_INDEX);
+        ActivityAutoDetectManager.syncRegistration(this);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        ActivityAutoDetectManager.syncRegistration(this);
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        ActivityAutoDetectManager.syncRegistration(this);
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -239,6 +251,7 @@ public class YamoneDesignPreviewActivity extends Activity {
         if (fallbackExitDialog != null) { fallbackExitDialog.dismiss(); fallbackExitDialog = null; }
         if (webView != null) {
             webView.loadUrl("about:blank");
+            webView.removeJavascriptInterface("YamoneAutoDetect");
             webView.removeJavascriptInterface("YamoneNative");
             webView.removeJavascriptInterface("YamoneMovement");
             webView.removeJavascriptInterface("YamoneRecords");
