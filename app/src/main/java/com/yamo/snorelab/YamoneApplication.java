@@ -16,6 +16,9 @@ public class YamoneApplication extends Application implements Application.Activi
     @Override public void onCreate() {
         super.onCreate();
         registerActivityLifecycleCallbacks(this);
+        // SnowAutoDetectManager internally requires a debuggable + unlocked developer build.
+        // In release this call removes/does not register Snow geofences.
+        SnowAutoDetectManager.sync(this);
     }
 
     @Override public void onActivityPreCreated(Activity activity, Bundle savedInstanceState) {
@@ -78,7 +81,9 @@ public class YamoneApplication extends Application implements Application.Activi
                 .getBoolean(HikingRecorderService.KEY_RECORDING, false)) {
             startRecorder(activity, new Intent(activity, HikingRecorderService.class));
         }
-        if (activity.getSharedPreferences(SkiRecorderService.PREFS, MODE_PRIVATE)
+        // Snow is intentionally recoverable only in an unlocked debuggable build.
+        if (SnowBridge.isDeveloperAvailable(activity)
+                && activity.getSharedPreferences(SkiRecorderService.PREFS, MODE_PRIVATE)
                 .getBoolean(SkiRecorderService.KEY_RECORDING, false)) {
             startRecorder(activity, new Intent(activity, SkiRecorderService.class));
         }
