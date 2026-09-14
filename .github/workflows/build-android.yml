@@ -22,14 +22,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import approved design + v0.27.01 real alarm
+      - name: Import approved design + v0.28.01 developer Snow
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
           python3 tools/apply-v02602-sleep.py
           python3 tools/apply-v02701-alarm.py
+          python3 tools/apply-v02801-snow.py
 
-      - name: Validate app JavaScript and real alarm integration
+      - name: Validate app JavaScript and Snow developer gate
         shell: bash
         run: |
           node --check app/src/main/assets/yamone-v23/v02501-ui.js
@@ -47,25 +48,31 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v02516-auto-detect.js
           node --check app/src/main/assets/yamone-v23/v02602-sleep.js
           node --check app/src/main/assets/yamone-v23/v02701-alarm.js
-          node --check app/src/main/assets/yamone-v23/v02701-version.js
+          node --check app/src/main/assets/yamone-v23/v02801-snow.js
+          node --check app/src/main/assets/yamone-v23/v02801-version.js
           grep -q "v02510UpdateGlance" app/src/main/assets/yamone-v23/v02508-real-move.js
-          grep -q "yamoneOpenActiveMovement" app/src/main/assets/yamone-v23/v02512-notification.js
           grep -q "class SleepBridge" app/src/main/java/com/yamo/snorelab/SleepBridge.java
-          grep -q "yamoneOpenActiveSleep" app/src/main/assets/yamone-v23/v02602-sleep.js
           grep -q "class AlarmBridge" app/src/main/java/com/yamo/snorelab/AlarmBridge.java
-          grep -q "class YamoneAlarmTone" app/src/main/java/com/yamo/snorelab/YamoneAlarmTone.java
-          grep -q "YamoneAlarm" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
-          grep -q "YamoneAlarm" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
-          grep -q "EXTRA_OPEN_ALARM" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
-          grep -q "snoozeCount" app/src/main/java/com/yamo/snorelab/AlarmStore.java
-          grep -q "shakeStrength" app/src/main/java/com/yamo/snorelab/AlarmStore.java
-          grep -q "YamoneAlarmTone.synth" app/src/main/java/com/yamo/snorelab/AlarmRingService.java
-          grep -q "canSnooze" app/src/main/java/com/yamo/snorelab/AlarmRingActivity.java
-          grep -q "yamoneOpenAlarmList" app/src/main/assets/yamone-v23/v02701-alarm.js
-          grep -q "야모네 전용 알람음 5종" app/src/main/assets/yamone-v23/v02701-alarm.js
-          grep -q "alarm-title-asset" app/src/main/assets/yamone-v23/v02701-alarm.css
-          grep -q "border-right:0" app/src/main/assets/yamone-v23/v02701-alarm.css
-          grep -q "0.27.01" app/src/main/assets/yamone-v23/v02701-version.js
+          grep -q "class SnowBridge" app/src/main/java/com/yamo/snorelab/SnowBridge.java
+          grep -q "FLAG_DEBUGGABLE" app/src/main/java/com/yamo/snorelab/SnowBridge.java
+          grep -q "registerDeveloperTap" app/src/main/java/com/yamo/snorelab/SnowBridge.java
+          grep -q "ACTION_DEBUG_START" app/src/main/java/com/yamo/snorelab/SkiRecorderService.java
+          grep -q "ACTION_PAUSE" app/src/main/java/com/yamo/snorelab/SkiRecorderService.java
+          grep -q "SnowDayMerger" app/src/main/java/com/yamo/snorelab/SkiRecorderService.java
+          grep -q "class SnowOfflineMapStore" app/src/main/java/com/yamo/snorelab/SnowOfflineMapStore.java
+          grep -q "TREE_OR_OUTSIDE" app/src/main/java/com/yamo/snorelab/SnowOfflineMapStore.java
+          grep -q "class SnowAutoDetectManager" app/src/main/java/com/yamo/snorelab/SnowAutoDetectManager.java
+          grep -q "GeofencingRequest" app/src/main/java/com/yamo/snorelab/SnowAutoDetectManager.java
+          grep -q "SnowAutoDetectManager.sync" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectBootReceiver.java
+          grep -q 'enabled="${snowFeatureEnabled}"' app/src/main/AndroidManifest.xml
+          grep -q "snowFeatureEnabled: 'true'" app/build.gradle
+          grep -q "snowFeatureEnabled: 'false'" app/build.gradle
+          grep -q "YamoneSnow" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
+          grep -q "EXTRA_OPEN_SNOW" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
+          grep -q "yamoneOpenSnow" app/src/main/assets/yamone-v23/v02801-snow.js
+          grep -q "개발자 전용" app/src/main/assets/yamone-v23/v02801-snow.js
+          grep -q "같은 스키장" app/src/main/assets/yamone-v23/v02801-snow.js
+          grep -q "0.28.01" app/src/main/assets/yamone-v23/v02801-version.js
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -93,12 +100,40 @@ jobs:
         with:
           gradle-version: '9.4.1'
 
-      - name: Build debug APK
+      - name: Build developer APK
         run: gradle :app:assembleDebug --stacktrace
+
+      - name: Verify release Snow components are disabled
+        shell: bash
+        run: |
+          gradle :app:processReleaseMainManifest --stacktrace
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          manifests = list(Path('app/build/intermediates').rglob('AndroidManifest.xml'))
+          release = [p for p in manifests if 'release' in str(p).lower()]
+          if not release:
+              raise SystemExit('release merged manifest not found')
+          text = max(release, key=lambda p: p.stat().st_mtime).read_text(encoding='utf-8')
+          required = [
+              'com.yamo.snorelab.SkiActivity',
+              'com.yamo.snorelab.SkiSessionDetailActivity',
+              'com.yamo.snorelab.SkiWaitTimesActivity',
+              'com.yamo.snorelab.SkiRecorderService',
+              'com.yamo.snorelab.SnowGeofenceReceiver',
+          ]
+          for name in required:
+              m = re.search(r'<(?:activity|service|receiver)\b[^>]*android:name="[.]?'+re.escape(name.split('.')[-1])+r'"[^>]*>', text)
+              if not m:
+                  m = re.search(r'<(?:activity|service|receiver)\b[^>]*android:name="'+re.escape(name)+r'"[^>]*>', text)
+              if not m or 'android:enabled="false"' not in m.group(0):
+                  raise SystemExit(f'Snow release gate missing for {name}')
+          print('Release Snow component gate verified:', release[-1])
+          PY
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.27.01-real-alarm-apk
+          name: yamone-v0.28.01-developer-snow-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
