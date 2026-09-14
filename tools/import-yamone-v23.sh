@@ -24,10 +24,10 @@ mkdir -p "$TARGET/assets"
 cp -R "$SOURCE_DIR"/. "$TARGET"/
 rm -f "$TARGET/asset-audit.png" "$TARGET/move-assets-audit.png" || true
 
-# Keep approved v24/v25 design patches. v0.25.15 preserves the current movement,
-# saved-record and partial-segment behavior, then adds the full saved GPS route and
-# the final partial (<1 km) segment to the saved record detail screen.
-for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02508-real-move.css v02508-real-move.js v02509-ui.css v02510-ui.css v02510-ui.js v02511-home-active.css v02511-home-active.js v02512-notification.js v02513-records.css v02513-records.js v02514-partial-pace.js v02515-record-detail.js v02515-version.js; do
+# Keep approved v24/v25 design patches. v0.25.16 preserves all previously
+# approved movement/records behavior, adds real activity auto-detection settings,
+# moves GPS state beside current pace/speed and adds discard-without-saving.
+for file in mobile.css app-mobile.js v02403.css v02501-ui.js v02503-summary.css v02505-summary.css v02505-summary.js v02507-fit.css v02507-move.css v02507-move.js v02507-fit.js v02501-navigation.js v02508-real-move.css v02508-real-move.js v02509-ui.css v02510-ui.css v02510-ui.js v02511-home-active.css v02511-home-active.js v02512-notification.js v02513-records.css v02513-records.js v02514-partial-pace.js v02515-record-detail.js v02516-ui.css v02516-auto-detect.js v02516-version.js; do
   cp "$ROOT/design-preview/$file" "$TARGET/$file"
 done
 for file in title-activity-v02402.png title-records-v02402.png title-alarm-v02402.png title-settings-v02402.png back-v02402.png summary-view-button-v02503.svg title-summary-walk-v02503.svg title-summary-run-v02503.svg title-summary-bike-v02503.svg; do
@@ -46,6 +46,68 @@ new = "}else if(view==='move'&&moveState==='glance'&&s.recording){if(window.v025
 if old not in s:
     raise SystemExit('v0.25.10 glance polling patch target not found')
 s = s.replace(old, new, 1)
+p.write_text(s, encoding='utf-8')
+PY
+
+# v0.25.16 recorder lifecycle additions: distinguish auto-detected sessions and
+# provide a true discard action that deletes the current session without saving.
+python3 - "$ROOT/app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text(encoding='utf-8')
+
+def replace_once(old, new, name):
+    global s
+    if old not in s:
+        raise SystemExit(f'v0.25.16 recorder patch target not found: {name}')
+    s = s.replace(old, new, 1)
+
+replace_once(
+'''    public static final String ACTION_STOP = "com.yamo.snorelab.WALK_STOP";\n\n    public static final String PREFS = "snorelab_walking_runtime_v1";''',
+'''    public static final String ACTION_STOP = "com.yamo.snorelab.WALK_STOP";\n    public static final String ACTION_CANCEL = "com.yamo.snorelab.WALK_CANCEL";\n    public static final String EXTRA_STARTED_BY_AUTO_DETECT = "started_by_auto_detect";\n\n    public static final String PREFS = "snorelab_walking_runtime_v1";''',
+'actions')
+replace_once(
+'''    public static final String KEY_LAST_ACCEPTED_FIX_MS = "last_accepted_fix_ms";''',
+'''    public static final String KEY_LAST_ACCEPTED_FIX_MS = "last_accepted_fix_ms";\n    public static final String KEY_STARTED_BY_AUTO_DETECT = "started_by_auto_detect";''',
+'key')
+replace_once(
+'''    private boolean recording;\n    private boolean paused;\n    private float currentSpeedKmh;''',
+'''    private boolean recording;\n    private boolean paused;\n    private boolean startedByAutoDetect;\n    private float currentSpeedKmh;''',
+'field')
+replace_once(
+'''        else if (ACTION_RESUME.equals(action)) resumeRecording();\n        else if (ACTION_STOP.equals(action)) finishRecording();''',
+'''        else if (ACTION_RESUME.equals(action)) resumeRecording();\n        else if (ACTION_STOP.equals(action)) finishRecording();\n        else if (ACTION_CANCEL.equals(action)) cancelRecording();''',
+'onStartCommand')
+replace_once(
+'''        else if ("walkrun".equals(requestedType)) activityType = "walkrun";\n        else activityType = "walking";\n\n        startMs = System.currentTimeMillis();''',
+'''        else if ("walkrun".equals(requestedType)) activityType = "walkrun";\n        else activityType = "walking";\n        startedByAutoDetect = intent.getBooleanExtra(EXTRA_STARTED_BY_AUTO_DETECT, false);\n\n        startMs = System.currentTimeMillis();''',
+'begin origin')
+replace_once(
+'''                .putBoolean(KEY_RECORDING, recording)\n                .putBoolean(KEY_PAUSED, paused)\n                .putString(KEY_ACTIVITY_TYPE, activityType)''',
+'''                .putBoolean(KEY_RECORDING, recording)\n                .putBoolean(KEY_PAUSED, paused)\n                .putBoolean(KEY_STARTED_BY_AUTO_DETECT, startedByAutoDetect)\n                .putString(KEY_ACTIVITY_TYPE, activityType)''',
+'persist origin')
+replace_once(
+'''            m.put("type", activityType);\n            m.put("status", status);''',
+'''            m.put("type", activityType);\n            m.put("status", status);\n            m.put("startedByAutoDetect", startedByAutoDetect);''',
+'meta origin')
+replace_once(
+'''        writeMeta("complete", end);\n        recording = false;\n        currentSpeedKmh = 0;\n        runtime.edit()\n                .putBoolean(KEY_RECORDING, false)\n                .putBoolean(KEY_PAUSED, false)\n                .putFloat(KEY_CURRENT_SPEED_KMH, 0f)''',
+'''        writeMeta("complete", end);\n        recording = false;\n        startedByAutoDetect = false;\n        currentSpeedKmh = 0;\n        runtime.edit()\n                .putBoolean(KEY_RECORDING, false)\n                .putBoolean(KEY_PAUSED, false)\n                .putBoolean(KEY_STARTED_BY_AUTO_DETECT, false)\n                .putFloat(KEY_CURRENT_SPEED_KMH, 0f)''',
+'finish origin reset')
+replace_once(
+'''    private void restorePersistedSessionForStop() {\n        restorePersistedState();\n    }''',
+'''    private void cancelRecording() {\n        if (!recording && !runtime.getBoolean(KEY_RECORDING, false)) {\n            stopSelf();\n            return;\n        }\n        if (!recording) restorePersistedSessionForStop();\n        File doomed = sessionDir;\n        recording = false;\n        paused = false;\n        startedByAutoDetect = false;\n        pauseStartedMs = 0L;\n        currentSpeedKmh = 0f;\n        runtime.edit()\n                .putBoolean(KEY_RECORDING, false)\n                .putBoolean(KEY_PAUSED, false)\n                .putBoolean(KEY_STARTED_BY_AUTO_DETECT, false)\n                .putFloat(KEY_CURRENT_SPEED_KMH, 0f)\n                .putString(KEY_SESSION_DIR, "")\n                .apply();\n        handler.removeCallbacks(ticker);\n        stopSensors();\n        try { stopForeground(true); } catch (Exception ignored) {}\n        deleteRecursively(doomed);\n        sessionDir = null;\n        stopSelf();\n    }\n\n    private static void deleteRecursively(File file) {\n        if (file == null || !file.exists()) return;\n        if (file.isDirectory()) {\n            File[] children = file.listFiles();\n            if (children != null) for (File child : children) deleteRecursively(child);\n        }\n        try { file.delete(); } catch (Exception ignored) {}\n    }\n\n    private void restorePersistedSessionForStop() {\n        restorePersistedState();\n    }''',
+'cancel method')
+replace_once(
+'''        activityType = runtime.getString(KEY_ACTIVITY_TYPE, "walking");\n        startMs = runtime.getLong(KEY_START_MS, 0L);''',
+'''        activityType = runtime.getString(KEY_ACTIVITY_TYPE, "walking");\n        startedByAutoDetect = runtime.getBoolean(KEY_STARTED_BY_AUTO_DETECT, false);\n        startMs = runtime.getLong(KEY_START_MS, 0L);''',
+'restore origin')
+replace_once(
+'''            runtime.edit().putBoolean(KEY_RECORDING, false).putBoolean(KEY_PAUSED, false).apply();''',
+'''            runtime.edit().putBoolean(KEY_RECORDING, false).putBoolean(KEY_PAUSED, false)\n                    .putBoolean(KEY_STARTED_BY_AUTO_DETECT, false).apply();''',
+'invalid recovery reset')
+
 p.write_text(s, encoding='utf-8')
 PY
 
@@ -107,13 +169,13 @@ p = Path(sys.argv[1])
 s = p.read_text(encoding='utf-8')
 if 'name="viewport"' not in s:
     s = s.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">', 1)
-for css in ['mobile.css', 'v02403.css', 'v02503-summary.css', 'v02505-summary.css', 'v02507-fit.css', 'v02507-move.css', 'v02508-real-move.css', 'v02509-ui.css', 'v02510-ui.css', 'v02511-home-active.css', 'v02513-records.css']:
+for css in ['mobile.css', 'v02403.css', 'v02503-summary.css', 'v02505-summary.css', 'v02507-fit.css', 'v02507-move.css', 'v02508-real-move.css', 'v02509-ui.css', 'v02510-ui.css', 'v02511-home-active.css', 'v02513-records.css', 'v02516-ui.css']:
     if f'href="{css}"' not in s:
         s = s.replace('</head>', f'  <link rel="stylesheet" href="{css}">\n</head>', 1)
-for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02508-real-move.js', 'v02510-ui.js', 'v02511-home-active.js', 'v02512-notification.js', 'v02513-records.js', 'v02514-partial-pace.js', 'v02515-record-detail.js', 'v02515-version.js']:
+for js in ['app-mobile.js', 'v02501-ui.js', 'v02505-summary.js', 'v02507-move.js', 'v02507-fit.js', 'v02501-navigation.js', 'v02508-real-move.js', 'v02510-ui.js', 'v02511-home-active.js', 'v02512-notification.js', 'v02513-records.js', 'v02514-partial-pace.js', 'v02515-record-detail.js', 'v02516-auto-detect.js', 'v02516-version.js']:
     if f'src="{js}"' not in s:
         s = s.replace('</body>', f'  <script src="{js}"></script>\n</body>', 1)
 p.write_text(s, encoding='utf-8')
 PY
 
-echo "Imported approved design with v0.25.15 saved record full-route + partial-segment detail into: $TARGET"
+echo "Imported approved design with v0.25.16 auto-detect + inline GPS + record cancel into: $TARGET"
