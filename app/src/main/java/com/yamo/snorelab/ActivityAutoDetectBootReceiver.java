@@ -4,9 +4,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-/** Restores Activity Recognition transition subscriptions after reboot/app update. */
+/** Restores Activity Recognition and developer-only Snow geofences after reboot/app update. */
 public final class ActivityAutoDetectBootReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
-        ActivityAutoDetectManager.syncRegistration(context.getApplicationContext());
+        Context app = context.getApplicationContext();
+        ActivityAutoDetectManager.syncRegistration(app);
+        // SnowAutoDetectManager is self-gated: release/locked builds register nothing.
+        SnowAutoDetectManager.sync(app);
     }
 }
