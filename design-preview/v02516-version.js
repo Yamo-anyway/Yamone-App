@@ -1,6 +1,6 @@
 (function(){
   'use strict';
-  const V='0.25.16';
+  const V='0.26.01';
   function apply(){
     document.title='야모네 · v'+V;
     const home=document.querySelector('.home-version');
