@@ -22,7 +22,7 @@ import android.widget.TextView;
 
 import java.io.IOException;
 
-/** v0.25.12: renewed design host with activity-notification deep links. */
+/** Renewed design host with activity-notification deep links. */
 public class YamoneDesignPreviewActivity extends Activity {
     public static final String EXTRA_OPEN_MOVEMENT = "yamone_open_movement";
     public static final String EXTRA_OPEN_STOP_CONFIRM = "yamone_open_stop_confirm";
@@ -81,6 +81,7 @@ public class YamoneDesignPreviewActivity extends Activity {
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new NativeBridge(), "YamoneNative");
         webView.addJavascriptInterface(new MovementBridge(this), "YamoneMovement");
+        webView.addJavascriptInterface(new SavedMovementRecordsBridge(this), "YamoneRecords");
         safeRoot.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         safeRoot.setOnApplyWindowInsetsListener((v, insets) -> {
@@ -161,7 +162,7 @@ public class YamoneDesignPreviewActivity extends Activity {
         notice.setBackgroundColor(Color.rgb(247, 255, 251));
         notice.setText("야모네 디자인 소스가 아직 APK에 포함되지 않았습니다.\n\n"
                 + "design-source/yamone-v23.zip 을 추가하면\n"
-                + "기본 디자인에 v0.25.01 패치를 적용해 빌드합니다.");
+                + "기본 디자인에 패치를 적용해 빌드합니다.");
         setContentView(notice);
     }
 
@@ -187,7 +188,6 @@ public class YamoneDesignPreviewActivity extends Activity {
         }
     }
 
-    // Android <= 12 uses this entry point; Android 13+ uses Api33 below.
     @SuppressWarnings("deprecation")
     @Override public void onBackPressed() {
         dispatchSystemBack();
@@ -202,7 +202,6 @@ public class YamoneDesignPreviewActivity extends Activity {
                 value -> {
                     backPending = false;
                     if (isFinishing() || isDestroyed()) return;
-                    // Loading/JS failure must never cause an unconfirmed app exit.
                     if (!"true".equals(value)) showFallbackExitConfirm();
                 });
     }
@@ -221,7 +220,6 @@ public class YamoneDesignPreviewActivity extends Activity {
 
     private void exitConfirmed() {
         if (isFinishing() || isDestroyed()) return;
-        // Do not launch HOME or another app. Android reveals the prior task/screen.
         if (isTaskRoot()) finishAndRemoveTask();
         else finish();
     }
@@ -243,6 +241,7 @@ public class YamoneDesignPreviewActivity extends Activity {
             webView.loadUrl("about:blank");
             webView.removeJavascriptInterface("YamoneNative");
             webView.removeJavascriptInterface("YamoneMovement");
+            webView.removeJavascriptInterface("YamoneRecords");
             webView.removeAllViews();
             webView.destroy();
             webView = null;
