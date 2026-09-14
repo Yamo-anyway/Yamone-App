@@ -29,6 +29,7 @@ jobs:
           python3 tools/apply-v02602-sleep.py
           python3 tools/apply-v02701-alarm.py
           python3 tools/apply-v02801-snow.py
+          python3 tools/fix-v02801-snow.py
 
       - name: Validate app JavaScript and Snow developer gate
         shell: bash
