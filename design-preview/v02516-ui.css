@@ -1,0 +1,58 @@
+/* v0.25.16: inline GPS beside pace/speed + record-cancel dock + auto-detect settings. */
+
+/* Row 1: current pace/speed label on the left, GPS state on the right. */
+.v2508-real-live .move-primary-head{
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  width:100%!important;
+}
+.v2508-real-live .move-primary-head>img{
+  flex:0 0 auto!important;
+}
+.v2508-real-live .move-primary-head>b{
+  white-space:nowrap!important;
+}
+.v2516-inline-gps{
+  margin-left:auto!important;
+  padding-left:10px!important;
+  font-size:12px!important;
+  line-height:1.15!important;
+  font-weight:850!important;
+  white-space:nowrap!important;
+  color:var(--muted)!important;
+}
+.v2516-inline-gps.good{color:var(--primary)!important}
+.v2516-inline-gps.fair{color:#bc7a14!important}
+.v2516-inline-gps.lost{color:#c84f64!important}
+
+/* Row 2 remains value left / Summary View right. */
+.v2508-real-live .v25-live-primary-row{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+}
+
+/* The former GPS dock slot is now explicit discard-without-saving. */
+.v2508-real-live .v2516-record-cancel b{color:#b9485d!important}
+.v2508-real-live .v2516-record-cancel small{color:#a96a77!important}
+
+/* Auto-detect setting chips with two choices should fill the row evenly. */
+.v2516-two .setting-chips{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.v2516-permission-info{display:flex!important;align-items:center!important;gap:8px!important;justify-content:space-between!important}
+.v2516-permission-info button{
+  flex:0 0 auto!important;
+  min-height:32px!important;
+  padding:6px 10px!important;
+  border:1px solid #b8dfd3!important;
+  border-radius:11px!important;
+  background:#fff!important;
+  color:var(--primary)!important;
+  font-size:10px!important;
+  font-weight:900!important;
+}
+
+@media(max-width:359px){
+  .v2516-inline-gps{font-size:10.5px!important;padding-left:6px!important}
+}
