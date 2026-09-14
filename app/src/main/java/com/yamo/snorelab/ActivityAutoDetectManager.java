@@ -34,10 +34,10 @@ public final class ActivityAutoDetectManager {
     public static final String KEY_WALK_ENABLED = "walk_enabled";
     public static final String KEY_RUN_ENABLED = "run_enabled";
     public static final String KEY_BIKE_ENABLED = "bike_enabled";
-    public static final String KEY_START_MODE = "start_mode";       // ask | auto
-    public static final String KEY_REPROMPT_MIN = "reprompt_min";   // 5 | 10
-    public static final String KEY_SENSITIVITY = "sensitivity";     // fast | normal | accurate
-    public static final String KEY_END_MODE = "end_mode";           // ask | auto
+    public static final String KEY_START_MODE = "start_mode";
+    public static final String KEY_REPROMPT_MIN = "reprompt_min";
+    public static final String KEY_SENSITIVITY = "sensitivity";
+    public static final String KEY_END_MODE = "end_mode";
 
     static final String ACTION_TRANSITION = "com.yamo.snorelab.AUTO_ACTIVITY_TRANSITION";
     static final String ACTION_CONFIRM_CANDIDATE = "com.yamo.snorelab.AUTO_ACTIVITY_CONFIRM_CANDIDATE";
@@ -109,14 +109,14 @@ public final class ActivityAutoDetectManager {
             ActivityTransitionRequest request = new ActivityTransitionRequest(transitions);
             ActivityRecognition.getClient(app)
                     .requestActivityTransitionUpdates(request, transitionPendingIntent(app));
-        } catch (SecurityException | RuntimeException ignored) { }
+        } catch (RuntimeException ignored) { }
     }
 
     private static void removeRegistration(Context context) {
         try {
             ActivityRecognition.getClient(context)
                     .removeActivityTransitionUpdates(transitionPendingIntent(context));
-        } catch (SecurityException | RuntimeException ignored) { }
+        } catch (RuntimeException ignored) { }
     }
 
     private static void addTransitions(List<ActivityTransition> out, int activityType) {
@@ -246,7 +246,7 @@ public final class ActivityAutoDetectManager {
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(service);
             else context.startService(service);
             return true;
-        } catch (SecurityException | RuntimeException e) {
+        } catch (RuntimeException e) {
             showStartPrompt(context, detectedType);
             return false;
         }
