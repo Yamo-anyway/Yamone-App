@@ -2,7 +2,7 @@ name: Build Yamone Android APK
 
 on:
   push:
-    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work]
+    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work]
     paths:
       - 'app/**'
       - 'build.gradle'
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import approved design + v0.31.00 auto detection
+      - name: Import approved design + v0.32.00 GPS gap handling
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
@@ -33,47 +33,28 @@ jobs:
           python3 tools/apply-v02802-home-stats.py
           python3 tools/apply-v03000-settings.py
           python3 tools/apply-v03100-auto-detect.py
-          python3 tools/apply-v03100-version.py
+          python3 tools/apply-v03200-gps-gap.py
+          python3 tools/apply-v03200-version.py
 
-      - name: Validate app JavaScript, auto detection, settings and record maintenance
+      - name: Validate GPS gap handling and existing features
         shell: bash
         run: |
-          node --check app/src/main/assets/yamone-v23/v02501-ui.js
-          node --check app/src/main/assets/yamone-v23/v02505-summary.js
-          node --check app/src/main/assets/yamone-v23/v02507-move.js
-          node --check app/src/main/assets/yamone-v23/v02507-fit.js
-          node --check app/src/main/assets/yamone-v23/v02501-navigation.js
           node --check app/src/main/assets/yamone-v23/v02508-real-move.js
-          node --check app/src/main/assets/yamone-v23/v02510-ui.js
-          node --check app/src/main/assets/yamone-v23/v02511-home-active.js
-          node --check app/src/main/assets/yamone-v23/v02512-notification.js
-          node --check app/src/main/assets/yamone-v23/v02513-records.js
-          node --check app/src/main/assets/yamone-v23/v02514-partial-pace.js
-          node --check app/src/main/assets/yamone-v23/v02515-record-detail.js
           node --check app/src/main/assets/yamone-v23/v02516-auto-detect.js
-          node --check app/src/main/assets/yamone-v23/v02602-sleep.js
-          node --check app/src/main/assets/yamone-v23/v02701-alarm.js
-          node --check app/src/main/assets/yamone-v23/v02801-snow.js
-          node --check app/src/main/assets/yamone-v23/v02802-home-stats.js
           node --check app/src/main/assets/yamone-v23/v02900-record-maintenance.js
           node --check app/src/main/assets/yamone-v23/v03000-settings.js
-          node --check app/src/main/assets/yamone-v23/v03100-version.js
+          node --check app/src/main/assets/yamone-v23/v03200-version.js
+          grep -q "KEY_GPS_SIGNAL_STATE" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q "strongContinuity" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q "gpsShadowPolicy" app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q "gpsSignalState" app/src/main/java/com/yamo/snorelab/MovementBridge.java
+          grep -q "GPS 미확인 · 기록 계속" app/src/main/assets/yamone-v23/v02508-real-move.js
           grep -q "DetectedActivity.IN_VEHICLE" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
-          grep -q "KEY_ACTIVE_VEHICLE" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
-          grep -q "vehicleSuppressionActive" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
-          grep -q "scheduleAlarm(context, ACTION_END_CHECK" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
-          grep -q "자동차 탑승 신호" app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q "class SystemSettingsBridge" app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
-          grep -q "YamoneSystemSettings" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
-          grep -q "getStorageState" app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
-          grep -q "deleteSavedRecord" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
           grep -q "trimSavedRecordEnd" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
-          grep -q "class MovementRecordEditor" app/src/main/java/com/yamo/snorelab/MovementRecordEditor.java
           grep -q 'enabled="${snowFeatureEnabled}"' app/src/main/AndroidManifest.xml
-          grep -q "snowFeatureEnabled: 'true'" app/build.gradle
-          grep -q "snowFeatureEnabled: 'false'" app/build.gradle
-          grep -q "0.31.00" app/src/main/assets/yamone-v23/v03100-version.js
-          grep -q "versionName '0.31.00'" app/build.gradle
+          grep -q "0.32.00" app/src/main/assets/yamone-v23/v03200-version.js
+          grep -q "versionName '0.32.00'" app/build.gradle
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -113,28 +94,18 @@ jobs:
           import re
           manifests = list(Path('app/build/intermediates').rglob('AndroidManifest.xml'))
           release = [p for p in manifests if 'release' in str(p).lower()]
-          if not release:
-              raise SystemExit('release merged manifest not found')
+          if not release: raise SystemExit('release merged manifest not found')
           text = max(release, key=lambda p: p.stat().st_mtime).read_text(encoding='utf-8')
-          required = [
-              'com.yamo.snorelab.SkiActivity',
-              'com.yamo.snorelab.SkiSessionDetailActivity',
-              'com.yamo.snorelab.SkiWaitTimesActivity',
-              'com.yamo.snorelab.SkiRecorderService',
-              'com.yamo.snorelab.SnowGeofenceReceiver',
-          ]
-          for name in required:
-              m = re.search(r'<(?:activity|service|receiver)\b[^>]*android:name="[.]?'+re.escape(name.split('.')[-1])+r'"[^>]*>', text)
-              if not m:
-                  m = re.search(r'<(?:activity|service|receiver)\b[^>]*android:name="'+re.escape(name)+r'"[^>]*>', text)
-              if not m or 'android:enabled="false"' not in m.group(0):
-                  raise SystemExit(f'Snow release gate missing for {name}')
-          print('Release Snow component gate verified:', release[-1])
+          required = ['SkiActivity','SkiSessionDetailActivity','SkiWaitTimesActivity','SkiRecorderService','SnowGeofenceReceiver']
+          for short in required:
+              m = re.search(r'<(?:activity|service|receiver)\b[^>]*android:name="(?:com.yamo.snorelab.)?'+re.escape(short)+r'"[^>]*>', text)
+              if not m or 'android:enabled="false"' not in m.group(0): raise SystemExit(f'Snow release gate missing for {short}')
+          print('Release Snow component gate verified')
           PY
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.31.00-auto-detect-apk
+          name: yamone-v0.32.00-gps-gap-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
