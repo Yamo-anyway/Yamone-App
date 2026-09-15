@@ -9,7 +9,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.util.List;
 
-/** Read-only bridge exposing completed local movement records to the renewed Records tab. */
+/** Bridge exposing completed local movement records to the renewed Records tab. */
 public final class SavedMovementRecordsBridge {
     private final Activity activity;
 
@@ -69,6 +69,29 @@ public final class SavedMovementRecordsBridge {
         return out.toString();
     }
 
+    /** Erases one completed local movement record and its stored GPS/activity values. */
+    @JavascriptInterface
+    public String deleteSavedRecord(String requestedSessionId) {
+        JSONObject out = new JSONObject();
+        String sessionId = requestedSessionId == null ? "" : requestedSessionId.trim();
+        try {
+            if (sessionId.isEmpty()) return result(out, false, "invalid_session").toString();
+            File dir = findSession(sessionId);
+            if (dir == null) return result(out, false, "not_found").toString();
+            JSONObject meta = WalkingStore.readMeta(dir);
+            if (!"complete".equals(meta.optString("status"))) {
+                return result(out, false, "not_completed").toString();
+            }
+            boolean erased = WalkingStore.eraseSession(activity, dir);
+            result(out, erased, erased ? "deleted" : "erase_failed");
+            out.put("sessionId", sessionId);
+            out.put("remainingCount", completedCount());
+        } catch (Exception e) {
+            result(out, false, "erase_failed");
+        }
+        return out.toString();
+    }
+
     private JSONObject summaryItem(File dir, JSONObject meta) {
         JSONObject item = new JSONObject();
         try {
@@ -83,8 +106,23 @@ public final class SavedMovementRecordsBridge {
             item.put("maxSpeedKmh", Math.max(0.0, meta.optDouble("maxSpeedKmh", 0.0)));
             item.put("autoMotionModeLast", meta.optString("autoMotionModeLast", ""));
             item.put("splitsMs", meta.optJSONArray("splitsMs") == null ? new JSONArray() : meta.optJSONArray("splitsMs"));
+            item.put("tailTrimFinalized", meta.optBoolean("tailTrimFinalized", false));
+            item.put("tailTrimMinutes", Math.max(0, meta.optInt("tailTrimMinutes", 0)));
         } catch (Exception ignored) { }
         return item;
+    }
+
+    private int completedCount() {
+        int count = 0;
+        for (File dir : WalkingStore.listSessions(activity)) {
+            if ("complete".equals(WalkingStore.readMeta(dir).optString("status"))) count++;
+        }
+        return count;
+    }
+
+    private JSONObject result(JSONObject out, boolean ok, String status) {
+        try { out.put("ok", ok).put("status", status); } catch (Exception ignored) { }
+        return out;
     }
 
     private File findSession(String sessionId) {
