@@ -2,8 +2,8 @@ name: Build Yamone Android APK
 
 on:
   push:
-    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work]
-    paths: ['app/**','build.gradle','gradle.properties','settings.gradle','dev-signing/**','design-preview/**','design-source/**','tools/**','.github/workflows/build-android.yml','INTEGRATION_CHECKLIST_V36.md']
+    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work, v36-01-work]
+    paths: ['app/**','build.gradle','gradle.properties','settings.gradle','dev-signing/**','design-preview/**','design-source/**','tools/**','.github/workflows/build-android.yml','INTEGRATION_CHECKLIST_V36.md','TEST_CHECKLIST_V36_01.md']
   workflow_dispatch:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Apply Yamone v0.36.00
+      - name: Apply Yamone v0.36.01
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
@@ -28,6 +28,7 @@ jobs:
           python3 tools/apply-v03400-snow-package-validation.py
           python3 tools/apply-v03500-sleep-health.py
           python3 tools/apply-v03600-readiness.py
+          python3 tools/apply-v03601-auto-detect-test-fixes.py
       - name: Validate integrated non-location-sharing features
         shell: bash
         run: |
@@ -38,24 +39,29 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v02900-record-maintenance.js
           node --check app/src/main/assets/yamone-v23/v03000-settings.js
           node --check app/src/main/assets/yamone-v23/v03600-readiness.js
-          node --check app/src/main/assets/yamone-v23/v03600-version.js
+          node --check app/src/main/assets/yamone-v23/v03601-version.js
           grep -q 'class AppReadinessBridge' app/src/main/java/com/yamo/snorelab/AppReadinessBridge.java
           grep -q 'YamoneReadiness' app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
           grep -q 'YamoneReadiness' app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
           grep -q 'locationSharingExcluded' app/src/main/java/com/yamo/snorelab/AppReadinessBridge.java
           grep -q '통합 진단' app/src/main/assets/yamone-v23/v03600-readiness.js
-          grep -q '위치공유 기능은 이번 통합 진단' app/src/main/assets/yamone-v23/v03600-readiness.js
           grep -q 'deleteSavedRecord' app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
           grep -q 'trimSavedRecordEnd' app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
           grep -q 'DetectedActivity.IN_VEHICLE' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q 'KEY_NOTIFY_SOUND' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q 'KEY_NOTIFY_VIBRATE' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q 'if (delayMs <= 0L)' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q 'showBackgroundLocationRequired' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q 'v3601Sound' app/src/main/assets/yamone-v23/v02516-auto-detect.js
+          grep -q 'v3601Vibrate' app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q 'KEY_GPS_SIGNAL_STATE' app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
           grep -q 'BG = 0xFFFBFDFC' app/src/main/java/com/yamo/snorelab/AlarmRingActivity.java
           grep -q 'class SnowMapPackageValidator' app/src/main/java/com/yamo/snorelab/SnowMapPackageValidator.java
           grep -q 'KEY_HEARTBEAT_MS' app/src/main/java/com/yamo/snorelab/SleepRecorderService.java
           grep -q 'captureHealthy' app/src/main/java/com/yamo/snorelab/SleepBridge.java
           grep -q 'class SystemSettingsBridge' app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
-          grep -q "versionName '0.36.00'" app/build.gradle
-          grep -q '0.36.00' app/src/main/assets/yamone-v23/v03600-version.js
+          grep -q "versionName '0.36.01'" app/build.gradle
+          grep -q '0.36.01' app/src/main/assets/yamone-v23/v03601-version.js
           test -f INTEGRATION_CHECKLIST_V36.md
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -82,6 +88,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.36.00-integrated-non-location-sharing-apk
+          name: yamone-v0.36.01-auto-detect-test-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
