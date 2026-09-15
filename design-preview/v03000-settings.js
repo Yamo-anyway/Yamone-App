@@ -2,6 +2,7 @@
 (function(){
   'use strict';
   let refreshTimer=0;
+  let lastPermissionSig='';
 
   function parse(raw,fallback){try{return typeof raw==='string'?JSON.parse(raw):raw;}catch(e){return fallback;}}
   function call(name,args,fallback){
@@ -25,10 +26,11 @@
   function permissionRow(title,desc,ok,on,off){
     return `<div class="card v3000-settings-summary"><div><b>${title}</b><small>${desc}</small></div>${status(!!ok,on||'허용',off||'필요')}</div>`;
   }
-  function permissionState(){return call('getPermissionState',[],{} )||{};}
+  function permissionState(){return call('getPermissionState',[],{})||{};}
+  function permissionSig(p){return JSON.stringify([!!p.location,!!p.fineLocation,!!p.backgroundLocation,!!p.activityRecognition,!!p.notifications,!!p.microphone,!!p.exactAlarm,!!p.fullScreenIntent]);}
 
   function renderPermissions(){
-    const p=permissionState();
+    const p=permissionState();lastPermissionSig=permissionSig(p);
     if(typeof setFocusMode==='function')setFocusMode(true);
     screen.innerHTML=`${settingTitle('권한')}
       <div class="section">활동 기록</div>
@@ -87,8 +89,9 @@
   };
 
   function refreshVisible(){
-    if(typeof view==='undefined'||view!=='setting')return;
-    if(settingPage==='권한')renderPermissions();
+    if(typeof view==='undefined'||view!=='setting'||settingPage!=='권한')return;
+    const p=permissionState();
+    if(permissionSig(p)!==lastPermissionSig)renderPermissions();
   }
   clearInterval(refreshTimer);
   refreshTimer=setInterval(refreshVisible,1500);
