@@ -27,8 +27,17 @@ for name in ['v02900-record-maintenance.css', 'v02900-record-maintenance.js', 'v
 
 index = TARGET / 'index.html'
 add_before(index, '</head>', '  <link rel="stylesheet" href="v02802-home-stats.css">\n', 'home stats css')
-add_before(index, '</body>', '  <script src="v02802-home-stats.js"></script>\n  <script src="v02802-version.js"></script>\n', 'home stats js')
+add_before(index, '</body>', '  <script src="v02802-home-stats.js"></script>\n', 'home stats js')
 add_before(index, '</head>', '  <link rel="stylesheet" href="v02900-record-maintenance.css">\n', 'v0.29 record maintenance css')
+
+# Version marker patches accumulated across previous releases. Remove every old marker
+# from the generated index before loading the single v0.29.00 marker.
+s = index.read_text(encoding='utf-8')
+for old in ['v02516-version.js', 'v02602-version.js', 'v02701-version.js', 'v02801-version.js', 'v02802-version.js']:
+    s = s.replace(f'  <script src="{old}"></script>\n', '')
+    s = s.replace(f'<script src="{old}"></script>\n', '')
+index.write_text(s, encoding='utf-8')
+
 add_before(index, '</body>', '  <script src="v02900-record-maintenance.js"></script>\n  <script src="v02900-version.js"></script>\n', 'v0.29 record maintenance js')
 
-print('Applied v0.28.02 Home stats + v0.29.00 record maintenance overlay.')
+print('Applied v0.28.02 Home stats + v0.29.00 record maintenance with one version marker.')
