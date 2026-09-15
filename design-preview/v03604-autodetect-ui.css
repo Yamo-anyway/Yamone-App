@@ -1,0 +1,20 @@
+/* v0.36.04: correct auto-detect alert assets and make hybrid diagnostics explicit. */
+.v3604-autodetect-icon{
+  width:35px;
+  height:35px;
+  object-fit:contain;
+  flex:0 0 35px;
+}
+.v3604-hybrid-status{
+  margin:0;
+  padding:12px 13px;
+  border:1px solid #c8eee2;
+  border-radius:14px;
+  background:linear-gradient(145deg,#f4fffb,#fff8fb);
+  color:#2f6f5d;
+  font-size:10px;
+  line-height:1.55;
+  font-weight:750;
+  box-shadow:0 5px 16px rgba(31,134,108,.06);
+  white-space:normal;
+}
