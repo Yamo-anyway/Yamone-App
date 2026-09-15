@@ -2,7 +2,7 @@ name: Build Yamone Android APK
 
 on:
   push:
-    branches: [main, renewal-v23, v29-00-work, v30-00-work]
+    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work]
     paths:
       - 'app/**'
       - 'build.gradle'
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Import approved design + v0.30.00 real settings
+      - name: Import approved design + v0.31.00 auto detection
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
@@ -32,8 +32,10 @@ jobs:
           python3 tools/fix-v02801-snow.py
           python3 tools/apply-v02802-home-stats.py
           python3 tools/apply-v03000-settings.py
+          python3 tools/apply-v03100-auto-detect.py
+          python3 tools/apply-v03100-version.py
 
-      - name: Validate app JavaScript, settings bridge, record maintenance and Snow release gate
+      - name: Validate app JavaScript, auto detection, settings and record maintenance
         shell: bash
         run: |
           node --check app/src/main/assets/yamone-v23/v02501-ui.js
@@ -55,23 +57,23 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v02802-home-stats.js
           node --check app/src/main/assets/yamone-v23/v02900-record-maintenance.js
           node --check app/src/main/assets/yamone-v23/v03000-settings.js
-          node --check app/src/main/assets/yamone-v23/v03000-version.js
+          node --check app/src/main/assets/yamone-v23/v03100-version.js
+          grep -q "DetectedActivity.IN_VEHICLE" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q "KEY_ACTIVE_VEHICLE" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q "vehicleSuppressionActive" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q "scheduleAlarm(context, ACTION_END_CHECK" app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q "자동차 탑승 신호" app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q "class SystemSettingsBridge" app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
           grep -q "YamoneSystemSettings" app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
-          grep -q "YamoneSystemSettings" app/src/main/java/com/yamo/snorelab/YamoneDesignPreviewActivity.java
-          grep -q "getPermissionState" app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
           grep -q "getStorageState" app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
-          grep -q "settingPage==='권한'" app/src/main/assets/yamone-v23/v03000-settings.js
-          grep -q "settingPage==='데이터/저장'" app/src/main/assets/yamone-v23/v03000-settings.js
           grep -q "deleteSavedRecord" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
           grep -q "trimSavedRecordEnd" app/src/main/java/com/yamo/snorelab/SavedMovementRecordsBridge.java
           grep -q "class MovementRecordEditor" app/src/main/java/com/yamo/snorelab/MovementRecordEditor.java
-          grep -q "class SnowBridge" app/src/main/java/com/yamo/snorelab/SnowBridge.java
           grep -q 'enabled="${snowFeatureEnabled}"' app/src/main/AndroidManifest.xml
           grep -q "snowFeatureEnabled: 'true'" app/build.gradle
           grep -q "snowFeatureEnabled: 'false'" app/build.gradle
-          grep -q "0.30.00" app/src/main/assets/yamone-v23/v03000-version.js
-          grep -q "versionName '0.30.00'" app/build.gradle
+          grep -q "0.31.00" app/src/main/assets/yamone-v23/v03100-version.js
+          grep -q "versionName '0.31.00'" app/build.gradle
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -133,6 +135,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.30.00-real-settings-apk
+          name: yamone-v0.31.00-auto-detect-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
