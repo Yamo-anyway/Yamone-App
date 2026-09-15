@@ -144,6 +144,34 @@ public final class WalkingStore {
         return out;
     }
 
+    /** Erases one completed record's activity data while retaining only a minimal tombstone. */
+    public static synchronized boolean eraseSession(Context context, File dir) {
+        if (context == null || dir == null || !dir.isDirectory()) return false;
+        try {
+            File sessionsRoot = root(context).getCanonicalFile();
+            File target = dir.getCanonicalFile();
+            File parent = target.getParentFile();
+            if (parent == null || !sessionsRoot.equals(parent.getCanonicalFile())) return false;
+            JSONObject oldMeta = readMeta(target);
+            if (!"complete".equals(oldMeta.optString("status"))) return false;
+
+            File route = new File(target, "route.csv");
+            try (BufferedWriter w = new BufferedWriter(new FileWriter(route, false))) {
+                w.write("time_ms,lat,lon,accuracy_m,altitude_m,speed_mps\n");
+            }
+
+            JSONObject tombstone = new JSONObject();
+            tombstone.put("status", "deleted");
+            tombstone.put("deletedAtEpochMs", System.currentTimeMillis());
+            tombstone.put("dataErased", true);
+            writeMeta(target, tombstone);
+            JSONObject verify = readMeta(target);
+            return "deleted".equals(verify.optString("status")) && verify.optBoolean("dataErased", false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static List<Point> readRoute(File dir, int maxPoints) {
         List<Point> all = new ArrayList<>();
         if (dir == null) return all;
