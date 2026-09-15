@@ -57,14 +57,9 @@ public final class SystemSettingsBridge {
         java.util.ArrayList<String> wanted = new java.util.ArrayList<>();
         if (!granted(Manifest.permission.ACCESS_FINE_LOCATION)) wanted.add(Manifest.permission.ACCESS_FINE_LOCATION);
         if (!granted(Manifest.permission.ACCESS_COARSE_LOCATION)) wanted.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        if (Build.VERSION.SDK_INT >= 29 && !granted(Manifest.permission.ACTIVITY_RECOGNITION)) {
-            wanted.add(Manifest.permission.ACTIVITY_RECOGNITION);
-        }
-        if (Build.VERSION.SDK_INT >= 33 && !granted(Manifest.permission.POST_NOTIFICATIONS)) {
-            wanted.add(Manifest.permission.POST_NOTIFICATIONS);
-        }
+        if (Build.VERSION.SDK_INT >= 29 && !granted(Manifest.permission.ACTIVITY_RECOGNITION)) wanted.add(Manifest.permission.ACTIVITY_RECOGNITION);
+        if (Build.VERSION.SDK_INT >= 33 && !granted(Manifest.permission.POST_NOTIFICATIONS)) wanted.add(Manifest.permission.POST_NOTIFICATIONS);
         if (!granted(Manifest.permission.RECORD_AUDIO)) wanted.add(Manifest.permission.RECORD_AUDIO);
-
         activity.runOnUiThread(() -> {
             if (!wanted.isEmpty() && !activity.isFinishing() && !activity.isDestroyed()) {
                 activity.requestPermissions(wanted.toArray(new String[0]), REQUEST_CORE_PERMISSIONS);
@@ -73,25 +68,18 @@ public final class SystemSettingsBridge {
         return result(true, wanted.isEmpty() ? "already_granted" : "requested").toString();
     }
 
-    @JavascriptInterface
-    public String openAppSettings() {
-        return launch(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:" + activity.getPackageName())));
+    @JavascriptInterface public String openAppSettings() {
+        return launch(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + activity.getPackageName())));
     }
 
-    @JavascriptInterface
-    public String openNotificationSettings() {
-        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                .putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName());
+    @JavascriptInterface public String openNotificationSettings() {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName());
         return launch(intent);
     }
 
-    @JavascriptInterface
-    public String openExactAlarmSettings() {
+    @JavascriptInterface public String openExactAlarmSettings() {
         if (Build.VERSION.SDK_INT < 31) return result(true, "not_required").toString();
-        Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                Uri.parse("package:" + activity.getPackageName()));
-        return launch(intent);
+        return launch(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + activity.getPackageName())));
     }
 
     @JavascriptInterface
@@ -103,18 +91,14 @@ public final class SystemSettingsBridge {
             File movement = new File(files, "activity/walking");
             File sleep = new File(files, "sessions");
             File snow = new File(files, "activity/ski");
-
             long movementBytes = folderSize(movement);
             long sleepBytes = folderSize(sleep);
             long snowBytes = folderSize(snow);
             long cacheBytes = folderSize(cache);
-            long filesBytes = folderSize(files);
-
             out.put("movementBytes", movementBytes);
             out.put("sleepBytes", sleepBytes);
             out.put("snowBytes", snowBytes);
             out.put("cacheBytes", cacheBytes);
-            out.put("filesBytes", filesBytes);
             out.put("trackedBytes", movementBytes + sleepBytes + snowBytes);
             out.put("movementCount", completedMovementCount());
             out.put("sleepCount", SessionStore.listSessions(activity).size());
@@ -126,26 +110,20 @@ public final class SystemSettingsBridge {
 
     private int completedMovementCount() {
         int count = 0;
-        for (File dir : WalkingStore.listSessions(activity)) {
-            if ("complete".equals(WalkingStore.readMeta(dir).optString("status"))) count++;
-        }
+        for (File dir : WalkingStore.listSessions(activity)) if ("complete".equals(WalkingStore.readMeta(dir).optString("status"))) count++;
         return count;
     }
 
     private int completedSnowCount() {
         int count = 0;
-        File[] dirs = SkiLiftStore.sessionsRoot(activity).listFiles(File::isDirectory);
-        if (dirs == null) return 0;
-        for (File dir : dirs) {
-            JSONObject meta = SkiLiftStore.readMeta(dir);
+        for (File dir : SkiLiftStore.listSessions(activity)) {
+            JSONObject meta = SkiLiftStore.readSessionMeta(dir);
             if ("complete".equals(meta.optString("status"))) count++;
         }
         return count;
     }
 
-    private boolean granted(String permission) {
-        return activity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
-    }
+    private boolean granted(String permission) { return activity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED; }
 
     private boolean canScheduleExactAlarm() {
         if (Build.VERSION.SDK_INT < 31) return true;
@@ -162,13 +140,9 @@ public final class SystemSettingsBridge {
     private String launch(Intent intent) {
         try {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            activity.runOnUiThread(() -> {
-                try { activity.startActivity(intent); } catch (Exception ignored) { }
-            });
+            activity.runOnUiThread(() -> { try { activity.startActivity(intent); } catch (Exception ignored) { } });
             return result(true, "opened").toString();
-        } catch (Exception e) {
-            return result(false, "open_failed").toString();
-        }
+        } catch (Exception e) { return result(false, "open_failed").toString(); }
     }
 
     private static long folderSize(File file) {
@@ -176,9 +150,7 @@ public final class SystemSettingsBridge {
         if (file.isFile()) return Math.max(0L, file.length());
         long total = 0L;
         File[] children = file.listFiles();
-        if (children != null) {
-            for (File child : children) total += folderSize(child);
-        }
+        if (children != null) for (File child : children) total += folderSize(child);
         return total;
     }
 
