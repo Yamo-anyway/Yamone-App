@@ -20,7 +20,6 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(s.replace(old, new, 1), encoding='utf-8')
 
 
-# Notification sound / vibration preferences.
 replace_once(MANAGER,
 '''import android.content.pm.PackageManager;\nimport android.os.Build;''',
 '''import android.content.pm.PackageManager;\nimport android.media.RingtoneManager;\nimport android.os.Build;''',
@@ -36,14 +35,11 @@ replace_once(MANAGER,
 '''    private static final String CHANNEL_BOTH = "yamone_activity_auto_detect_v2_both";\n    private static final String CHANNEL_SOUND = "yamone_activity_auto_detect_v2_sound";\n    private static final String CHANNEL_VIBRATE = "yamone_activity_auto_detect_v2_vibrate";\n    private static final String CHANNEL_SILENT = "yamone_activity_auto_detect_v2_silent";''',
 'notification channel variants')
 
-# The Transition API already performs motion-state stabilization. For normal testing,
-# do not add another AlarmManager delay that can be deferred by Android.
 replace_once(MANAGER,
 '''        if (isRecording(context)) return;\n        scheduleAlarm(context, ACTION_CONFIRM_CANDIDATE,\n                REQ_CANDIDATE_BASE + typeIndex(type), type, detectionDelayMs(p, type));''',
 '''        if (isRecording(context)) return;\n        long delayMs = detectionDelayMs(p, type);\n        if (delayMs <= 0L) {\n            confirmCandidate(context, type);\n        } else {\n            scheduleAlarm(context, ACTION_CONFIRM_CANDIDATE,\n                    REQ_CANDIDATE_BASE + typeIndex(type), type, delayMs);\n        }''',
 'normal detection immediate confirmation')
 
-# Auto means auto: never silently fall back to the ask-start notification.
 replace_once(MANAGER,
 '''        String mode = p.getString(KEY_START_MODE, "ask");\n        if ("auto".equals(mode) && canAutoStartLocation(context)) {\n            if (startRecorder(context, type)) return;\n        }\n        showStartPrompt(context, type);''',
 '''        String mode = p.getString(KEY_START_MODE, "ask");\n        if ("auto".equals(mode)) {\n            if (!canAutoStartLocation(context)) {\n                showBackgroundLocationRequired(context, type);\n                return;\n            }\n            startRecorder(context, type);\n            return;\n        }\n        showStartPrompt(context, type);''',
@@ -54,7 +50,6 @@ replace_once(MANAGER,
 '''        } catch (RuntimeException e) {\n            if ("auto".equals(prefs(context).getString(KEY_START_MODE, "ask"))) {\n                showAutoStartBlocked(context, detectedType);\n            } else {\n                showStartPrompt(context, detectedType);\n            }\n            return false;\n        }''',
 'auto start runtime failure guidance')
 
-# All auto-detect notifications use the sound/vibration channel selected by the user.
 manager_text = MANAGER.read_text(encoding='utf-8')
 old_builder = 'new Notification.Builder(context, CHANNEL)'
 new_builder = 'new Notification.Builder(context, notificationChannelId(context))'
@@ -76,10 +71,9 @@ replace_once(MANAGER,
 
 replace_once(MANAGER,
 '''    private static long detectionDelayMs(SharedPreferences p, String type) {\n        String sensitivity = p.getString(KEY_SENSITIVITY, "normal");\n        if ("fast".equals(sensitivity)) {\n            if (TYPE_RUN.equals(type)) return 15_000L;\n            return 30_000L;\n        }\n        if ("accurate".equals(sensitivity)) {\n            if (TYPE_RUN.equals(type)) return 45_000L;\n            if (TYPE_BIKE.equals(type)) return 90_000L;\n            return 120_000L;\n        }\n        if (TYPE_RUN.equals(type)) return 30_000L;\n        return 60_000L;\n    }''',
-'''    private static long detectionDelayMs(SharedPreferences p, String type) {\n        String sensitivity = p.getString(KEY_SENSITIVITY, "normal");\n        // Google Activity Transition ENTER is already stabilized by the platform.\n        // Fast/normal therefore react immediately instead of using a deferrable alarm.\n        if ("fast".equals(sensitivity) || "normal".equals(sensitivity)) return 0L;\n        if (TYPE_RUN.equals(type)) return 15_000L;\n        if (TYPE_BIKE.equals(type)) return 30_000L;\n        return 30_000L;\n    }''',
+'''    private static long detectionDelayMs(SharedPreferences p, String type) {\n        String sensitivity = p.getString(KEY_SENSITIVITY, "normal");\n        if ("fast".equals(sensitivity) || "normal".equals(sensitivity)) return 0L;\n        if (TYPE_RUN.equals(type)) return 15_000L;\n        if (TYPE_BIKE.equals(type)) return 30_000L;\n        return 30_000L;\n    }''',
 'detection delay tuning')
 
-# Bridge new preferences to the Settings WebView.
 replace_once(BRIDGE,
 '''            out.put("endMode", sanitizeEndMode(\n                    prefs.getString(ActivityAutoDetectManager.KEY_END_MODE, "ask")));''',
 '''            out.put("endMode", sanitizeEndMode(\n                    prefs.getString(ActivityAutoDetectManager.KEY_END_MODE, "ask")));\n            out.put("notifySound", prefs.getBoolean(ActivityAutoDetectManager.KEY_NOTIFY_SOUND, true));\n            out.put("notifyVibrate", prefs.getBoolean(ActivityAutoDetectManager.KEY_NOTIFY_VIBRATE, true));''',
@@ -95,15 +89,14 @@ replace_once(BRIDGE,
 '''                    .putString(ActivityAutoDetectManager.KEY_END_MODE, endMode)\n                    .putBoolean(ActivityAutoDetectManager.KEY_NOTIFY_SOUND, notifySound)\n                    .putBoolean(ActivityAutoDetectManager.KEY_NOTIFY_VIBRATE, notifyVibrate)\n                    .apply();''',
 'bridge notification settings persistence')
 
-# Settings UI: expose sound/vibration toggles and make auto-start permission behavior explicit.
 replace_once(SETTINGS_JS,
 '''    return {walk:false,run:false,bike:false,startMode:'ask',repromptMin:5,sensitivity:'normal',endMode:'ask',activityRecognition:false,backgroundLocation:false,notifications:false};''',
 '''    return {walk:false,run:false,bike:false,startMode:'ask',repromptMin:5,sensitivity:'normal',endMode:'ask',notifySound:true,notifyVibrate:true,activityRecognition:false,backgroundLocation:false,notifications:false};''',
 'js defaults')
 
 replace_once(SETTINGS_JS,
-'''          sensitivity:['fast','normal','accurate'].includes(s.sensitivity)?s.sensitivity:'normal',\n          endMode:s.endMode==='auto'?'auto':'ask' ''',
-'''          sensitivity:['fast','normal','accurate'].includes(s.sensitivity)?s.sensitivity:'normal',\n          endMode:s.endMode==='auto'?'auto':'ask',\n          notifySound:s.notifySound!==false,\n          notifyVibrate:s.notifyVibrate!==false ''',
+'''          sensitivity:['fast','normal','accurate'].includes(s.sensitivity)?s.sensitivity:'normal',\n          endMode:s.endMode==='auto'?'auto':'ask'\n''',
+'''          sensitivity:['fast','normal','accurate'].includes(s.sensitivity)?s.sensitivity:'normal',\n          endMode:s.endMode==='auto'?'auto':'ask',\n          notifySound:s.notifySound!==false,\n          notifyVibrate:s.notifyVibrate!==false\n''',
 'js save notification settings')
 
 replace_once(SETTINGS_JS,
@@ -121,7 +114,6 @@ replace_once(SETTINGS_JS,
 '''    Object.keys(map).forEach(id=>{\n      const btn=screen.querySelector(`[data-setting-toggle="${id}"]`);\n      if(btn)btn.onclick=()=>mutate(x=>{x[map[id]]=!x[map[id]];},true);\n    });\n    [['v3601Sound','notifySound'],['v3601Vibrate','notifyVibrate']].forEach(([id,key])=>{\n      const btn=screen.querySelector(`[data-setting-toggle="${id}"]`);\n      if(btn)btn.onclick=()=>mutate(x=>{x[key]=!x[key];},false);\n    });\n    screen.querySelectorAll('[data-setting-chip="v2516StartMode"]')''',
 'js notification toggle handlers')
 
-# Version 0.36.01.
 version_target = TARGET / 'v03601-version.js'
 version_target.write_bytes(VERSION_SRC.read_bytes())
 replace_once(INDEX,
