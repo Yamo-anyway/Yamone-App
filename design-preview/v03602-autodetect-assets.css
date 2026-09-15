@@ -1,0 +1,28 @@
+/* v0.36.02: leading assets for auto-detect alert sound/vibration toggles. */
+[data-setting-toggle="v3601Sound"],
+[data-setting-toggle="v3601Vibrate"]{
+  display:flex!important;
+  align-items:center!important;
+  gap:12px!important;
+}
+.v3602-setting-asset{
+  width:42px;
+  height:42px;
+  min-width:42px;
+  border-radius:14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(145deg,rgba(232,255,248,.98),rgba(255,241,247,.96));
+  box-shadow:0 5px 14px rgba(40,145,120,.10), inset 0 0 0 1px rgba(79,205,170,.12);
+  pointer-events:none;
+}
+.v3602-setting-asset img{
+  width:31px;
+  height:31px;
+  display:block;
+}
+[data-setting-toggle="v3601Sound"] > :not(.v3602-setting-asset),
+[data-setting-toggle="v3601Vibrate"] > :not(.v3602-setting-asset){
+  min-width:0;
+}
