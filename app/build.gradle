@@ -10,15 +10,13 @@ android {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 90
-        versionName '0.32.00'
-        // Snow stays disabled by default. Only the debug/developer build turns it on.
+        versionCode 91
+        versionName '0.33.00'
         manifestPlaceholders = [appLabel: '야모네', snowFeatureEnabled: 'false']
     }
 
     signingConfigs {
         yamoneDev {
-            // Development-only key. Production/release signing must use a separate private key.
             storeFile rootProject.file('dev-signing/yamone-dev.keystore')
             storePassword 'android'
             keyAlias 'yamone-dev'
@@ -28,14 +26,12 @@ android {
 
     buildTypes {
         debug {
-            // Dedicated Yamone-App test package. Keeps legacy test installs/data untouched.
             applicationIdSuffix '.yamone'
             versionNameSuffix '-dev'
             manifestPlaceholders = [appLabel: '야모네', snowFeatureEnabled: 'true']
             signingConfig signingConfigs.yamoneDev
         }
         release {
-            // Snow native entry points/services stay disabled until field testing is approved.
             manifestPlaceholders = [appLabel: '야모네', snowFeatureEnabled: 'false']
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
