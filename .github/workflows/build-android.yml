@@ -2,7 +2,7 @@ name: Build Yamone Android APK
 
 on:
   push:
-    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work, v36-01-work, v36-02-work, v36-03-work, v36-04-work, v36-05-work, v36-06-work, v36-07-work, v36-08-work]
+    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work, v36-01-work, v36-02-work, v36-03-work, v36-04-work, v36-05-work, v36-06-work, v36-07-work, v36-08-work, v36-09-work]
     paths: ['app/**','build.gradle','gradle.properties','settings.gradle','dev-signing/**','design-preview/**','design-source/**','tools/**','.github/workflows/build-android.yml','INTEGRATION_CHECKLIST_V36.md','TEST_CHECKLIST_V36_01.md']
   workflow_dispatch:
 
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply Yamone v0.36.08
+      - name: Apply Yamone v0.36.09
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
@@ -37,6 +37,7 @@ jobs:
           python3 tools/apply-v03606-motion-window-auto-end-record-label.py
           python3 tools/apply-v03607-tunnel-developer-mode.py
           python3 tools/apply-v03608-location-dev-only.py
+          python3 tools/apply-v03609-upload-dev-only.py
 
       - name: Validate integrated non-location-sharing features
         shell: bash
@@ -51,7 +52,7 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v03600-readiness.js
           node --check app/src/main/assets/yamone-v23/v03604-autodetect-ui.js
           node --check app/src/main/assets/yamone-v23/v03607-developer-mode.js
-          node --check app/src/main/assets/yamone-v23/v03608-version.js
+          node --check app/src/main/assets/yamone-v23/v03609-version.js
           grep -q 'locationSharingExcluded' app/src/main/java/com/yamo/snorelab/AppReadinessBridge.java
           grep -q 'KEY_CONFIRM_SECONDS' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
           grep -q 'KEY_END_INACTIVITY_MIN' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
@@ -84,11 +85,17 @@ jobs:
           grep -q 'gateLocationSharing' app/src/main/assets/yamone-v23/v03607-developer-mode.js
           grep -q 'v3608DeveloperOnlyLocation' app/src/main/assets/yamone-v23/v03607-developer-mode.js
           grep -q '위치공유' app/src/main/assets/yamone-v23/v03607-developer-mode.js
+          grep -q 'SystemSettingsBridge.isDeveloperMode(this)' app/src/main/java/com/yamo/snorelab/UploadExerciseActivity.java
+          grep -q 'SystemSettingsBridge.isDeveloperMode(activity)' app/src/main/java/com/yamo/snorelab/SleepUploadUiEnhancer.java
+          grep -q '기록 업로드는 개발자 모드에서만 사용할 수 있습니다.' app/src/main/java/com/yamo/snorelab/SupabaseActivityUploader.java
+          grep -q '기록 업로드는 개발자 모드에서만 사용할 수 있습니다.' app/src/main/java/com/yamo/snorelab/SupabaseSleepUploader.java
+          grep -q '녹음과 분석 기록은 앱 내부에 저장합니다.' app/src/main/java/com/yamo/snorelab/MainActivity.java
+          grep -q '수면 기록은 휴대폰 내부 저장소에서 관리합니다.' app/src/main/java/com/yamo/snorelab/MainActivity.java
           grep -q 'class SnowMapPackageValidator' app/src/main/java/com/yamo/snorelab/SnowMapPackageValidator.java
           grep -q 'KEY_HEARTBEAT_MS' app/src/main/java/com/yamo/snorelab/SleepRecorderService.java
-          grep -q "versionCode 102" app/build.gradle
-          grep -q "versionName '0.36.08'" app/build.gradle
-          grep -q '0.36.08' app/src/main/assets/yamone-v23/v03608-version.js
+          grep -q "versionCode 103" app/build.gradle
+          grep -q "versionName '0.36.09'" app/build.gradle
+          grep -q '0.36.09' app/src/main/assets/yamone-v23/v03609-version.js
           test -f INTEGRATION_CHECKLIST_V36.md
 
       - name: Set up JDK 17
@@ -122,6 +129,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.36.08-location-developer-only-apk
+          name: yamone-v0.36.09-record-upload-developer-only-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
