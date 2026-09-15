@@ -1,0 +1,13 @@
+/* v0.29.00: completed-record deletion + end-tail correction UI. */
+.v2900-record-actions{display:flex;gap:10px;margin:18px 0 28px}
+.v2900-record-delete{width:100%;min-height:48px;border:1px solid #e9b8bd;border-radius:16px;background:#fff7f8;color:#a63e49;font-size:15px;font-weight:800}
+.v2900-record-delete:active{transform:scale(.99)}
+.v2900-modal-backdrop{position:fixed;inset:0;z-index:9998;background:rgba(16,34,32,.28);display:flex;align-items:flex-end;justify-content:center;padding:20px 18px calc(24px + env(safe-area-inset-bottom))}
+.v2900-modal{width:min(100%,520px);border-radius:24px;background:#fff;padding:22px 20px 18px;box-shadow:0 18px 50px rgba(20,45,41,.18)}
+.v2900-modal h3{margin:0 0 9px;font-size:19px;color:#173c38}
+.v2900-modal p{margin:0;color:#617672;font-size:14px;line-height:1.55}
+.v2900-modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.v2900-modal-actions button{min-height:46px;border:0;border-radius:15px;font-size:15px;font-weight:800}
+.v2900-modal-cancel{background:#eef7f4;color:#315b55}
+.v2900-modal-danger{background:#f7dadd;color:#913741}
+.v2900-toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));z-index:10000;transform:translateX(-50%);max-width:calc(100% - 40px);padding:11px 16px;border-radius:14px;background:#183f3a;color:#fff;font-size:13px;font-weight:700;box-shadow:0 8px 24px rgba(14,40,36,.18);white-space:nowrap}
