@@ -2,7 +2,7 @@ name: Build Yamone Android APK
 
 on:
   push:
-    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work, v36-01-work, v36-02-work, v36-03-work, v36-04-work]
+    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work, v36-01-work, v36-02-work, v36-03-work, v36-04-work, v36-05-work]
     paths: ['app/**','build.gradle','gradle.properties','settings.gradle','dev-signing/**','design-preview/**','design-source/**','tools/**','.github/workflows/build-android.yml','INTEGRATION_CHECKLIST_V36.md','TEST_CHECKLIST_V36_01.md']
   workflow_dispatch:
 
@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Apply Yamone v0.36.04
+      - name: Apply Yamone v0.36.05
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
@@ -32,6 +32,7 @@ jobs:
           python3 tools/apply-v03602-autodetect-assets.py
           python3 tools/apply-v03603-hybrid-autodetect.py
           python3 tools/apply-v03604-autodetect-ui-fix.py
+          python3 tools/apply-v03605-autodetect-lifecycle.py
       - name: Validate integrated non-location-sharing features
         shell: bash
         run: |
@@ -43,7 +44,7 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v03000-settings.js
           node --check app/src/main/assets/yamone-v23/v03600-readiness.js
           node --check app/src/main/assets/yamone-v23/v03604-autodetect-ui.js
-          node --check app/src/main/assets/yamone-v23/v03604-version.js
+          node --check app/src/main/assets/yamone-v23/v03605-version.js
           grep -q 'class AppReadinessBridge' app/src/main/java/com/yamo/snorelab/AppReadinessBridge.java
           grep -q 'YamoneReadiness' app/src/main/java/com/yamo/snorelab/YamoneMovementActivity.java
           grep -q 'locationSharingExcluded' app/src/main/java/com/yamo/snorelab/AppReadinessBridge.java
@@ -52,25 +53,28 @@ jobs:
           grep -q 'KEY_NOTIFY_SOUND' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
           grep -q 'KEY_NOTIFY_VIBRATE' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
           grep -q 'KEY_CONFIRM_SECONDS' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
-          grep -q 'onHybridCandidateConfirmed' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
-          grep -q 'class ActivityHybridDetectorService' app/src/main/java/com/yamo/snorelab/ActivityHybridDetectorService.java
+          grep -q 'onRecordingStarted' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q 'onRecordingFinished' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
+          grep -q 'suspendForRecording' app/src/main/java/com/yamo/snorelab/ActivityHybridDetectorService.java
+          grep -q 'resumeAfterRecording' app/src/main/java/com/yamo/snorelab/ActivityHybridDetectorService.java
+          grep -q 'KEY_PAUSED_FOR_RECORDING' app/src/main/java/com/yamo/snorelab/ActivityHybridDetectorService.java
+          grep -q 'lastPseudoStepMs' app/src/main/java/com/yamo/snorelab/ActivityHybridDetectorService.java
+          grep -q 'motion >= 0.42' app/src/main/java/com/yamo/snorelab/ActivityHybridDetectorService.java
           grep -q 'vehicle→cycling' app/src/main/java/com/yamo/snorelab/ActivityHybridDetectorService.java
+          grep -q 'onRecordingStarted(this)' app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q 'onRecordingFinished(this)' app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
+          grep -q 'ActivityAutoDetectManager.syncRegistration(activity)' app/src/main/java/com/yamo/snorelab/YamoneApplication.java
+          grep -q 'movementRecording' app/src/main/java/com/yamo/snorelab/AutoDetectSettingsBridge.java
+          grep -q '자동감지 일시중지' app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q 'v3603ConfirmSeconds' app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q '자체 자동감지 상태' app/src/main/assets/yamone-v23/v02516-auto-detect.js
-          grep -q 'v3604-hybrid-status' app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q '15초 이후' app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q '60초 이후' app/src/main/assets/yamone-v23/v02516-auto-detect.js
           ! grep -q "s.notifySound,'notifySound'" app/src/main/assets/yamone-v23/v02516-auto-detect.js
           ! grep -q "s.notifyVibrate,'notifyVibrate'" app/src/main/assets/yamone-v23/v02516-auto-detect.js
-          ! grep -q '자동차 탑승 신호가 함께 감지되면 자전거 자동 시작을 차단' app/src/main/assets/yamone-v23/v02516-auto-detect.js
           grep -q 'ActivityHybridDetectorService' app/src/main/AndroidManifest.xml
           test -f app/src/main/assets/yamone-v23/assets/autodetect-sound-v03602.svg
           test -f app/src/main/assets/yamone-v23/assets/autodetect-vibrate-v03602.svg
-          grep -q 'closest(.setting-control-row' app/src/main/assets/yamone-v23/v03604-autodetect-ui.js || grep -q "closest('.setting-control-row')" app/src/main/assets/yamone-v23/v03604-autodetect-ui.js
-          grep -q 'autodetect-sound-v03602.svg' app/src/main/assets/yamone-v23/v03604-autodetect-ui.js
-          grep -q 'autodetect-vibrate-v03602.svg' app/src/main/assets/yamone-v23/v03604-autodetect-ui.js
-          ! grep -q 'v03602-autodetect-assets.css' app/src/main/assets/yamone-v23/index.html
-          ! grep -q 'v03602-autodetect-assets.js' app/src/main/assets/yamone-v23/index.html
           grep -q 'v03604-autodetect-ui.css' app/src/main/assets/yamone-v23/index.html
           grep -q 'v03604-autodetect-ui.js' app/src/main/assets/yamone-v23/index.html
           grep -q 'KEY_GPS_SIGNAL_STATE' app/src/main/java/com/yamo/snorelab/WalkingRecorderService.java
@@ -79,8 +83,8 @@ jobs:
           grep -q 'KEY_HEARTBEAT_MS' app/src/main/java/com/yamo/snorelab/SleepRecorderService.java
           grep -q 'captureHealthy' app/src/main/java/com/yamo/snorelab/SleepBridge.java
           grep -q 'class SystemSettingsBridge' app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
-          grep -q "versionName '0.36.04'" app/build.gradle
-          grep -q '0.36.04' app/src/main/assets/yamone-v23/v03604-version.js
+          grep -q "versionName '0.36.05'" app/build.gradle
+          grep -q '0.36.05' app/src/main/assets/yamone-v23/v03605-version.js
           test -f INTEGRATION_CHECKLIST_V36.md
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -107,6 +111,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.36.04-auto-detect-ui-fix-apk
+          name: yamone-v0.36.05-auto-detect-lifecycle-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
