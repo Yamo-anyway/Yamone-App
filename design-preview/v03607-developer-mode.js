@@ -1,4 +1,4 @@
-/* v0.36.07: developer-mode gate for manual walk/run auto-switch. */
+/* v0.36.08: developer-mode gates for manual walk/run auto-switch and location sharing. */
 (function(){
   'use strict';
   const UNLOCK_TAPS=7;
@@ -43,6 +43,33 @@
     });
   }
 
+  function locationEntry(){
+    if(typeof screen==='undefined'||!screen)return null;
+    const direct=[...screen.querySelectorAll('button,.card,[role="button"],[onclick],[data-view],[data-action]')]
+      .filter(el=>(el.textContent||'').replace(/\s+/g,'').includes('위치공유'))
+      .sort((a,b)=>(a.textContent||'').length-(b.textContent||'').length);
+    if(direct.length)return direct[0];
+
+    const leaves=[...screen.querySelectorAll('*')]
+      .filter(el=>(el.textContent||'').replace(/\s+/g,'').includes('위치공유'))
+      .filter(el=>![...el.children].some(child=>(child.textContent||'').replace(/\s+/g,'').includes('위치공유')));
+    for(const leaf of leaves){
+      let node=leaf;
+      for(let i=0;i<5&&node&&node!==screen;i++,node=node.parentElement){
+        if(node.matches&&node.matches('button,.card,[role="button"],[onclick],[data-view],[data-action]'))return node;
+      }
+    }
+    return null;
+  }
+
+  function gateLocationSharing(){
+    if(typeof view==='undefined'||view!=='main'||typeof tab==='undefined'||tab!=='activity')return;
+    const entry=locationEntry();
+    if(!entry)return;
+    entry.dataset.v3608DeveloperOnlyLocation='1';
+    entry.hidden=!isDeveloper();
+  }
+
   function decorateAppInfo(){
     if(typeof view==='undefined'||view!=='setting'||typeof settingPage==='undefined'||settingPage!=='앱 정보')return;
     const existing=document.getElementById('v3607DeveloperCard');
@@ -70,6 +97,7 @@
   function apply(){
     scheduled=false;
     hideManualAutoSwitch();
+    gateLocationSharing();
     decorateAppInfo();
   }
   function schedule(){
