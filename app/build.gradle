@@ -5,16 +5,14 @@ plugins {
 android {
     namespace 'com.yamo.snorelab'
     compileSdk 36
-
     defaultConfig {
         applicationId 'com.yamo.snorelab'
         minSdk 26
         targetSdk 36
-        versionCode 91
-        versionName '0.33.00'
+        versionCode 92
+        versionName '0.34.00'
         manifestPlaceholders = [appLabel: '야모네', snowFeatureEnabled: 'false']
     }
-
     signingConfigs {
         yamoneDev {
             storeFile rootProject.file('dev-signing/yamone-dev.keystore')
@@ -23,7 +21,6 @@ android {
             keyPassword 'android'
         }
     }
-
     buildTypes {
         debug {
             applicationIdSuffix '.yamone'
@@ -37,7 +34,6 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
