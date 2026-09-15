@@ -53,7 +53,7 @@ public final class AppReadinessBridge {
                 if (!map.optBoolean("packageValid", false)) invalidMaps++;
             }
 
-            out.put("version", BuildConfig.VERSION_NAME);
+            out.put("version", appVersionName());
             out.put("location", fine || coarse);
             out.put("fineLocation", fine);
             out.put("backgroundLocation", background);
@@ -78,6 +78,16 @@ public final class AppReadinessBridge {
             try { out.put("error", "readiness_failed"); } catch (Exception ignored) { }
         }
         return out.toString();
+    }
+
+    private String appVersionName() {
+        try {
+            String version = activity.getPackageManager()
+                    .getPackageInfo(activity.getPackageName(), 0).versionName;
+            return version == null ? "" : version;
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private boolean granted(String permission) {
