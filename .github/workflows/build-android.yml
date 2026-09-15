@@ -32,7 +32,7 @@ jobs:
           python3 tools/apply-v03602-autodetect-assets.py
           python3 tools/apply-v03603-hybrid-autodetect.py
           python3 tools/apply-v03604-autodetect-ui-fix.py
-          python3 tools/apply-v03605-autodetect-lifecycle.py
+          python3 tools/apply-v03605-autodetect-lifecycle-fixed.py
       - name: Validate integrated non-location-sharing features
         shell: bash
         run: |
