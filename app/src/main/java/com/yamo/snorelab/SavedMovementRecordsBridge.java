@@ -92,6 +92,28 @@ public final class SavedMovementRecordsBridge {
         return out.toString();
     }
 
+    /** Applies one final 1/3/5 minute correction to the end of a completed, not-yet-uploaded record. */
+    @JavascriptInterface
+    public String trimSavedRecordEnd(String requestedSessionId, int minutes) {
+        JSONObject out = new JSONObject();
+        String sessionId = requestedSessionId == null ? "" : requestedSessionId.trim();
+        try {
+            if (sessionId.isEmpty()) return result(out, false, "invalid_session").toString();
+            File dir = findSession(sessionId);
+            if (dir == null) return result(out, false, "not_found").toString();
+            out = MovementRecordEditor.trimTail(activity, dir, minutes);
+            out.put("sessionId", sessionId);
+            if (out.optBoolean("ok", false)) {
+                JSONObject meta = WalkingStore.readMeta(dir);
+                out.put("record", summaryItem(dir, meta));
+                out.put("points", routeJson(dir, 700));
+            }
+        } catch (Exception e) {
+            result(out, false, "trim_failed");
+        }
+        return out.toString();
+    }
+
     private JSONObject summaryItem(File dir, JSONObject meta) {
         JSONObject item = new JSONObject();
         try {
@@ -108,6 +130,7 @@ public final class SavedMovementRecordsBridge {
             item.put("splitsMs", meta.optJSONArray("splitsMs") == null ? new JSONArray() : meta.optJSONArray("splitsMs"));
             item.put("tailTrimFinalized", meta.optBoolean("tailTrimFinalized", false));
             item.put("tailTrimMinutes", Math.max(0, meta.optInt("tailTrimMinutes", 0)));
+            item.put("uploaded", meta.optBoolean("uploaded", false));
         } catch (Exception ignored) { }
         return item;
     }
