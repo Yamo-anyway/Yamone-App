@@ -43,17 +43,24 @@ jobs:
           python3 tools/apply-v03612-final-cleanup.py
           python3 tools/apply-v03613-local-only-user-records.py
 
-      - name: Validate local-only user records
+      - name: Validate local-only users and developer Mac mini sleep
         shell: bash
         run: |
           test ! -f app/src/main/java/com/yamo/snorelab/SupabaseActivityUploader.java
           test ! -f app/src/main/java/com/yamo/snorelab/SupabaseSleepUploader.java
           test -f app/src/main/java/com/yamo/snorelab/UploadExerciseActivity.java
           ! grep -q 'upload\|Supabase' app/src/main/java/com/yamo/snorelab/UploadExerciseActivity.java
-          test ! -f app/src/main/java/com/yamo/snorelab/SleepUploadUiEnhancer.java
-          test ! -f app/src/main/java/com/yamo/snorelab/SleepUploadState.java
-          ! grep -R -q 'SleepUploadUiEnhancer\|SupabaseActivityUploader\|SupabaseSleepUploader' app/src/main/java
-          ! grep -R -q 'activity_sessions\|sleep_sessions\|activity-data\|sleep-data' app/src/main/java app/src/main/assets/yamone-v23
+          test -f app/src/main/java/com/yamo/snorelab/MacMiniSleepUploader.java
+          test -f app/src/main/java/com/yamo/snorelab/SleepUploadUiEnhancer.java
+          test -f app/src/main/java/com/yamo/snorelab/SleepUploadState.java
+          grep -q 'https://yamone-data.anynow.net' app/src/main/java/com/yamo/snorelab/MacMiniSleepUploader.java
+          grep -q '/dev-data/sleep' app/src/main/java/com/yamo/snorelab/MacMiniSleepUploader.java
+          grep -q 'SystemSettingsBridge.isDeveloperMode' app/src/main/java/com/yamo/snorelab/MacMiniSleepUploader.java
+          grep -q 'audio_uploaded",false' app/src/main/java/com/yamo/snorelab/MacMiniSleepUploader.java
+          grep -q 'SystemSettingsBridge.isDeveloperMode(activity)' app/src/main/java/com/yamo/snorelab/SleepUploadUiEnhancer.java
+          grep -q 'MacMiniSleepUploader.upload' app/src/main/java/com/yamo/snorelab/SleepUploadUiEnhancer.java
+          ! grep -R -q 'SupabaseActivityUploader\|SupabaseSleepUploader' app/src/main/java
+          ! grep -R -q 'walking-tracks\|sleep-audio' app/src/main/java app/src/main/assets/yamone-v23
           ! grep -q 'developerAuth' app/src/main/java/com/yamo/snorelab/SupabaseAnonymousRpcClient.java
           ! grep -q 'DevNetworkGuard' app/src/main/java/com/yamo/snorelab/SupabaseAnonymousRpcClient.java
           grep -q 'SupabaseAnonymousRpcClient.rpc' app/src/main/java/com/yamo/snorelab/SkiLiftApi.java
@@ -91,6 +98,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.36.13-local-only-records-apk
+          name: yamone-v0.36.13-local-only-macmini-sleep-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
