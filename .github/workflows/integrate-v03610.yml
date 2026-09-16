@@ -1,0 +1,47 @@
+name: Integrate developer dataset sources
+on:
+  push:
+    branches: [v36-10-work]
+    paths: ['.github/workflows/integrate-v03610.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v36-10-work
+      - name: Verify and expand source bundle
+        shell: bash
+        run: |
+          if [ ! -d .github/integration-v3610 ]; then echo 'Already integrated'; exit 0; fi
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma
+          from pathlib import Path
+          paths=sorted(Path('.github/integration-v3610').glob('*.b64'))
+          assert [p.name for p in paths] == [f'{i:02d}.b64' for i in range(8)]
+          data=base64.b64decode(''.join(p.read_text().strip() for p in paths),validate=True)
+          assert hashlib.sha256(data).hexdigest()=='1da20204fcb2760dbe52d3f608e5c9c2282cfbe0f7d07eed174502564dd17013', 'bundle digest mismatch'
+          files=json.loads(lzma.decompress(data))
+          assert isinstance(files,dict) and len(files)==16
+          allowed={'tools/apply-v03610-developer-dataset.py','admin-web/admin-dataset.js','admin-web/index.html'}
+          for name,content in files.items():
+              p=Path(name)
+              assert not p.is_absolute() and '..' not in p.parts
+              assert name.startswith('dev-dataset/') or name in allowed
+              assert isinstance(content,str)
+              p.parent.mkdir(parents=True,exist_ok=True)
+              p.write_text(content,encoding='utf-8')
+              print('Verified source:',name)
+          PY
+          node --check dev-dataset/web/v03610-dataset.js
+          node --check admin-web/admin-dataset.js
+          python3 -m unittest discover -s dev-dataset/tests -p test_analysis.py -v
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add dev-dataset tools/apply-v03610-developer-dataset.py admin-web/admin-dataset.js admin-web/index.html
+          git rm -r .github/integration-v3610
+          git commit -m 'Implement v0.36.10 developer datasets, hourly upload and replay validation'
+          git push origin HEAD:v36-10-work
