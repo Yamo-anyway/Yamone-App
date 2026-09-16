@@ -1,0 +1,92 @@
+name: Build Yamone v0.36.11 Mac mini APK
+
+on:
+  push:
+    branches: [v36-11-work]
+    paths: ['dev-dataset/**','app/**','build.gradle','gradle.properties','settings.gradle','dev-signing/**','design-preview/**','design-source/**','tools/**','.github/workflows/build-v03611.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply Yamone v0.36.11
+        shell: bash
+        run: |
+          bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
+          python3 tools/apply-v02602-sleep.py
+          python3 tools/apply-v02701-alarm.py
+          python3 tools/apply-v02801-snow.py
+          python3 tools/fix-v02801-snow.py
+          python3 tools/apply-v02802-home-stats.py
+          python3 tools/apply-v03000-settings.py
+          python3 tools/apply-v03100-auto-detect.py
+          python3 tools/apply-v03200-gps-gap.py
+          python3 tools/apply-v03300-alarm-finish.py
+          python3 tools/apply-v03400-snow-package-validation.py
+          python3 tools/apply-v03500-sleep-health.py
+          python3 tools/apply-v03600-readiness.py
+          python3 tools/apply-v03601-auto-detect-test-fixes.py
+          python3 tools/apply-v03602-autodetect-assets.py
+          python3 tools/apply-v03603-hybrid-autodetect.py
+          python3 tools/apply-v03604-autodetect-ui-fix.py
+          python3 tools/apply-v03605-autodetect-lifecycle-fixed.py
+          python3 tools/apply-v03606-motion-window-auto-end-record-label.py
+          python3 tools/apply-v03607-tunnel-developer-mode.py
+          python3 tools/apply-v03608-location-dev-only.py
+          python3 tools/apply-v03609-upload-dev-only.py
+          python3 tools/apply-v03610-developer-dataset.py
+          python3 tools/apply-v03611-macmini-dataset.py
+
+      - name: Validate Mac mini transport
+        shell: bash
+        run: |
+          node --check app/src/main/assets/yamone-v23/v03610-dataset.js
+          grep -q 'https://yamone-data.anynow.net' app/src/main/java/com/yamo/snorelab/DevDatasetUploader.java
+          grep -q '/dev-data/enroll' app/src/main/java/com/yamo/snorelab/DevDatasetUploader.java
+          grep -q '/dev-data/session/begin' app/src/main/java/com/yamo/snorelab/DevDatasetUploader.java
+          grep -q '/finalize' app/src/main/java/com/yamo/snorelab/DevDatasetUploader.java
+          ! grep -q 'supabase.co' app/src/main/java/com/yamo/snorelab/DevDatasetUploader.java
+          ! grep -q 'SupabaseAnonymousRpcClient' app/src/main/java/com/yamo/snorelab/DevDatasetUploader.java
+          grep -q 'Mac mini 테스트 서버' app/src/main/java/com/yamo/snorelab/DevDatasetBridge.java
+          grep -q "versionCode 105" app/build.gradle
+          grep -q "versionName '0.36.11'" app/build.gradle
+          grep -q "const V='0.36.11'" app/src/main/assets/yamone-v23/v03610-dataset.js
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: '17'}
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(command -v sdkmanager)"; fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Restore development signing key
+        shell: bash
+        run: |
+          mkdir -p dev-signing
+          base64 -d dev-signing/yamone-dev.keystore.b64 > dev-signing/yamone-dev.keystore
+          keytool -list -keystore dev-signing/yamone-dev.keystore -storepass android -alias yamone-dev >/dev/null
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '9.4.1'}
+
+      - name: Dataset journal unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+
+      - name: Build developer APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: yamone-v0.36.11-macmini-dataset-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
