@@ -1,0 +1,20 @@
+name: Source snapshot for integration tests
+on:
+  push:
+    branches: [v36-10-work]
+    paths: ['.github/workflows/source-snapshot.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package sources without signing keys
+        run: tar -czf yamone-source.tgz app tools design-preview design-source admin-web .github/workflows build.gradle gradle.properties settings.gradle INTEGRATION_CHECKLIST_V36.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yamone-source-snapshot
+          path: yamone-source.tgz
+          retention-days: 2
