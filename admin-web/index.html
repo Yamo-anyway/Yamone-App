@@ -57,7 +57,6 @@
         <button class="tab" data-tab="activity" type="button">활동</button>
         <button class="tab" data-tab="sleep" type="button">수면 분석</button>
         <button class="tab" data-tab="ski" type="button">스키 리프트</button>
-        <button class="tab" data-tab="dataset" type="button">개발자 활동 데이터</button>
       </nav>
 
       <div id="globalMessage" class="global-message hidden" aria-live="polite"></div>
@@ -129,13 +128,6 @@
         <div id="sleepEmpty" class="empty-state hidden">아직 업로드된 수면 분석 기록이 없습니다.</div>
       </section>
 
-      <section id="datasetPanel" class="panel">
-        <div class="section-head"><div><p class="eyebrow">DEVELOPER DATASET</p><h2>활동 알고리즘 검증 데이터</h2></div><button id="datasetReload" class="soft-button" type="button">불러오기</button></div>
-        <p>개발자 테스트 기기에서 수집한 GPS·센서 원본과 판단 기록입니다. 개인 위치가 포함되므로 공개하지 마세요.</p>
-        <button id="datasetInvite" class="soft-button" type="button">테스터 1회용 연결 코드 발급</button><pre id="datasetInviteCode" style="user-select:all;white-space:pre-wrap"></pre>
-        <p id="datasetMessage" role="status"></p><div id="datasetRecords" class="sleep-records"></div>
-      </section>
-
       <section id="skiPanel" class="panel">
         <div class="section-head">
           <div><p class="eyebrow">SKI LIFT REVIEW</p><h2>스키 리프트 관리</h2></div>
@@ -182,6 +174,5 @@
   <script src="./admin-delete.js" defer></script>
   <script src="./admin-readiness.js" defer></script>
   <script src="./admin-ski.js" defer></script>
-  <script src="./admin-dataset.js" defer></script>
 </body>
 </html>
