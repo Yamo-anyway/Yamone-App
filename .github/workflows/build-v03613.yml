@@ -48,9 +48,11 @@ jobs:
         run: |
           test ! -f app/src/main/java/com/yamo/snorelab/SupabaseActivityUploader.java
           test ! -f app/src/main/java/com/yamo/snorelab/SupabaseSleepUploader.java
-          test ! -f app/src/main/java/com/yamo/snorelab/UploadExerciseActivity.java
+          test -f app/src/main/java/com/yamo/snorelab/UploadExerciseActivity.java
+          ! grep -q 'upload\|Supabase' app/src/main/java/com/yamo/snorelab/UploadExerciseActivity.java
           test ! -f app/src/main/java/com/yamo/snorelab/SleepUploadUiEnhancer.java
           test ! -f app/src/main/java/com/yamo/snorelab/SleepUploadState.java
+          ! grep -R -q 'SleepUploadUiEnhancer\|SupabaseActivityUploader\|SupabaseSleepUploader' app/src/main/java
           ! grep -R -q 'activity_sessions\|sleep_sessions\|activity-data\|sleep-data' app/src/main/java app/src/main/assets/yamone-v23
           ! grep -q 'developerAuth' app/src/main/java/com/yamo/snorelab/SupabaseAnonymousRpcClient.java
           ! grep -q 'DevNetworkGuard' app/src/main/java/com/yamo/snorelab/SupabaseAnonymousRpcClient.java
