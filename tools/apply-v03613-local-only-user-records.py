@@ -7,20 +7,33 @@ J = R / 'app/src/main/java/com/yamo/snorelab'
 A = R / 'app/src/main/assets/yamone-v23'
 BUILD = R / 'app/build.gradle'
 
-# User activity/sleep records are local-only. Remove the old Supabase upload
-# implementation from the generated Android source tree. Developer diagnostic
-# capture (DevCaptureService/DevDatasetUploader) remains and uploads only to the
-# paired Mac mini while developer mode is enabled.
+# User activity/sleep records are local-only. Remove the old Supabase uploader
+# implementations and sleep upload UI/state from the generated Android source.
+# Developer diagnostic capture remains separate and sends only to the paired
+# Mac mini while developer mode is enabled.
 for name in (
     'SupabaseActivityUploader.java',
     'SupabaseSleepUploader.java',
-    'UploadExerciseActivity.java',
     'SleepUploadUiEnhancer.java',
     'SleepUploadState.java',
 ):
     p = J / name
     if p.exists():
         p.unlink()
+
+# UploadExerciseActivity is part of the existing activity-screen inheritance
+# chain (EnhancedExerciseActivity extends it). Keep that class name as a plain
+# local-only ExerciseActivity with no upload button or network code.
+(J / 'UploadExerciseActivity.java').write_text(
+    '''package com.yamo.snorelab;\n\n/** Local-only activity detail base. User activity records are never uploaded. */\npublic class UploadExerciseActivity extends ExerciseActivity {\n}\n''',
+    encoding='utf-8')
+
+# Remove the old sleep upload enhancer lifecycle hooks.
+app = J / 'YamoneApplication.java'
+s = app.read_text(encoding='utf-8')
+s = s.replace('            SleepUploadUiEnhancer.attach(main);\n', '')
+s = s.replace('            SleepUploadUiEnhancer.detach(main);\n', '')
+app.write_text(s, encoding='utf-8')
 
 # v0.36.10 temporarily routed SupabaseAnonymousRpcClient through the developer
 # network guard for the old Supabase developer-dataset transport. That transport
