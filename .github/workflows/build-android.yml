@@ -2,8 +2,8 @@ name: Build Yamone Android APK
 
 on:
   push:
-    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work, v36-01-work, v36-02-work, v36-03-work, v36-04-work, v36-05-work, v36-06-work, v36-07-work, v36-08-work, v36-09-work]
-    paths: ['app/**','build.gradle','gradle.properties','settings.gradle','dev-signing/**','design-preview/**','design-source/**','tools/**','.github/workflows/build-android.yml','INTEGRATION_CHECKLIST_V36.md','TEST_CHECKLIST_V36_01.md']
+    branches: [main, renewal-v23, v29-00-work, v30-00-work, v31-00-work, v32-00-work, v33-00-work, v34-00-work, v35-00-work, v36-00-work, v36-01-work, v36-02-work, v36-03-work, v36-04-work, v36-05-work, v36-06-work, v36-07-work, v36-08-work, v36-09-work, v36-10-work]
+    paths: ['dev-dataset/**','app/**','build.gradle','gradle.properties','settings.gradle','dev-signing/**','design-preview/**','design-source/**','tools/**','.github/workflows/build-android.yml','INTEGRATION_CHECKLIST_V36.md','TEST_CHECKLIST_V36_01.md']
   workflow_dispatch:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply Yamone v0.36.09
+      - name: Apply Yamone v0.36.10
         shell: bash
         run: |
           bash tools/import-yamone-v23.sh design-source/yamone-v23.zip
@@ -38,6 +38,7 @@ jobs:
           python3 tools/apply-v03607-tunnel-developer-mode.py
           python3 tools/apply-v03608-location-dev-only.py
           python3 tools/apply-v03609-upload-dev-only.py
+          python3 tools/apply-v03610-developer-dataset.py
 
       - name: Validate integrated non-location-sharing features
         shell: bash
@@ -52,7 +53,9 @@ jobs:
           node --check app/src/main/assets/yamone-v23/v03600-readiness.js
           node --check app/src/main/assets/yamone-v23/v03604-autodetect-ui.js
           node --check app/src/main/assets/yamone-v23/v03607-developer-mode.js
-          node --check app/src/main/assets/yamone-v23/v03609-version.js
+          node --check app/src/main/assets/yamone-v23/v03610-dataset.js
+          node --check admin-web/admin-dataset.js
+          python3 -m unittest discover -s dev-dataset/tests -p test_analysis.py -v
           grep -q 'locationSharingExcluded' app/src/main/java/com/yamo/snorelab/AppReadinessBridge.java
           grep -q 'KEY_CONFIRM_SECONDS' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
           grep -q 'KEY_END_INACTIVITY_MIN' app/src/main/java/com/yamo/snorelab/ActivityAutoDetectManager.java
@@ -93,9 +96,9 @@ jobs:
           grep -q '수면 기록은 휴대폰 내부 저장소에서 관리합니다.' app/src/main/java/com/yamo/snorelab/MainActivity.java
           grep -q 'class SnowMapPackageValidator' app/src/main/java/com/yamo/snorelab/SnowMapPackageValidator.java
           grep -q 'KEY_HEARTBEAT_MS' app/src/main/java/com/yamo/snorelab/SleepRecorderService.java
-          grep -q "versionCode 103" app/build.gradle
-          grep -q "versionName '0.36.09'" app/build.gradle
-          grep -q '0.36.09' app/src/main/assets/yamone-v23/v03609-version.js
+          grep -q "versionCode 104" app/build.gradle
+          grep -q "versionName '0.36.10'" app/build.gradle
+          grep -q '0.36.10' app/src/main/assets/yamone-v23/v03610-dataset.js
           test -f INTEGRATION_CHECKLIST_V36.md
 
       - name: Set up JDK 17
@@ -120,6 +123,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '9.4.1'}
 
+      - name: Dataset journal unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
+
       - name: Build developer APK
         run: gradle :app:assembleDebug --stacktrace
 
@@ -129,6 +135,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yamone-v0.36.09-record-upload-developer-only-apk
+          name: yamone-v0.36.10-developer-dataset-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
