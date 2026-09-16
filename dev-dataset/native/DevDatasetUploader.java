@@ -10,21 +10,31 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Durable outbox: acknowledge immutable parts, then finalize once all parts exist. */
+/** Durable Mac mini outbox: upload immutable parts, acknowledge, then finalize. */
 final class DevDatasetUploader {
-    private static final String BASE="https://kumucxomdviuwuwqcpmv.supabase.co";
-    private static final String KEY="sb_publishable_YYZp1A9A62KUxs5etSAiYg_0TvaK2hQ";
+    private static final String BASE="https://yamone-data.anynow.net";
+    private static final String TOKEN_KEY="macmini_token_v1";
     private static final ExecutorService IO=Executors.newSingleThreadExecutor();
     private static final AtomicBoolean BUSY=new AtomicBoolean();
     private static final AtomicBoolean AGAIN=new AtomicBoolean();
     private static final int JOB=6816;
+
+    static boolean paired(Context c){
+        return !DevCaptureService.prefs(c).getString(TOKEN_KEY,"").isEmpty();
+    }
+    static File receipt(File dir,int part){return new File(dir,DevDatasetStore.name(part)+".mac.receipt.json");}
+    static File completeReceipt(File dir){return new File(dir,"mac.complete.receipt.json");}
+
     static void enroll(Context context,String code){
         Context c=context.getApplicationContext();
         if(!SystemSettingsBridge.isDeveloperMode(c))return;
         IO.execute(()->{try{
-            DevNetworkGuard.check();String answer=SupabaseAnonymousRpcClient.rpc(c,"dev_dataset_enroll",DevCaptureService.obj("p_code",code.trim()));
-            if(!new JSONObject(answer).optBoolean("ok"))throw new IOException("pairing_failed");
-            DevCaptureService.prefs(c).edit().putBoolean("paired",true).putString("error","").apply();kick(c);
+            DevNetworkGuard.check();
+            JSONObject result=requestJson(c,"POST","/dev-data/enroll",new JSONObject().put("code",code==null?"":code.trim()),null,DevNetworkGuard.ticket());
+            String token=result.optString("token","");
+            if(!result.optBoolean("ok")||token.length()<32)throw new IOException("pairing_failed");
+            DevCaptureService.prefs(c).edit().putString(TOKEN_KEY,token).putBoolean("paired",true).putString("error","").apply();
+            kick(c);
         }catch(Exception e){error(c,e);}});
     }
     static boolean busy(){return BUSY.get();}
@@ -62,7 +72,7 @@ final class DevDatasetUploader {
     }
     static void kick(Context context){
         Context c=context.getApplicationContext();
-        if(!SystemSettingsBridge.isDeveloperMode(c)||!DevCaptureService.prefs(c).getBoolean("paired",false))return;
+        if(!SystemSettingsBridge.isDeveloperMode(c)||!paired(c))return;
         AGAIN.set(true);
         if(!BUSY.compareAndSet(false,true))return;
         IO.execute(()->{boolean failed=false;
@@ -72,77 +82,95 @@ final class DevDatasetUploader {
         });
     }
     private static void schedule(Context c){
-        if(!SystemSettingsBridge.isDeveloperMode(c))return;
+        if(!SystemSettingsBridge.isDeveloperMode(c)||!paired(c))return;
         JobScheduler j=c.getSystemService(JobScheduler.class);
         if(j!=null)j.schedule(new JobInfo.Builder(JOB,new ComponentName(c,RetryJob.class))
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setMinimumLatency(30000)
                 .setBackoffCriteria(30000,JobInfo.BACKOFF_POLICY_EXPONENTIAL).setPersisted(true).build());
     }
     private static void drain(Context c) throws Exception {
-        long ticket=DevNetworkGuard.ticket();JSONObject auth=null;
+        long ticket=DevNetworkGuard.ticket();
+        String token=DevCaptureService.prefs(c).getString(TOKEN_KEY,"");
+        if(token.isEmpty())throw new IOException("device_not_paired");
         List<File> queue=sessions(c);Collections.reverse(queue);
         for(File dir:queue){
             DevNetworkGuard.check(ticket);
             JSONObject m=DevDatasetStore.readJson(new File(dir,"manifest.json"));
-            if(!approved(c,dir,m)||new File(dir,"complete.receipt.json").isFile())continue;
+            if(!approved(c,dir,m)||completeReceipt(dir).isFile())continue;
             int through=m.optInt("releasedThrough",-1);if(through<0)continue;
-            if(auth==null)auth=SupabaseAnonymousRpcClient.developerAuth(c);
-            String uid=auth.getString("userId"),token=auth.getString("accessToken"),id=m.getString("id");
-            File owner=new File(dir,"owner.json");
-            if(owner.isFile()&&!uid.equals(DevDatasetStore.readJson(owner).optString("userId")))throw new IOException("dataset_owner_changed");
-            rpc(c,"dev_dataset_begin",DevCaptureService.obj("p_id",id,"p_manifest",m),ticket);
-            DevDatasetStore.atomicJson(owner,DevCaptureService.obj("userId",uid));
+            String id=m.getString("id");
+            JSONObject begin=requestJson(c,"POST","/dev-data/session/begin",new JSONObject().put("id",id).put("manifest",m),token,ticket);
+            if(!begin.optBoolean("ok"))throw new IOException("server_begin_failed");
             for(File f:DevDatasetStore.descriptors(dir)){
                 JSONObject p=DevDatasetStore.readJson(f);int number=p.getInt("part");if(number>through)continue;
-                File receipt=new File(dir,DevDatasetStore.name(number)+".receipt.json");if(receipt.isFile())continue;
+                File receipt=receipt(dir,number);if(receipt.isFile())continue;
                 DevNetworkGuard.check(ticket);
                 if(!approved(c,dir,m))throw new IOException("upload_approval_revoked");
                 File data=new File(dir,p.getString("file"));
                 if(!p.getString("sha256").equals(DevDatasetStore.sha256(data)))throw new IOException("local_checksum_mismatch");
-                String path=uid+"/"+id+"/"+String.format(Locale.US,"%06d",number)+"-"+p.getString("sha256")+".jsonl.gz";
-                uploadFile(data,path,token,ticket);
-                rpc(c,"dev_dataset_commit_part",DevCaptureService.obj("p_id",id,"p_part",p),ticket);
-                DevDatasetStore.atomicJson(receipt,DevCaptureService.obj("sha256",p.getString("sha256"),"ackWallMs",System.currentTimeMillis()));
+                uploadPart(c,id,number,data,p,token,ticket);
+                DevDatasetStore.atomicJson(receipt,DevCaptureService.obj("sha256",p.getString("sha256"),"server","mac-mini","ackWallMs",System.currentTimeMillis()));
                 DevCaptureService.prefs(c).edit().putLong("lastUploadMs",System.currentTimeMillis()).putString("error","").apply();
             }
-            // Never mark complete while offline/missing a part; this control request carries no raw data.
             m=DevDatasetStore.readJson(new File(dir,"manifest.json"));
             if("closed".equals(m.optString("state"))){
-                boolean all=true;for(int i=0;i<m.optInt("partCount",0);i++)all&=new File(dir,DevDatasetStore.name(i)+".receipt.json").isFile();
-                if(all){rpc(c,"dev_dataset_finalize",DevCaptureService.obj("p_id",id,"p_manifest",m),ticket);
-                    DevDatasetStore.atomicJson(new File(dir,"complete.receipt.json"),DevCaptureService.obj("complete",true,"ackWallMs",System.currentTimeMillis()));}
+                boolean all=true;for(int i=0;i<m.optInt("partCount",0);i++)all&=receipt(dir,i).isFile();
+                if(all){
+                    JSONObject fin=requestJson(c,"POST","/dev-data/session/"+id+"/finalize",new JSONObject().put("manifest",m),token,ticket);
+                    if(!fin.optBoolean("ok"))throw new IOException("server_finalize_failed");
+                    DevDatasetStore.atomicJson(completeReceipt(dir),DevCaptureService.obj("complete",true,"server","mac-mini","ackWallMs",System.currentTimeMillis()));
+                }
             }
         }
     }
-    private static JSONObject rpc(Context c,String name,JSONObject args,long ticket) throws Exception {
-        DevNetworkGuard.check(ticket);JSONObject r=new JSONObject(SupabaseAnonymousRpcClient.rpc(c,name,args));
-        DevNetworkGuard.check(ticket);if(!r.optBoolean("ok"))throw new IOException("server_ack_missing");return r;
-    }
-    private static void uploadFile(File file,String path,String token,long ticket) throws Exception {
-        DevNetworkGuard.check(ticket);HttpURLConnection c=DevNetworkGuard.open(new URL(BASE+"/storage/v1/object/developer-datasets/"+path));
+    private static void uploadPart(Context c,String id,int number,File file,JSONObject p,String token,long ticket) throws Exception {
+        DevNetworkGuard.check(ticket);
+        HttpURLConnection conn=DevNetworkGuard.open(new URL(BASE+"/dev-data/session/"+id+"/part/"+number));
         try{
-            c.setConnectTimeout(15000);c.setReadTimeout(25000);c.setRequestMethod("POST");c.setDoOutput(true);
-            c.setRequestProperty("apikey",KEY);c.setRequestProperty("Authorization","Bearer "+token);
-            c.setRequestProperty("Content-Type","application/gzip");c.setRequestProperty("x-upsert","false");c.setFixedLengthStreamingMode(file.length());
-            DevNetworkGuard.check(ticket);
-            try(InputStream in=new FileInputStream(file);OutputStream out=c.getOutputStream()){
+            conn.setConnectTimeout(15000);conn.setReadTimeout(30000);conn.setRequestMethod("PUT");conn.setDoOutput(true);
+            conn.setRequestProperty("Authorization","Bearer "+token);
+            conn.setRequestProperty("Content-Type","application/gzip");
+            conn.setRequestProperty("x-yamone-sha256",p.getString("sha256"));
+            conn.setRequestProperty("x-yamone-first-seq",String.valueOf(p.getLong("firstSeq")));
+            conn.setRequestProperty("x-yamone-last-seq",String.valueOf(p.getLong("lastSeq")));
+            conn.setRequestProperty("x-yamone-event-count",String.valueOf(p.getLong("eventCount")));
+            conn.setRequestProperty("x-yamone-first-wall-ms",String.valueOf(p.optLong("firstWallMs",0)));
+            conn.setRequestProperty("x-yamone-last-wall-ms",String.valueOf(p.optLong("lastWallMs",0)));
+            conn.setRequestProperty("x-yamone-reason",p.optString("reason",""));
+            conn.setFixedLengthStreamingMode(file.length());
+            try(InputStream in=new FileInputStream(file);OutputStream out=conn.getOutputStream()){
                 byte[] b=new byte[32768];int n;while((n=in.read(b))!=-1){DevNetworkGuard.check(ticket);out.write(b,0,n);}
             }
-            int status=c.getResponseCode();
-            if(status<200||status>=300){
-                String body="";InputStream err=c.getErrorStream();if(err!=null)try(InputStream e=err){ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] buf=new byte[1024];int n;while(b.size()<4096&&(n=e.read(buf,0,Math.min(buf.length,4096-b.size())))!=-1)b.write(buf,0,n);body=new String(b.toByteArray(),StandardCharsets.UTF_8);}
-                // Storage returns 400 ResourceAlreadyExists in some versions, 409 in others.
-                if(status!=409&&!(status==400&&(body.contains("Duplicate")||body.contains("already exists")||body.contains("ResourceAlreadyExists"))))
-                    throw new IOException("storage_http_"+status+" (테스터 등록·저장 한도·네트워크 확인)");
-            }
-        }finally{DevNetworkGuard.done(c);}
+            JSONObject result=readResponse(conn);
+            if(!result.optBoolean("ok"))throw new IOException("part_upload_failed:"+result.optString("error","unknown"));
+        }finally{DevNetworkGuard.done(conn);}
+    }
+    private static JSONObject requestJson(Context c,String method,String path,JSONObject body,String token,long ticket) throws Exception {
+        DevNetworkGuard.check(ticket);
+        HttpURLConnection conn=DevNetworkGuard.open(new URL(BASE+path));
+        try{
+            conn.setConnectTimeout(15000);conn.setReadTimeout(25000);conn.setRequestMethod(method);conn.setDoOutput(body!=null);
+            conn.setRequestProperty("Content-Type","application/json; charset=utf-8");
+            if(token!=null&&!token.isEmpty())conn.setRequestProperty("Authorization","Bearer "+token);
+            if(body!=null){byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);conn.setFixedLengthStreamingMode(bytes.length);try(OutputStream out=conn.getOutputStream()){DevNetworkGuard.check(ticket);out.write(bytes);}}
+            return readResponse(conn);
+        }finally{DevNetworkGuard.done(conn);}
+    }
+    private static JSONObject readResponse(HttpURLConnection conn) throws Exception {
+        int status=conn.getResponseCode();InputStream in=status>=200&&status<300?conn.getInputStream():conn.getErrorStream();
+        String text="";if(in!=null)try(InputStream src=in;ByteArrayOutputStream out=new ByteArrayOutputStream()){
+            byte[] b=new byte[4096];int n;while((n=src.read(b))!=-1&&out.size()<65536)out.write(b,0,n);text=new String(out.toByteArray(),StandardCharsets.UTF_8);
+        }
+        JSONObject json;try{json=text.isEmpty()?new JSONObject():new JSONObject(text);}catch(Exception e){json=new JSONObject().put("ok",false).put("error","invalid_server_response");}
+        if(status<200||status>=300)throw new IOException("macmini_http_"+status+":"+json.optString("error","unknown"));
+        return json;
     }
     private static void error(Context c,Exception e){String s=e.getMessage();if(s==null)s=e.getClass().getSimpleName();
         DevCaptureService.prefs(c).edit().putString("error",s.substring(0,Math.min(180,s.length()))).apply();}
     public static final class RetryJob extends JobService {
         private volatile Thread worker;
         @Override public boolean onStartJob(JobParameters p){
-            if(!SystemSettingsBridge.isDeveloperMode(this)||!DevCaptureService.prefs(this).getBoolean("paired",false)||!BUSY.compareAndSet(false,true))return false;
+            if(!SystemSettingsBridge.isDeveloperMode(this)||!paired(this)||!BUSY.compareAndSet(false,true))return false;
             IO.execute(()->{worker=Thread.currentThread();boolean retry=false;
                 try{do{AGAIN.set(false);drain(this);}while(AGAIN.get()&&SystemSettingsBridge.isDeveloperMode(this));}
                 catch(Exception e){error(this,e);retry=SystemSettingsBridge.isDeveloperMode(this);}
