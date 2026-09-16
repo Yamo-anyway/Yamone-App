@@ -14,13 +14,16 @@ s = DATASET_JS.read_text(encoding='utf-8')
 s = s.replace("const V='0.36.11'", "const V='0.36.12'")
 DATASET_JS.write_text(s, encoding='utf-8')
 
-# The imported v23 UI still contains its historical 0.00.23 display string.
-# Replace every rendered asset copy after all earlier patches so home/settings/app-info
-# cannot redraw the stale version after the v0.36.x overlay updates it.
+# The imported v23 UI still contains its historical 0.00.23 display string in
+# several text assets. Replace every UTF-8 text copy after all earlier patches
+# so any later redraw of home/settings/app-info cannot restore the stale value.
 for p in ASSETS.rglob('*'):
-    if not p.is_file() or p.suffix.lower() not in {'.js', '.html', '.css'}:
+    if not p.is_file():
         continue
-    text = p.read_text(encoding='utf-8')
+    try:
+        text = p.read_text(encoding='utf-8')
+    except (UnicodeDecodeError, OSError):
+        continue
     new = text.replace('0.00.23', '0.36.12')
     if new != text:
         p.write_text(new, encoding='utf-8')
