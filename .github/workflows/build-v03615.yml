@@ -42,7 +42,9 @@ jobs:
           python3 tools/apply-v03611-macmini-dataset.py
           python3 tools/apply-v03612-final-cleanup.py
           python3 tools/apply-v03613-local-only-user-records.py
+          python3 tools/prep-v03614-systemsettings.py
           python3 tools/apply-v03614-developer-ui-fixes.py
+          python3 tools/post-v03614-systemsettings.py
           python3 tools/apply-v03615-version-sleep-button.py
 
       - name: Validate v0.36.15 fixes
@@ -55,6 +57,7 @@ jobs:
           ! grep -R -q "const V='0.25.03'" app/src/main/assets/yamone-v23
           grep -q "class=\"v03615-dev-upload\"" app/src/main/assets/yamone-v23/v02602-sleep.js
           grep -q ".v03615-dev-upload{" app/src/main/assets/yamone-v23/v02602-sleep.css
+          grep -q "DevCaptureService.disable(activity)" app/src/main/java/com/yamo/snorelab/SystemSettingsBridge.java
           node --check app/src/main/assets/yamone-v23/v02501-ui.js
           node --check app/src/main/assets/yamone-v23/v02602-sleep.js
           node --check app/src/main/assets/yamone-v23/v03610-dataset.js
